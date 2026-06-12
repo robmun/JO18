@@ -598,6 +598,67 @@ function loadState(){
   return defaultState();
 }
 function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e){}}
+
+/* ============ Delen met co-coach ============ */
+function b64uEnc(u8){let s='';for(let i=0;i<u8.length;i++)s+=String.fromCharCode(u8[i]);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+function b64uDec(str){str=str.replace(/-/g,'+').replace(/_/g,'/');while(str.length%4)str+='=';const bin=atob(str);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u;}
+async function ghcDeflate(u8){
+  if(typeof CompressionStream==='undefined')return null;
+  try{
+    const cs=new CompressionStream('deflate-raw');const w=cs.writable.getWriter();
+    await w.write(u8);await w.close();
+    return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+  }catch(e){return null;}
+}
+async function ghcInflate(u8){
+  const ds=new DecompressionStream('deflate-raw');const w=ds.writable.getWriter();
+  await w.write(u8);await w.close();
+  return new Uint8Array(await new Response(ds.readable).arrayBuffer());
+}
+async function shareState(){
+  try{
+    const payload=JSON.stringify({v:1,players:state.players,keeperId:state.keeperId,rules:state.rules,schedule:state.schedule,genHash:state.genHash});
+    const raw=new TextEncoder().encode(payload);
+    const comp=await ghcDeflate(raw);
+    const url=location.origin+location.pathname+'#'+(comp?'s':'r')+'='+b64uEnc(comp||raw);
+    const present=state.players.filter(p=>p.present).length;
+    const text='Wisselplanner \u2014 actuele stand ('+present+' aanwezig). Open de link om over te nemen.';
+    if(navigator.share){
+      try{await navigator.share({title:'Wisselplanner',text:text,url:url});return;}
+      catch(e){if(e&&e.name==='AbortError')return;}
+    }
+    await navigator.clipboard.writeText(text+'\n'+url);
+    toast('Link gekopieerd \u2014 plak hem in de coachgroep');
+  }catch(e){toast('Delen lukte niet');}
+}
+async function importShared(txt){
+  const m=(txt||'').match(/#([sr])=([A-Za-z0-9_\-]+)/);
+  if(!m){toast('Geen geldige deel-link gevonden');return;}
+  try{
+    let u8=b64uDec(m[2]);
+    if(m[1]==='s')u8=await ghcInflate(u8);
+    const inc=JSON.parse(new TextDecoder().decode(u8));
+    if(!inc||!Array.isArray(inc.players))throw 0;
+    const present=inc.players.filter(p=>p.present).length;
+    const nRules=Array.isArray(inc.rules)?inc.rules.length:0;
+    if(!confirm('Gedeelde stand ontvangen: '+present+' spelers aanwezig, '+nRules+' regels'+(inc.schedule?', incl. wisselschema':'')+'.\n\nOvernemen? De huidige stand op dit toestel wordt vervangen.'))return;
+    state={players:inc.players,keeperId:inc.keeperId||'mauk',rules:Array.isArray(inc.rules)?inc.rules:[],schedule:inc.schedule||null,genHash:inc.genHash||null};
+    save();selChip=null;activeTab='spelers';render();window.scrollTo(0,0);
+    toast('Gedeelde stand overgenomen');
+  }catch(e){toast('Deel-link kon niet worden gelezen');}
+}
+async function importSharePrompt(){
+  let txt='';
+  try{if(navigator.clipboard&&navigator.clipboard.readText)txt=await navigator.clipboard.readText();}catch(e){}
+  if(!/#[sr]=/.test(txt||''))txt=prompt('Plak hier de gedeelde link:')||'';
+  if(txt)importShared(txt);
+}
+function checkIncomingShare(){
+  const h=location.hash;
+  if(!/^#[sr]=/.test(h))return;
+  history.replaceState(null,'',location.pathname+location.search);
+  importShared(h);
+}
 function byId(id){return state.players.find(p=>p.id===id);}
 function pName(id){const p=byId(id);return p?p.name:'?';}
 function pNum(id){const p=byId(id);return p&&p.num!==''&&p.num!=null?p.num:'·';}
@@ -660,6 +721,10 @@ function renderSpelers(){
   html+=guests.length?guests.map(p=>playerRow(p)).join(''):`<p class="empty">Nog geen gastspelers.</p>`;
   if(guests.length<2)html+=`<button class="btn ghost full" id="addGuest" style="margin-top:12px">+ Gastspeler toevoegen</button>`;
   html+=`</div>`;
+  html+=`<div class="card"><h2>Delen met co-coach</h2>
+    <button class="btn ghost full" id="shareState">&#128228; Deel actuele stand</button>
+    <button class="btn ghost full" id="importShare" style="margin-top:8px">&#128229; Gedeelde link overnemen&#8230;</button>
+    <p class="hint" style="margin-top:10px">Stuur de link in de coachgroep. De ontvanger tikt op de link, of kopieert hem en kiest hier &quot;Gedeelde link overnemen&quot;. Aanwezigheid, regels en het schema gaan allemaal mee.</p></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Mauk keept standaard de hele wedstrijd (zie <b class="kbadge" style="font-size:10px">K</b>). Een andere keeper? Klap de speler open via &#9662;. Alles wordt automatisch bewaard op dit toestel.</p>`;
   return html;
 }
@@ -715,7 +780,7 @@ function renderRegels(){
   if(t==='noq')html+=`<label class="hint">Kwart</label><select class="sel" id="nrQ" style="margin-bottom:10px"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 7 &middot; 12 juni 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 8 &middot; 12 juni 2026</div>';
   return html;
 }
 
@@ -863,6 +928,10 @@ function bind(v){
     p.prefs=prefs;
     save();render();
   });
+  const sh=v.querySelector('#shareState');
+  if(sh)sh.onclick=shareState;
+  const im=v.querySelector('#importShare');
+  if(im)im.onclick=importSharePrompt;
   const ag=v.querySelector('#addGuest');
   if(ag)ag.onclick=()=>{
     const id='gast'+Date.now();
@@ -1022,6 +1091,7 @@ if(!state.schedule&&state.players.filter(p=>p.present).length>=11){
   try{state.schedule=buildSchedule(state);state.genHash=inputHash(state);save();}catch(e){}
 }
 render();
+checkIncomingShare();
 </script>
 </body>
 </html>
