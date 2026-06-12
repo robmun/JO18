@@ -605,15 +605,19 @@ function b64uDec(str){str=str.replace(/-/g,'+').replace(/_/g,'/');while(str.leng
 async function ghcDeflate(u8){
   if(typeof CompressionStream==='undefined')return null;
   try{
-    const cs=new CompressionStream('deflate-raw');const w=cs.writable.getWriter();
-    await w.write(u8);await w.close();
-    return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+    const cs=new CompressionStream('deflate-raw');
+    const out=new Response(cs.readable).arrayBuffer(); // eerst lezen starten, anders blokkeert schrijven
+    const w=cs.writable.getWriter();
+    w.write(u8);w.close();
+    return new Uint8Array(await out);
   }catch(e){return null;}
 }
 async function ghcInflate(u8){
-  const ds=new DecompressionStream('deflate-raw');const w=ds.writable.getWriter();
-  await w.write(u8);await w.close();
-  return new Uint8Array(await new Response(ds.readable).arrayBuffer());
+  const ds=new DecompressionStream('deflate-raw');
+  const out=new Response(ds.readable).arrayBuffer();
+  const w=ds.writable.getWriter();
+  w.write(u8);w.close();
+  return new Uint8Array(await out);
 }
 async function shareState(){
   try{
@@ -636,7 +640,10 @@ async function importShared(txt){
   if(!m){toast('Geen geldige deel-link gevonden');return;}
   try{
     let u8=b64uDec(m[2]);
-    if(m[1]==='s')u8=await ghcInflate(u8);
+    if(m[1]==='s'){
+      if(typeof DecompressionStream==='undefined'){toast('Deze link vereist een nieuwere iOS-versie');return;}
+      u8=await ghcInflate(u8);
+    }
     const inc=JSON.parse(new TextDecoder().decode(u8));
     if(!inc||!Array.isArray(inc.players))throw 0;
     const present=inc.players.filter(p=>p.present).length;
@@ -780,7 +787,7 @@ function renderRegels(){
   if(t==='noq')html+=`<label class="hint">Kwart</label><select class="sel" id="nrQ" style="margin-bottom:10px"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 8 &middot; 12 juni 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 9 &middot; 12 juni 2026</div>';
   return html;
 }
 
