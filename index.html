@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Wissels">
+<meta name="apple-mobile-web-app-title" content="JO18">
 <meta name="theme-color" content="#0a1b36">
 <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-180.png">
@@ -171,20 +171,24 @@ select,option{font-size:14px}
 .benchcol{display:flex;flex-direction:column;gap:6px;min-width:0}
 .brow{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border-radius:99px;background:rgba(11,24,48,.58);border:1px solid rgba(255,255,255,.24);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .brow .bball{width:32px;height:32px;border-radius:50%;background:linear-gradient(160deg,#21437e,#0e2247);border:1.5px solid rgba(255,255,255,.7);color:#fff;font-weight:800;font-size:12.5px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.brow span{font-size:13px;font-weight:700;color:#eef4ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brow span{font-size:14px;font-weight:700;color:#eef4ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brow.selected{outline:2.5px solid var(--accent);outline-offset:1px}
 .brow:active{transform:scale(.96)}
 .chip{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;z-index:2;width:92px}
+.chip .ball.keeperball{padding:0}
 .chip .ball{
-  width:48px;height:48px;border-radius:50%;
+  width:44px;height:44px;border-radius:50%;
   background:linear-gradient(160deg,#21437e,#0e2247);
-  border:2px solid rgba(255,255,255,.92);color:#fff;font-weight:800;font-size:17.5px;
-  display:flex;align-items:center;justify-content:center;
+  border:2px solid rgba(255,255,255,.92);color:#fff;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;
   box-shadow:0 4px 10px rgba(0,20,10,.45);
 }
+.chip .ball .bk{color:#ff3b3b;font-weight:900;font-size:14px;letter-spacing:.2px}
+.chip .ball .bk.long{font-size:11.5px;letter-spacing:0}
+.chip .ball.keeperball .bk{display:none}
 .chip.kpc .ball{background:linear-gradient(160deg,#e2653f,#b03e1f)}
-.chip .tag{background:rgba(255,255,255,.95);color:#0f2347;font-size:11px;font-weight:800;padding:2px 8px;border-radius:9px;max-width:92px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 2px 6px rgba(0,20,10,.3)}
-.chip .tag .k{color:#3a6cc4;margin-right:3px}
+.chip .tag{background:rgba(255,255,255,.97);color:#0f2347;font-size:13.5px;font-weight:600;letter-spacing:-.1px;padding:2px 9px;border-radius:10px;max-width:94px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 2px 6px rgba(0,20,10,.3)}
+.chip .tag .k{color:#ff2e2e;font-weight:900;margin-right:3px}
 .chip.kpc .tag .k{color:#c14b28}
 .chip .pos{font-size:7.5px;font-weight:700;color:rgba(255,255,255,.85);letter-spacing:.5px;text-transform:uppercase;text-shadow:0 1px 3px rgba(0,0,0,.4)}
 .chip.selected .ball{outline:3px solid var(--accent);outline-offset:2px}
@@ -252,17 +256,20 @@ body.timermode .appbar{display:none}
 /* ---------- Print ---------- */
 #printArea{display:none}
 @media print{
-  @page{size:A4 portrait;margin:6mm}
-  body{background:#fff !important;color:#000;padding:0}
-  .appbar,.tabbar,main,#toast,#a2hs{display:none !important}
+  @page{size:A4 portrait;margin:5mm}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{background:#fff !important;color:#000;padding:0;margin:0}
+  .appbar,.tabbar,main,#toast,#a2hs,#timerHost,#modalHost{display:none !important}
+  body::before,body::after{display:none !important;content:none !important;background:none !important}
   #printArea{display:block;color:#000;font-family:Helvetica,Arial,sans-serif}
-  .phead{font-size:11pt;margin-bottom:2.5mm}
-  .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:3.5mm}
-  .pcell{border:1px solid #999;border-radius:2mm;padding:2.2mm;page-break-inside:avoid;overflow:hidden}
-  .ph{font-size:11pt;font-weight:bold;margin-bottom:1.2mm}
-  .ph span{font-weight:normal;font-size:7.5pt;color:#555}
-  .pf{width:64mm;height:auto;display:block;margin:0 auto}
-  .pw{font-size:7.2pt;line-height:1.4;margin-top:1.3mm}
+  .phead{font-size:10.5pt;margin:0 0 2mm;text-align:center}
+  .pgrid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:3mm;height:272mm}
+  .pcell{border:1px solid #000;border-radius:1.5mm;padding:2mm 2.4mm;page-break-inside:avoid;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+  .ph{font-size:10pt;font-weight:bold;margin-bottom:1mm;flex:0 0 auto}
+  .ph span{font-weight:normal;font-size:7pt;color:#000}
+  .pf{width:auto;max-width:54mm;max-height:74mm;height:auto;display:block;margin:0 auto 1mm;flex:0 0 auto}
+  .pw{font-size:7pt;line-height:1.35;margin-top:.8mm;flex:0 0 auto}
+  .pw b{font-weight:bold}
 }
 @media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
 </style>
@@ -298,16 +305,17 @@ body.timermode .appbar{display:none}
 "use strict";
 //==CORE==
 /* ============ Basisdata ============ */
+const KEEPER_HELM='<svg viewBox="0 0 44 46" width="78%" height="78%" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3c9 0 14.5 6 15 14 .2 3.2-.2 6-1 8.7-.7 2.4-1.5 4.6-1.8 7-.4 3-1.3 5.2-3.4 6.4-2 1.1-4.5 1.4-8.8 1.4s-6.8-.3-8.8-1.4c-2.1-1.2-3-3.4-3.4-6.4-.3-2.4-1.1-4.6-1.8-7-.8-2.7-1.2-5.5-1-8.7C7.5 9 13 3 22 3Z"/><path d="M12.5 9c5.5-2.4 13.5-2.4 19 0"/><ellipse cx="15.5" cy="13" rx="2.4" ry="1.4"/><ellipse cx="28.5" cy="13" rx="2.4" ry="1.4"/><path d="M8.5 20.5c8.5-2.6 18.5-2.6 27 0"/><path d="M10 28c7.5-2 16.5-2 24 0"/><path d="M22 17v19"/><path d="M15 17.5v18"/><path d="M29 17.5v18"/></svg>';
 const POSITIONS=[
   {id:'lv',  name:'Links voor',   kort:'LV',  line:'voor',   x:17,y:40.5},
   {id:'sp',  name:'Spits',        kort:'SP',  line:'voor',   x:50,y:37.5},
   {id:'rv',  name:'Rechts voor',  kort:'RV',  line:'voor',   x:83,y:40.5},
-  {id:'lm',  name:'Links midden', kort:'LM',  line:'midden', x:17,y:57},
+  {id:'lm',  name:'Links midden', kort:'LMi', line:'midden', x:17,y:57},
   {id:'mm',  name:'Midden midden',kort:'MM',  line:'midden', x:50,y:50},
   {id:'rm',  name:'Rechts midden',kort:'RM',  line:'midden', x:83,y:57},
-  {id:'vs',  name:'Voorstopper',  kort:'VS',  line:'achter', x:50,y:66},
+  {id:'vs',  name:'Voorstopper',  kort:'VS',  line:'achter', x:63,y:65},
   {id:'la',  name:'Links achter', kort:'LA',  line:'achter', x:15,y:74.5},
-  {id:'lman',name:'Laatste man',  kort:'LMan',line:'achter', x:50,y:78},
+  {id:'lman',name:'Laatste man',  kort:'LM',  line:'achter', x:37,y:78},
   {id:'ra',  name:'Rechts achter',kort:'RA',  line:'achter', x:85,y:74.5},
 ];
 const POSMAP=Object.fromEntries(POSITIONS.map(p=>[p.id,p]));
@@ -858,7 +866,7 @@ function renderRegels(){
   if(t==='noq')html+=`<label class="hint">Kwart</label><select class="sel" id="nrQ" style="margin-bottom:10px"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 13 &middot; 13 juni 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 21 &middot; 14 juni 2026</div>';
   return html;
 }
 
@@ -930,12 +938,12 @@ function renderQuarter(q){
     const pid=asg0[pos.id];
     if(pid){
       html+=`<div class="chip ${selChip===pid?'selected':''}" data-chip="${pid}" style="left:${pos.x}%;top:${pos.y}%">
-        <div class="ball">${pNum(pid)}</div><div class="tag"><span class="k">${pos.kort}</span>${esc(pName(pid))}</div></div>`;
+        <div class="ball"><span class="bk${pos.kort.length>=4?' long':''}">${pos.kort}</span></div><div class="tag">${esc(pName(pid))}</div></div>`;
     }else{
       html+=`<div class="chip" style="left:${pos.x}%;top:${pos.y}%;opacity:.45"><div class="ball" style="border-style:dashed;background:none">·</div><div class="pos">${pos.kort}</div></div>`;
     }
   }
-  if(keeper)html+=`<div class="chip kpc" style="left:50%;top:91.5%"><div class="ball">${pNum(keeper.id)}</div><div class="tag"><span class="k">K</span>${esc(keeper.name)}</div></div>`;
+  if(keeper)html+=`<div class="chip kpc" style="left:50%;top:91.5%"><div class="ball keeperball">${KEEPER_HELM}</div><div class="tag">${esc(keeper.name)}</div></div>`;
   html+=`</div><p class="hint" style="margin-top:10px">Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor de start van dit kwart.</p></div>`;
   // Wissel bij start van kwart (t.o.v. vorige kwart)
   if(q>0){
@@ -960,8 +968,9 @@ function renderQuarter(q){
 function wisselLines(d){
   let s='';
   for(const ch of d.chains){
-    let line=`<b>${esc(pName(ch.inP))}</b> erin${ch.outP?` voor <b>${esc(pName(ch.outP))}</b>`:''} <span class="posname">— ${POSMAP[ch.pos].name}</span>`;
-    if(ch.moves.length)line+=`; daarmee schuift `+ch.moves.map(m=>`<b>${esc(pName(m.pid))}</b> van ${POSMAP[m.from].name} naar <b>${POSMAP[m.to].name}</b>`).join(' en ');
+    let line=`<b>${esc(pName(ch.inP))}</b> erin op <span class="posname">${POSMAP[ch.pos].name}</span>`;
+    if(ch.outP)line+=` &middot; <b>${esc(pName(ch.outP))}</b> eruit`;
+    if(ch.moves.length)line+=`; daardoor schuift `+ch.moves.map(m=>`<b>${esc(pName(m.pid))}</b> van ${POSMAP[m.from].name} naar <b>${POSMAP[m.to].name}</b>`).join(' en ');
     s+=`<div class="wline"><span class="arr in">&#8645;</span><span>${line}</span></div>`;
   }
   for(const o of d.looseOuts){
@@ -1109,29 +1118,29 @@ function chipTap(pid){
 function printFieldSVG(asg,keeperId){
   const my=y=>((y-35)/65)*78+8;   // eigen helft -> 0..100
   let s=`<svg class="pf" viewBox="0 0 100 104" xmlns="http://www.w3.org/2000/svg">
-  <rect x="1" y="1" width="98" height="102" fill="none" stroke="#555" stroke-width=".7"/>
-  <line x1="1" y1="1.4" x2="99" y2="1.4" stroke="#555" stroke-width="1.1"/>
-  <path d="M27,103 Q50,72 73,103" fill="none" stroke="#999" stroke-width=".5"/>
-  <rect x="44" y="100.6" width="12" height="2.4" fill="#ccc"/>`;
+  <rect x="1" y="1" width="98" height="102" fill="#fff" stroke="#000" stroke-width=".7"/>
+  <line x1="1" y1="1.4" x2="99" y2="1.4" stroke="#000" stroke-width="1"/>
+  <path d="M27,103 Q50,73 73,103" fill="none" stroke="#000" stroke-width=".4"/>
+  <rect x="44" y="100.8" width="12" height="2.2" fill="none" stroke="#000" stroke-width=".5"/>`;
   for(const pos of POSITIONS){
     const pid=asg[pos.id];if(!pid)continue;
     const x=pos.x,y=my(pos.y);
-    s+=`<circle cx="${x}" cy="${y}" r="4.4" fill="#1b2f55"/><text x="${x}" y="${y+1.5}" text-anchor="middle" font-size="4.2" font-weight="700" fill="#fff">${pNum(pid)}</text>
-    <text x="${x}" y="${y+8.2}" text-anchor="middle" font-size="3.6" font-weight="700" fill="#111">${POSMAP[pos.id].kort}&#160;${esc(pName(pid))}</text>`;
+    s+=`<circle cx="${x}" cy="${y}" r="4.4" fill="#fff" stroke="#000" stroke-width="1"/><text x="${x}" y="${y+1.5}" text-anchor="middle" font-size="4.2" font-weight="700" fill="#000">${pNum(pid)}</text>
+    <text x="${x}" y="${y+8.4}" text-anchor="middle" font-size="3.6" font-weight="700" fill="#000">${POSMAP[pos.id].kort}&#160;${esc(pName(pid))}</text>`;
   }
   const k=byId(keeperId);
   if(k){
     const x=50,y=my(93);
-    s+=`<circle cx="${x}" cy="${y}" r="4.4" fill="#b6432a"/><text x="${x}" y="${y+1.5}" text-anchor="middle" font-size="4.2" font-weight="700" fill="#fff">${pNum(k.id)}</text>
-    <text x="${x}" y="${y+8.2}" text-anchor="middle" font-size="3.6" font-weight="700" fill="#111">K&#160;${esc(k.name)}</text>`;
+    s+=`<circle cx="${x}" cy="${y}" r="4.4" fill="#fff" stroke="#000" stroke-width="1.8"/><text x="${x}" y="${y+1.5}" text-anchor="middle" font-size="4.2" font-weight="700" fill="#000">${pNum(k.id)}</text>
+    <text x="${x}" y="${y+8.4}" text-anchor="middle" font-size="3.6" font-weight="700" fill="#000">K&#160;${esc(k.name)}</text>`;
   }
   return s+'</svg>';
 }
 function printChainText(d){
   const parts=[];
   for(const ch of d.chains){
-    let t=`<b>${esc(pName(ch.inP))}</b> erin${ch.outP?` voor <b>${esc(pName(ch.outP))}</b>`:''} (${POSMAP[ch.pos].kort})`;
-    if(ch.moves.length)t+=`; daarmee ${ch.moves.map(m=>`${esc(pName(m.pid))} ${POSMAP[m.from].kort}&#8594;${POSMAP[m.to].kort}`).join(', ')}`;
+    let t=`<b>${esc(pName(ch.inP))}</b> erin op ${POSMAP[ch.pos].kort}${ch.outP?` &middot; <b>${esc(pName(ch.outP))}</b> eruit`:''}`;
+    if(ch.moves.length)t+=`; daardoor ${ch.moves.map(m=>`${esc(pName(m.pid))} ${POSMAP[m.from].kort}&#8594;${POSMAP[m.to].kort}`).join(', ')}`;
     parts.push(t);
   }
   for(const o of d.looseOuts)parts.push(`<b>${esc(pName(o.pid))}</b> eruit (${POSMAP[o.pos].kort})`);
