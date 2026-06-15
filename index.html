@@ -188,7 +188,6 @@ select,option{font-size:14px}
 .chip .ball.keeperball .bk{display:none}
 .chip .tag{background:rgba(255,255,255,.97);color:#0f2347;font-size:13.5px;font-weight:600;letter-spacing:-.1px;padding:2px 9px;border-radius:10px;max-width:94px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 2px 6px rgba(0,20,10,.3)}
 .chip .tag .k{color:#ff2e2e;font-weight:900;margin-right:3px}
-.chip.kpc .tag .k{color:#c14b28}
 .chip .pos{font-size:7.5px;font-weight:700;color:rgba(255,255,255,.85);letter-spacing:.5px;text-transform:uppercase;text-shadow:0 1px 3px rgba(0,0,0,.4)}
 .chip.selected .ball{outline:3px solid var(--accent);outline-offset:2px}
 .chip:active .ball{transform:scale(.93)}
@@ -796,7 +795,7 @@ function prefSummary(p){
 }
 function renderSpelers(){
   const guests=state.players.filter(p=>p.guest);
-  const regular=state.players.filter(p=>!p.guest);
+  const regular=state.players.filter(p=>!p.guest).slice().sort((a,b)=>a.name.localeCompare(b.name,'nl',{sensitivity:'base'}));
   const presentCount=state.players.filter(p=>p.present).length;
   let html='';
   html+=`<div class="card"><h2>Selectie <span class="sub">${presentCount} aanwezig</span></h2>`;
@@ -810,7 +809,7 @@ function renderSpelers(){
     <button class="btn ghost full" id="shareState">&#128228; Deel actuele stand</button>
     <button class="btn ghost full" id="importShare" style="margin-top:8px">&#128229; Gedeelde link overnemen&#8230;</button>
     <p class="hint" style="margin-top:10px">Stuur de link in de coachgroep. De ontvanger tikt op de link, of kopieert hem en kiest hier &quot;Gedeelde link overnemen&quot;. Aanwezigheid, regels en het schema gaan allemaal mee.</p></div>`;
-  html+=`<p class="hint" style="padding:0 6px 10px">Mauk keept standaard de hele wedstrijd (zie <b class="kbadge" style="font-size:10px">K</b>). Een andere keeper? Klap de speler open via &#9662;. Alles wordt automatisch bewaard op dit toestel.</p>`;
+  html+=`<p class="hint" style="padding:0 6px 10px">Mauk keept standaard de hele wedstrijd. Een andere keeper? Klap de speler open via &#9662;. Alles wordt automatisch bewaard op dit toestel.</p>`;
   return html;
 }
 function dupNum(p){return p.num!==''&&p.num!=null&&state.players.filter(x=>x.num===p.num).length>1;}
@@ -821,7 +820,7 @@ function playerRow(p){
     <input class="num${dupNum(p)?' dupe':''}" type="number" inputmode="numeric" data-act="num" data-id="${p.id}" value="${p.num??''}" aria-label="Rugnummer">
     <div class="pname">${p.guest
       ?`<input type="text" data-act="name" data-id="${p.id}" value="${esc(p.name)}" placeholder="Naam gast">`
-      :`<b>${esc(p.name)}${p.id===state.keeperId?' <span class="kbadge">K</span>':''}</b>`}<span>${prefSummary(p)}</span></div>
+      :`<b>${esc(p.name)}</b>`}<span>${p.id===state.keeperId?'keeper':prefSummary(p)}</span></div>
     ${p.guest?`<button class="chev" data-act="delguest" data-id="${p.id}" aria-label="Verwijderen" style="color:#ffb39e">&#10005;</button>`:''}
     <button class="chev" data-act="expand" data-id="${p.id}" aria-label="Posities aanpassen">${open?'&#9652;':'&#9662;'}</button>
   </div>`;
@@ -866,7 +865,7 @@ function renderRegels(){
   if(t==='noq')html+=`<label class="hint">Kwart</label><select class="sel" id="nrQ" style="margin-bottom:10px"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 23 &middot; 15 juni 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 24 &middot; 15 juni 2026</div>';
   return html;
 }
 
