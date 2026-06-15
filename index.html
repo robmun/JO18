@@ -254,20 +254,20 @@ body.timermode .appbar{display:none}
 /* ---------- Print ---------- */
 #printArea{display:none}
 @media print{
-  @page{size:A4 portrait;margin:5mm}
-  html,body{width:200mm;height:287mm}
+  @page{size:A4 portrait;margin:4mm}
+  html,body{width:202mm;height:289mm}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body{background:#fff !important;color:#000;padding:0;margin:0}
   .appbar,.tabbar,main,#toast,#a2hs,#timerHost,#modalHost{display:none !important}
   body::before,body::after{display:none !important;content:none !important;background:none !important}
-  #printArea{display:block;color:#000;font-family:Helvetica,Arial,sans-serif;height:287mm;overflow:hidden}
-  .phead{font-size:10.5pt;margin:0 0 2mm;text-align:center}
+  #printArea{display:block;color:#000;font-family:Helvetica,Arial,sans-serif;height:289mm;overflow:hidden}
+  .phead{font-size:11pt;margin:0 0 2mm;text-align:center}
   .pgrid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:139mm 139mm;gap:3mm;height:281mm}
-  .pcell{border:1px solid #000;border-radius:1.5mm;padding:2mm 2.4mm;overflow:hidden;display:flex;flex-direction:column;height:139mm;box-sizing:border-box}
-  .ph{font-size:10pt;font-weight:bold;margin-bottom:1mm;flex:0 0 auto}
-  .ph span{font-weight:normal;font-size:7pt;color:#000}
-  .pf{width:auto;max-width:46mm;max-height:62mm;height:auto;display:block;margin:0 auto 1mm;flex:0 0 auto}
-  .pw{font-size:7.4pt;line-height:1.32;margin-top:.8mm;flex:0 0 auto}
+  .pcell{border:1px solid #000;border-radius:1.5mm;padding:2.4mm 2.8mm;overflow:hidden;display:flex;flex-direction:column;height:139mm;box-sizing:border-box}
+  .ph{font-size:11pt;font-weight:bold;margin-bottom:1.5mm;flex:0 0 auto}
+  .ph span{font-weight:normal;font-size:8pt;color:#000}
+  .pf{width:auto;max-width:56mm;max-height:70mm;height:auto;display:block;margin:0 auto 1.5mm;flex:0 0 auto}
+  .pw{font-size:8.6pt;line-height:1.38;margin-top:1mm;flex:0 0 auto}
   .pw b{font-weight:bold}
 }
 @media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
@@ -306,12 +306,12 @@ body.timermode .appbar{display:none}
 /* ============ Basisdata ============ */
 const KEEPER_HELM='<svg viewBox="0 0 44 46" width="78%" height="78%" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3c9 0 14.5 6 15 14 .2 3.2-.2 6-1 8.7-.7 2.4-1.5 4.6-1.8 7-.4 3-1.3 5.2-3.4 6.4-2 1.1-4.5 1.4-8.8 1.4s-6.8-.3-8.8-1.4c-2.1-1.2-3-3.4-3.4-6.4-.3-2.4-1.1-4.6-1.8-7-.8-2.7-1.2-5.5-1-8.7C7.5 9 13 3 22 3Z"/><path d="M12.5 9c5.5-2.4 13.5-2.4 19 0"/><ellipse cx="15.5" cy="13" rx="2.4" ry="1.4"/><ellipse cx="28.5" cy="13" rx="2.4" ry="1.4"/><path d="M8.5 20.5c8.5-2.6 18.5-2.6 27 0"/><path d="M10 28c7.5-2 16.5-2 24 0"/><path d="M22 17v19"/><path d="M15 17.5v18"/><path d="M29 17.5v18"/></svg>';
 const POSITIONS=[
-  {id:'lv',  name:'Links voor',   kort:'LV',  line:'voor',   x:13,y:40.5},
-  {id:'sp',  name:'Spits',        kort:'SP',  line:'voor',   x:50,y:38},
-  {id:'rv',  name:'Rechts voor',  kort:'RV',  line:'voor',   x:87,y:40.5},
-  {id:'lm',  name:'Links midden', kort:'LMi', line:'midden', x:17,y:55},
-  {id:'mm',  name:'Midden midden',kort:'MM',  line:'midden', x:50,y:56},
-  {id:'rm',  name:'Rechts midden',kort:'RM',  line:'midden', x:83,y:55},
+  {id:'lv',  name:'Links voor',   kort:'LV',  line:'voor',   x:13,y:46},
+  {id:'sp',  name:'Spits',        kort:'SP',  line:'voor',   x:50,y:43.5},
+  {id:'rv',  name:'Rechts voor',  kort:'RV',  line:'voor',   x:87,y:46},
+  {id:'lm',  name:'Links midden', kort:'LMi', line:'midden', x:17,y:61},
+  {id:'mm',  name:'Midden midden',kort:'MM',  line:'midden', x:50,y:62},
+  {id:'rm',  name:'Rechts midden',kort:'RM',  line:'midden', x:83,y:61},
   {id:'vs',  name:'Voorstopper',  kort:'VS',  line:'achter', x:59,y:76},
   {id:'la',  name:'Links achter', kort:'LA',  line:'achter', x:11,y:79},
   {id:'lman',name:'Laatste man',  kort:'LMa', line:'achter', x:41,y:76},
@@ -865,7 +865,7 @@ function renderRegels(){
   if(t==='noq')html+=`<label class="hint">Kwart</label><select class="sel" id="nrQ" style="margin-bottom:10px"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 24 &middot; 15 juni 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 25 &middot; 15 juni 2026</div>';
   return html;
 }
 
