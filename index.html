@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="JO18">
+<meta name="apple-mobile-web-app-title" content="JO18-5">
 <meta name="theme-color" content="#0a1b36">
 <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-180.png">
@@ -686,17 +686,26 @@ async function importShared(txt){
   }catch(e){toast('Deel-link kon niet worden gelezen');}
 }
 async function importSharePrompt(){
+  // Probeer eerst automatisch van het klembord (lukt niet op elk toestel)
   let txt='';
   try{if(navigator.clipboard&&navigator.clipboard.readText)txt=await navigator.clipboard.readText();}catch(e){}
   if(/#[sr]=/.test(txt||'')){importShared(txt);return;}
-  inputDialog({title:'Gedeelde link overnemen',body:'Plak hier de link die je in de coachgroep hebt gekregen.',placeholder:'https://…#s=…',okLabel:'Overnemen',onOk:v=>{if(v&&v.trim())importShared(v.trim());}});
+  // Anders: betrouwbare invoer via dialoog (plakken werkt daar altijd)
+  inputDialog({title:'Gedeelde link overnemen',body:'Plak hier de link uit de coachgroep (houd het tekstvak ingedrukt → Plakken).',placeholder:'https://…#s=…',okLabel:'Overnemen',onOk:v=>{
+    v=(v||'').trim();
+    if(!v){toast('Geen link geplakt');return;}
+    if(!/#[sr]=/.test(v)){toast('Dit lijkt geen geldige deel-link');return;}
+    importShared(v);
+  }});
 }
 function checkIncomingShare(){
   const h=location.hash;
   if(!/^#[sr]=/.test(h))return;
+  const data=h;
   history.replaceState(null,'',location.pathname+location.search);
-  importShared(h);
+  importShared(data);
 }
+window.addEventListener('hashchange',checkIncomingShare);
 function byId(id){return state.players.find(p=>p.id===id);}
 function pName(id){const p=byId(id);return p?p.name:'?';}
 function pNum(id){const p=byId(id);return p&&p.num!==''&&p.num!=null?p.num:'·';}
@@ -865,7 +874,7 @@ function renderRegels(){
   if(t==='noq')html+=`<label class="hint">Kwart</label><select class="sel" id="nrQ" style="margin-bottom:10px"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 25 &middot; 15 juni 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 27 &middot; 15 juni 2026</div>';
   return html;
 }
 
