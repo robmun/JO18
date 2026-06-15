@@ -256,18 +256,19 @@ body.timermode .appbar{display:none}
 #printArea{display:none}
 @media print{
   @page{size:A4 portrait;margin:5mm}
+  html,body{width:200mm;height:287mm}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body{background:#fff !important;color:#000;padding:0;margin:0}
   .appbar,.tabbar,main,#toast,#a2hs,#timerHost,#modalHost{display:none !important}
   body::before,body::after{display:none !important;content:none !important;background:none !important}
-  #printArea{display:block;color:#000;font-family:Helvetica,Arial,sans-serif}
+  #printArea{display:block;color:#000;font-family:Helvetica,Arial,sans-serif;height:287mm;overflow:hidden}
   .phead{font-size:10.5pt;margin:0 0 2mm;text-align:center}
-  .pgrid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:3mm;height:272mm}
-  .pcell{border:1px solid #000;border-radius:1.5mm;padding:2mm 2.4mm;page-break-inside:avoid;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+  .pgrid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:139mm 139mm;gap:3mm;height:281mm}
+  .pcell{border:1px solid #000;border-radius:1.5mm;padding:2mm 2.4mm;overflow:hidden;display:flex;flex-direction:column;height:139mm;box-sizing:border-box}
   .ph{font-size:10pt;font-weight:bold;margin-bottom:1mm;flex:0 0 auto}
   .ph span{font-weight:normal;font-size:7pt;color:#000}
-  .pf{width:auto;max-width:54mm;max-height:74mm;height:auto;display:block;margin:0 auto 1mm;flex:0 0 auto}
-  .pw{font-size:7pt;line-height:1.35;margin-top:.8mm;flex:0 0 auto}
+  .pf{width:auto;max-width:46mm;max-height:62mm;height:auto;display:block;margin:0 auto 1mm;flex:0 0 auto}
+  .pw{font-size:7.4pt;line-height:1.32;margin-top:.8mm;flex:0 0 auto}
   .pw b{font-weight:bold}
 }
 @media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
@@ -312,10 +313,10 @@ const POSITIONS=[
   {id:'lm',  name:'Links midden', kort:'LMi', line:'midden', x:17,y:55},
   {id:'mm',  name:'Midden midden',kort:'MM',  line:'midden', x:50,y:56},
   {id:'rm',  name:'Rechts midden',kort:'RM',  line:'midden', x:83,y:55},
-  {id:'vs',  name:'Voorstopper',  kort:'VS',  line:'achter', x:62,y:70},
-  {id:'la',  name:'Links achter', kort:'LA',  line:'achter', x:11,y:77.5},
-  {id:'lman',name:'Laatste man',  kort:'LMa', line:'achter', x:32,y:81},
-  {id:'ra',  name:'Rechts achter',kort:'RA',  line:'achter', x:89,y:77.5},
+  {id:'vs',  name:'Voorstopper',  kort:'VS',  line:'achter', x:59,y:76},
+  {id:'la',  name:'Links achter', kort:'LA',  line:'achter', x:11,y:79},
+  {id:'lman',name:'Laatste man',  kort:'LMa', line:'achter', x:41,y:76},
+  {id:'ra',  name:'Rechts achter',kort:'RA',  line:'achter', x:89,y:79},
 ];
 const POSMAP=Object.fromEntries(POSITIONS.map(p=>[p.id,p]));
 const LINES={voor:'voorste linie',midden:'middenlinie',achter:'achterste linie'};
@@ -865,7 +866,7 @@ function renderRegels(){
   if(t==='noq')html+=`<label class="hint">Kwart</label><select class="sel" id="nrQ" style="margin-bottom:10px"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 22 &middot; 15 juni 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 23 &middot; 15 juni 2026</div>';
   return html;
 }
 
