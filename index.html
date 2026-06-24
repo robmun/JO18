@@ -161,6 +161,7 @@ select,option{font-size:var(--fs-base)}
   border:1px solid var(--stroke);border-radius:var(--r-sm);color:var(--txt);padding:9px 26px 9px 10px;font-weight:600;
 }
 .dim-row{opacity:.4}
+.sel.lockedalt,.sel:disabled{opacity:.4;cursor:not-allowed}
 .num.dupe{border-color:rgba(255,140,90,.85);background:rgba(255,120,70,.16)}
 /* ---------- Regels ---------- */
 .rule{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:var(--r-md);padding:11px 12px;margin-bottom:8px;font-size:13.5px;line-height:1.4}
@@ -344,7 +345,7 @@ function defaultPlayers(){return [
   {id:'seb',     name:'Seb',     num:16, prefs:['lv','rv','sp'],  present:true, guest:false},
   {id:'thijo',   name:'Thijo',   num:13, prefs:['lm','lv','sp'],  present:true, guest:false},
   {id:'tom',     name:'Tom',     num:11, prefs:['vs','rm','ra'],  present:true, guest:false},
-  {id:'mauk',    name:'Mauk',    num:1,  prefs:[],                present:true, guest:false, isKeeper:true},
+  {id:'mauk',    name:'Mauk',    num:1,  prefs:['keeper','',''],  present:true, guest:false, isKeeper:true},
 ];}
 function defaultRules(){return [
   {id:'r1',type:'half',   p1:'hidde', half:1},
@@ -806,7 +807,7 @@ function renderTabbar(){
 
 /* ============ Tab: Spelers ============ */
 function prefSummary(p){
-  if(p.id===state.keeperId)return 'Keeper';
+  if(p.prefs&&p.prefs[0]==='keeper')return '\uD83E\uDDE4 Keeper';
   const parts=(p.prefs||[]).filter(Boolean).map((x,i)=>POSMAP[x]?POSMAP[x].kort:'').filter(Boolean);
   return parts.length?parts.join(' · '):'Geen voorkeur';
 }
@@ -837,17 +838,20 @@ function playerRow(p){
     <input class="num${dupNum(p)?' dupe':''}" type="number" inputmode="numeric" data-act="num" data-id="${p.id}" value="${p.num??''}" aria-label="Rugnummer">
     <div class="pname">${p.guest
       ?`<input type="text" data-act="name" data-id="${p.id}" value="${esc(p.name)}" placeholder="Naam gast">`
-      :`<b>${esc(p.name)}</b>`}<span>${p.id===state.keeperId?'keeper':prefSummary(p)}</span></div>
+      :`<b>${esc(p.name)}</b>`}<span>${prefSummary(p)}</span></div>
     ${p.guest?`<button class="chev" data-act="delguest" data-id="${p.id}" aria-label="Verwijderen" style="color:#ffb39e">&#10005;</button>`:''}
     <button class="chev" data-act="expand" data-id="${p.id}" aria-label="Posities aanpassen">${open?'&#9652;':'&#9662;'}</button>
   </div>`;
   if(open){
     const opts=(sel)=>`<option value="">—</option>`+POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.name}</option>`).join('');
+    // Eerste voorkeur kan óók 'Keeper' zijn (alleen hier, niet als alternatief).
+    const optsK=(sel)=>`<option value="">—</option><option value="keeper" ${sel==='keeper'?'selected':''}>&#129508; Keeper</option>`+POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.name}</option>`).join('');
+    const isK=p.prefs[0]==='keeper';
     row+=`<div class="editpane"><div class="frow">
-      <label>Voorkeur<select class="sel" data-act="pref" data-i="0" data-id="${p.id}">${opts(p.prefs[0])}</select></label>
-      <label>Alternatief 1<select class="sel" data-act="pref" data-i="1" data-id="${p.id}">${opts(p.prefs[1])}</select></label>
-      <label>Alternatief 2<select class="sel" data-act="pref" data-i="2" data-id="${p.id}">${opts(p.prefs[2])}</select></label>
-    </div>${p.id!==state.keeperId?`<button class="btn ghost small" data-act="keeper" data-id="${p.id}" style="margin-top:10px">Maak ${esc(p.name)} keeper voor deze wedstrijd</button>`:''}</div>`;
+      <label>Voorkeur<select class="sel" data-act="pref" data-i="0" data-id="${p.id}">${optsK(p.prefs[0])}</select></label>
+      <label>Alternatief 1<select class="sel ${isK?'lockedalt':''}" data-act="pref" data-i="1" data-id="${p.id}" ${isK?'disabled':''}>${opts(p.prefs[1])}</select></label>
+      <label>Alternatief 2<select class="sel ${isK?'lockedalt':''}" data-act="pref" data-i="2" data-id="${p.id}" ${isK?'disabled':''}>${opts(p.prefs[2])}</select></label>
+    </div>${isK?`<p class="hint" style="margin-top:8px">&#129508; Deze speler is de keeper: staat de hele wedstrijd op doel en telt niet mee in de veldwissels.</p>`:''}</div>`;
   }
   return row;
 }
@@ -882,7 +886,7 @@ function renderRegels(){
   if(t==='noq')html+=`<label class="hint">Kwart</label><select class="sel" id="nrQ" style="margin-bottom:10px"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 29 &middot; 15 juni 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 30 &middot; 24 juni 2026</div>';
   return html;
 }
 
@@ -893,8 +897,15 @@ function ensureSchedule(){
 }
 function regenerate(){
   const present=state.players.filter(p=>p.present);
-  if(present.length<11){toast('Minimaal 11 aanwezige spelers nodig');return;}
-  if(!present.find(p=>p.id===state.keeperId)){state.keeperId=present[0].id;}
+  // Keeper = de speler met 'Keeper' als eerste voorkeur. Precies één, en aanwezig.
+  const keepers=state.players.filter(p=>p.prefs&&p.prefs[0]==='keeper');
+  if(keepers.length===0){toast('Geen keeper gekozen — geef één speler ‘Keeper’ als eerste voorkeur');activeTab='spelers';render();return;}
+  if(keepers.length>1){toast('Er zijn meerdere keepers — er mag er maar één zijn');activeTab='spelers';render();return;}
+  const keeper=keepers[0];
+  state.keeperId=keeper.id;
+  if(!keeper.present){toast('De keeper ('+esc(keeper.name)+') staat op afwezig — wijs een andere keeper aan');activeTab='spelers';render();return;}
+  // 10 veldspelers + keeper = 11 aanwezigen minimaal
+  if(present.length<11){toast('Minimaal 11 aanwezige spelers nodig (incl. keeper)');return;}
   state.schedule=buildSchedule(state);
   state.genHash=inputHash(state);
   save();render();
@@ -1049,14 +1060,8 @@ function render(){
 function bind(v){
   v.querySelectorAll('[data-regen]').forEach(b=>b.onclick=regenerate);
   v.querySelectorAll('[data-goplayers]').forEach(b=>b.onclick=()=>{activeTab='spelers';render();window.scrollTo(0,0);});
-  v.querySelectorAll('[data-act="keeper"]').forEach(el=>el.onclick=()=>{
-    const p=byId(el.dataset.id);
-    if(!p.present){toast(p.name+' staat op afwezig');return;}
-    state.keeperId=p.id;save();render();toast(p.name+' keept de hele wedstrijd');
-  });
   v.querySelectorAll('[data-act="present"]').forEach(el=>el.onchange=e=>{
     const p=byId(el.dataset.id);p.present=e.target.checked;
-    if(!p.present&&p.id===state.keeperId){const alt=state.players.find(x=>x.present&&x.id!==p.id);if(alt)state.keeperId=alt.id;}
     save();render();
   });
   v.querySelectorAll('[data-act="num"]').forEach(el=>el.onchange=e=>{
@@ -1080,7 +1085,21 @@ function bind(v){
   });
   v.querySelectorAll('[data-act="pref"]').forEach(el=>el.onchange=e=>{
     const p=byId(el.dataset.id);const i=Number(el.dataset.i);
-    const prefs=[p.prefs[0]||'',p.prefs[1]||'',p.prefs[2]||''];prefs[i]=e.target.value;
+    const val=e.target.value;
+    // 'Keeper' kan alleen als eerste voorkeur en maar bij één speler tegelijk.
+    if(i===0 && val==='keeper'){
+      // haal keeper-rol weg bij een eventuele andere speler
+      state.players.forEach(o=>{ if(o.id!==p.id && o.prefs && o.prefs[0]==='keeper'){ o.prefs[0]=''; } });
+      p.prefs=['keeper','',''];           // keeper heeft geen veld-alternatieven
+      state.keeperId=p.id;
+      save();render();toast(esc(p.name)+' is nu de keeper');
+      return;
+    }
+    // stond deze speler op keeper en kiest nu iets anders als 1e voorkeur?
+    if(i===0 && p.prefs[0]==='keeper' && val!=='keeper'){
+      if(state.keeperId===p.id) state.keeperId=null;
+    }
+    const prefs=[p.prefs[0]||'',p.prefs[1]||'',p.prefs[2]||''];prefs[i]=val;
     p.prefs=prefs;
     save();render();
   });
