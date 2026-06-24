@@ -695,6 +695,22 @@ function loadState(){
 }
 function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e){}}
 
+/* ============ Ongedaan maken (één stap terug) ============ */
+let _undo=null;        // bewaarde momentopname van het schema vóór een actie
+let _undoLabel='';
+function snapshot(label){
+  // bewaar alleen het schema-deel (opstelling/wissels); spelers en regels blijven leidend
+  try{ _undo=state.schedule?JSON.parse(JSON.stringify(state.schedule)):null; _undoLabel=label||''; }catch(e){ _undo=null; }
+}
+function canUndo(){return _undo!==undefined && _undo!==null || _undoLabel!=='';}
+function doUndo(){
+  if(!_undoLabel){toast('Niets om ongedaan te maken');return;}
+  state.schedule=_undo?JSON.parse(JSON.stringify(_undo)):null;
+  _undo=null;_undoLabel='';
+  selChip=null;save();render();sendSwapTimesToTimer();
+  toast('Ongedaan gemaakt');
+}
+
 /* ============ Delen met co-coach ============ */
 function b64uEnc(u8){let s='';for(let i=0;i<u8.length;i++)s+=String.fromCharCode(u8[i]);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
 function b64uDec(str){str=str.replace(/-/g,'+').replace(/_/g,'/');while(str.length%4)str+='=';const bin=atob(str);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u;}
@@ -777,6 +793,41 @@ function checkIncomingShare(){
   importShared(data);
 }
 window.addEventListener('hashchange',checkIncomingShare);
+
+/* ============ Back-up: opslaan naar / herstellen uit bestand ============ */
+async function backupExport(){
+  try{
+    const payload=JSON.stringify({v:1,players:state.players,keeperId:state.keeperId,rules:state.rules,schedule:state.schedule,genHash:state.genHash});
+    const raw=new TextEncoder().encode(payload);
+    const comp=await ghcDeflate(raw);
+    const code=(comp?'s=':'r=')+b64uEnc(comp||raw);
+    // bestand: eerste regel uitleg, tweede regel de code
+    const fileText='Wisselplanner back-up — open de app, kies "Herstel uit back-up" en plak of kies dit bestand.\n#'+code+'\n';
+    const blob=new Blob([fileText],{type:'text/plain'});
+    const d=new Date();
+    const stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='wisselplanner-backup-'+stamp+'.txt';
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+    toast('Back-up opgeslagen als bestand');
+  }catch(e){toast('Back-up maken lukte niet');}
+}
+function backupImportPrompt(){
+  // Twee manieren: een bestand kiezen, of de code plakken (werkt overal).
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='.txt,text/plain';
+  inp.onchange=()=>{
+    const f=inp.files&&inp.files[0];
+    if(!f){return;}
+    const rd=new FileReader();
+    rd.onload=()=>{const m=String(rd.result||'').match(/#[sr]=[A-Za-z0-9_\-]+/);if(m)importShared(m[0]);else toast('Geen geldige back-up in dit bestand');};
+    rd.readAsText(f);
+  };
+  inp.click();
+}
+
 function byId(id){return state.players.find(p=>p.id===id);}
 function pName(id){const p=byId(id);return p?p.name:'?';}
 function pNum(id){const p=byId(id);return p&&p.num!==''&&p.num!=null?p.num:'·';}
@@ -893,7 +944,11 @@ function renderSpelers(){
     <button class="btn ghost full" id="shareState">&#128228; Deel actuele stand</button>
     <button class="btn ghost full" id="importShare" style="margin-top:8px">&#128229; Gedeelde link overnemen&#8230;</button>
     <p class="hint" style="margin-top:10px">Stuur de link in de coachgroep. De ontvanger tikt op de link, of kopieert hem en kiest hier &quot;Gedeelde link overnemen&quot;. Aanwezigheid, regels en het schema gaan allemaal mee.</p></div>`;
-  html+=`<p class="hint" style="padding:0 6px 10px">Mauk keept standaard de hele wedstrijd. Een andere keeper? Klap de speler open via &#9662;. Alles wordt automatisch bewaard op dit toestel.</p>`;
+  html+=`<div class="card"><h2>Back-up</h2>
+    <button class="btn ghost full" id="backupExport">&#128190; Opslaan als back-upbestand</button>
+    <button class="btn ghost full" id="backupImport" style="margin-top:8px">&#128194; Herstel uit back-up&#8230;</button>
+    <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p></div>`;
+  html+=`<p class="hint" style="padding:0 6px 10px">Keeper instellen? Geef &#233;&#233;n speler &#39;Keeper&#39; als eerste voorkeur via &#9662;. Alles wordt automatisch bewaard op dit toestel.</p>`;
   return html;
 }
 function dupNum(p){return p.num!==''&&p.num!=null&&state.players.filter(x=>x.num===p.num).length>1;}
@@ -960,7 +1015,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 31 &middot; 24 juni 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 32 &middot; 24 juni 2026</div>';
   return html;
 }
 
@@ -968,6 +1023,50 @@ function renderRegels(){
 function ensureSchedule(){
   if(!state.schedule)return false;
   return true;
+}
+// Spoor regels op die elkaar (mogelijk) tegenspreken, zodat de coach weet waarom
+// een schema soms niet doet wat hij verwacht.
+function detectRuleConflicts(){
+  const R=state.rules||[];
+  const nm=id=>pName(id);
+  const present=id=>{const p=byId(id);return p&&p.present;};
+  const out=[];
+  const byPlayer={};
+  R.forEach(r=>{ if(r.p1){(byPlayer[r.p1]=byPlayer[r.p1]||[]).push(r);} });
+  for(const pid in byPlayer){
+    const rs=byPlayer[pid];
+    const lineOf=pos=>POSMAP[pos]?POSMAP[pos].line:null;
+    const fixedPos=rs.filter(r=>r.type==='pos').map(r=>r.pos);
+    const fixedLine=rs.filter(r=>r.type==='line').map(r=>r.line);
+    const noLine=rs.filter(r=>r.type==='noline').map(r=>r.line);
+    // vaste positie botst met 'nooit in die linie'
+    fixedPos.forEach(pos=>{ if(noLine.includes(lineOf(pos))) out.push(`${nm(pid)} moet altijd ${POSMAP[pos].name.toLowerCase()} spelen, maar mag niet in de ${LINES[lineOf(pos)]} — die regels botsen.`); });
+    // vaste linie botst met 'nooit in die linie'
+    fixedLine.forEach(l=>{ if(noLine.includes(l)) out.push(`${nm(pid)} moet altijd én nooit in de ${LINES[l]} spelen — die regels botsen.`); });
+    // vaste positie + vaste (andere) linie
+    fixedPos.forEach(pos=>{ fixedLine.forEach(l=>{ if(lineOf(pos)!==l) out.push(`${nm(pid)} heeft een vaste positie (${POSMAP[pos].name.toLowerCase()}) én een andere vaste linie (${LINES[l]}) — die botsen.`); }); });
+    // twee verschillende vaste posities
+    if(new Set(fixedPos).size>1) out.push(`${nm(pid)} heeft meerdere vaste posities — alleen de eerste kan gelden.`);
+    // keeper + veldregels
+    const p=byId(pid);
+    if(p&&p.prefs&&p.prefs[0]==='keeper'&&rs.some(r=>['pos','line','noline','rotate','minutes','start'].includes(r.type)))
+      out.push(`${nm(pid)} is keeper; veldregels (positie, linie, minuten) hebben voor de keeper geen effect.`);
+    // min > max minuten
+    const mins=rs.filter(r=>r.type==='minutes'&&r.mm==='min').map(r=>r.min);
+    const maxs=rs.filter(r=>r.type==='minutes'&&r.mm==='max').map(r=>r.min);
+    if(mins.length&&maxs.length&&Math.max(...mins)>Math.min(...maxs))
+      out.push(`${nm(pid)} heeft een minimum (${Math.max(...mins)} min) dat hoger ligt dan zijn maximum (${Math.min(...maxs)} min).`);
+    // alleen-één-helft + max te laag om de helft te vullen
+    const halfR=rs.find(r=>r.type==='half');
+    if(halfR&&maxs.length&&Math.min(...maxs)<17) out.push(`${nm(pid)} speelt maar één helft én heeft een laag maximum — mogelijk weinig speeltijd.`);
+  }
+  // rotate: een speler in twee verschillende rotatieparen
+  const inRot={};
+  R.filter(r=>r.type==='rotate').forEach(r=>{[r.p1,r.p2].forEach(id=>{inRot[id]=(inRot[id]||0)+1;});});
+  for(const id in inRot){ if(inRot[id]>1) out.push(`${nm(id)} zit in meerdere afwissel-paren — dat kan niet tegelijk.`); }
+  // afwezige spelers met regels
+  R.forEach(r=>{ if(r.p1&&!present(r.p1)&&byId(r.p1)) { /* stille regel: afwezig telt toch niet mee */ } });
+  return out.filter((x,i)=>out.indexOf(x)===i);
 }
 function regenerate(){
   const present=state.players.filter(p=>p.present);
@@ -980,13 +1079,48 @@ function regenerate(){
   if(!keeper.present){toast('De keeper ('+esc(keeper.name)+') staat op afwezig — wijs een andere keeper aan');activeTab='spelers';render();return;}
   // 10 veldspelers + keeper = 11 aanwezigen minimaal
   if(present.length<11){toast('Minimaal 11 aanwezige spelers nodig (incl. keeper)');return;}
+  snapshot('genereren');
   state.schedule=buildSchedule(state);
   state.genHash=inputHash(state);
+  const conflicts=detectRuleConflicts();
   save();render();
   sendSwapTimesToTimer();
-  toast(state.schedule.perQ===3?'Schema gemaakt — 2 wissels per kwart voor eerlijke minuten':'Schema gemaakt — 1 wissel halverwege elk kwart');
+  if(conflicts.length){
+    swapWarnings=conflicts;
+    toast('Let op: sommige regels botsen — zie de melding');
+  }else{
+    toast(state.schedule.perQ===3?'Schema gemaakt — 2 wissels per kwart voor eerlijke minuten':'Schema gemaakt — 1 wissel halverwege elk kwart');
+  }
 }
-// Stuur de wisselmomenten (in seconden per kwart) naar de timer-iframe
+// Herplan vanaf een bepaald kwart met de spelers die nú aanwezig zijn.
+// De kwarten vóór 'fromQ' blijven exact staan; alleen 'fromQ' t/m Q4 worden opnieuw verdeeld.
+function replanFromQuarter(fromQ){
+  if(!state.schedule){regenerate();return;}
+  const present=state.players.filter(p=>p.present);
+  const keepers=state.players.filter(p=>p.prefs&&p.prefs[0]==='keeper');
+  if(keepers.length!==1){toast('Zorg eerst voor precies één keeper');activeTab='spelers';render();return;}
+  if(!keepers[0].present){toast('De keeper staat op afwezig');activeTab='spelers';render();return;}
+  if(present.length<11){toast('Minimaal 11 aanwezige spelers nodig (incl. keeper)');return;}
+  state.keeperId=keepers[0].id;
+  snapshot('herplannen vanaf Q'+(fromQ+1));
+  const oldSched=state.schedule;
+  const oldPerQ=oldSched.perQ;
+  const fresh=buildSchedule(state);
+  // bewaar de al gespeelde kwarten uit het oude schema, neem de rest uit het nieuwe
+  const perQ=fresh.perQ;
+  if(perQ===oldPerQ){
+    // zelfde blokindeling: plak per blok
+    for(let q=0;q<fromQ;q++){
+      for(let m=0;m<perQ;m++){ fresh.assignments[q*perQ+m]=oldSched.assignments[q*perQ+m]; }
+    }
+  } // bij andere blokindeling nemen we het verse schema in zijn geheel (kan niet netjes plakken)
+  state.schedule=fresh;
+  state.genHash=inputHash(state);
+  const conflicts=detectRuleConflicts();
+  save();render();sendSwapTimesToTimer();
+  if(conflicts.length){swapWarnings=conflicts;toast('Herplan klaar — let op botsende regels');}
+  else toast('Vanaf Q'+(fromQ+1)+' opnieuw gepland met de huidige spelers');
+}
 function sendSwapTimesToTimer(){
   try{
     const th=document.getElementById('timerHost');
@@ -1079,6 +1213,8 @@ function renderQuarter(q){
   }
   html+=`</div>`;
   html+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
+  html+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
+  if(_undoLabel)html+=`<button class="btn ghost full" id="undoBtn" style="margin-bottom:8px">&#8634; Ongedaan maken (${esc(_undoLabel)})</button>`;
   return html;
 }
 function wisselLines(d){
@@ -1133,6 +1269,10 @@ function render(){
 }
 function bind(v){
   v.querySelectorAll('[data-regen]').forEach(b=>b.onclick=regenerate);
+  const rb=v.querySelector('#replanBtn');
+  if(rb)rb.onclick=()=>replanFromQuarter(Number(rb.dataset.q));
+  const ub=v.querySelector('#undoBtn');
+  if(ub)ub.onclick=doUndo;
   v.querySelectorAll('[data-goplayers]').forEach(b=>b.onclick=()=>{activeTab='spelers';render();window.scrollTo(0,0);});
   v.querySelectorAll('[data-act="present"]').forEach(el=>el.onchange=e=>{
     const p=byId(el.dataset.id);p.present=e.target.checked;
@@ -1181,6 +1321,10 @@ function bind(v){
   if(sh)sh.onclick=shareState;
   const im=v.querySelector('#importShare');
   if(im)im.onclick=importSharePrompt;
+  const bex=v.querySelector('#backupExport');
+  if(bex)bex.onclick=backupExport;
+  const bim=v.querySelector('#backupImport');
+  if(bim)bim.onclick=backupImportPrompt;
   const ag=v.querySelector('#addGuest');
   if(ag)ag.onclick=()=>{
     const id='gast'+Date.now();
@@ -1225,9 +1369,9 @@ function chipTap(pid){
   const asg=state.schedule.assignments[b];
   const posOf=id=>Object.keys(asg).find(k=>asg[k]===id);
   const pa=posOf(selChip),pb=posOf(pid);
-  if(pa&&pb){asg[pa]=pid;asg[pb]=selChip;}
-  else if(pa&&!pb){asg[pa]=pid;}
-  else if(!pa&&pb){asg[pb]=selChip;}
+  if(pa&&pb){snapshot('ruil');asg[pa]=pid;asg[pb]=selChip;}
+  else if(pa&&!pb){snapshot('ruil');asg[pa]=pid;}
+  else if(!pa&&pb){snapshot('ruil');asg[pb]=selChip;}
   else{toast('Kies minstens één veldspeler');selChip=null;render();return;}
   // waarschuwing bij hardere regels — blijft staan tot weggeklikt
   const half=q<2?1:2;
