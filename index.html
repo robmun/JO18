@@ -394,6 +394,17 @@ function pickBlocks(fieldPlayers,perQ,rules){
   const elig={},caps={};
   fieldPlayers.forEach(p=>{elig[p.id]=eligibleVec(p,perQ,rules);caps[p.id]=elig[p.id].filter(Boolean).length;});
   const ids=fieldPlayers.map(p=>p.id);
+  // Min/max-minuten regels omrekenen naar blokken (1 blok = 17.5/perQ minuten)
+  const blockMin=17.5/perQ;
+  const maxBlk={},minBlk={};
+  for(const r of rules){
+    if(r.type!=='minutes'||!ids.includes(r.p1))continue;
+    const blk=Math.round(r.min/blockMin);
+    if(r.mm==='max') maxBlk[r.p1]=Math.min(maxBlk[r.p1]??1e9, blk);
+    else             minBlk[r.p1]=Math.max(minBlk[r.p1]??0, blk);
+  }
+  // maximum verlaagt de beschikbaarheid (cap), zodat de eerlijke verdeling het meeneemt
+  fieldPlayers.forEach(p=>{ if(maxBlk[p.id]!=null) caps[p.id]=Math.min(caps[p.id],maxBlk[p.id]); });
   // resterende beschikbare blokken vanaf blok b (incl. b)
   const remFrom={};ids.forEach(i=>{remFrom[i]=new Array(B+1).fill(0);for(let b=B-1;b>=0;b--)remFrom[i][b]=remFrom[i][b+1]+(elig[i][b]?1:0);});
   const slots=10*B;
@@ -408,6 +419,13 @@ function pickBlocks(fieldPlayers,perQ,rules){
     return false;
   };
   const blocks=[];
+  // 'Begint in de basis / op de bank' geldt alleen voor blok 0 (start Q1)
+  const startBase=rules.filter(r=>r.type==='start'&&r.start==='base'&&ids.includes(r.p1)).map(r=>r.p1);
+  const startBench=new Set(rules.filter(r=>r.type==='start'&&r.start==='bench'&&ids.includes(r.p1)).map(r=>r.p1));
+  // 'Twee spelers wisselen elkaar af op één positie': per blok speelt er precies één
+  // van het paar (om en om), die op de gedeelde positie komt te staan.
+  const rotates=rules.filter(r=>r.type==='rotate'&&ids.includes(r.p1)&&ids.includes(r.p2));
+  const rotateBlocked=new Set(); // spelers die in dit blok juist NIET ingezet worden (de 'rust'-helft van het paar)
   for(let b=0;b<B;b++){
     const cands=fieldPlayers.filter(p=>elig[p.id][b]).map(p=>p.id);
     cands.sort((a,c)=>{
@@ -422,8 +440,26 @@ function pickBlocks(fieldPlayers,perQ,rules){
       return ids.indexOf(a)-ids.indexOf(c);
     });
     const sel=new Set(),skipped=[];
+    // rotate-paren: kies per blok wie van het paar speelt (afwisselend p1/p2)
+    rotateBlocked.clear();
+    for(let ri=0;ri<rotates.length;ri++){
+      const r=rotates[ri];
+      const aOk=elig[r.p1]&&elig[r.p1][b], bOk=elig[r.p2]&&elig[r.p2][b];
+      let pick=null,other=null;
+      if(aOk&&bOk){ pick=(b%2===0)?r.p1:r.p2; other=(pick===r.p1)?r.p2:r.p1; }
+      else if(aOk){ pick=r.p1; other=r.p2; }
+      else if(bOk){ pick=r.p2; other=r.p1; }
+      if(pick&&sel.size<10&&!(maxBlk[pick]!=null&&played[pick]>=maxBlk[pick])){sel.add(pick);}
+      if(other)rotateBlocked.add(other);
+    }
+    // blok 0: eerst de 'begint in de basis'-spelers plaatsen
+    if(b===0){ for(const id of startBase){ if(sel.size>=10)break; if(rotateBlocked.has(id))continue; if(elig[id]&&elig[id][0]&&!(maxBlk[id]!=null&&played[id]>=maxBlk[id]))sel.add(id); } }
     for(const id of cands){
       if(sel.size>=10)break;
+      if(sel.has(id))continue;
+      if(rotateBlocked.has(id))continue; // dit blok de 'rust'-helft van een rotate-paar
+      if(b===0 && startBench.has(id))continue; // begint op de bank: niet in blok 0
+      if(maxBlk[id]!=null && played[id]>=maxBlk[id])continue; // max-minuten bereikt: niet meer inzetten
       if(conflictsWith(id,sel)){
         // 'liever niet samen' is zacht: alleen overtreden als de speler
         // anders zijn eerlijke aandeel niet meer kan halen
@@ -432,11 +468,12 @@ function pickBlocks(fieldPlayers,perQ,rules){
       }
       sel.add(id);
     }
-    for(const id of skipped){if(sel.size>=10)break;sel.add(id);}
+    for(const id of skipped){if(sel.size>=10)break;if(maxBlk[id]!=null&&played[id]>=maxBlk[id])continue;sel.add(id);}
     blocks.push(sel);
     ids.forEach(i=>{ if(sel.has(i)){played[i]++;bench[i]=0;} else if(elig[i][b])bench[i]++; });
   }
   // Verbeterronde: minuten gladstrijken
+  const rotateIds=new Set(rotates.flatMap(r=>[r.p1,r.p2]));
   for(let it=0;it<400;it++){
     const sorted=[...ids].sort((a,c)=>(played[c]-t[c])-(played[a]-t[a]));
     let swapped=false;
@@ -448,6 +485,8 @@ function pickBlocks(fieldPlayers,perQ,rules){
         if((played[hi]-t[hi])-(played[lo]-t[lo])<=1.0001)break outer;
         for(let b=0;b<B;b++){
           if(!blocks[b].has(hi)||blocks[b].has(lo)||!elig[lo][b])continue;
+          if(rotateIds.has(hi)||rotateIds.has(lo))continue; // rotate-paren niet verstoren
+          if(maxBlk[lo]!=null&&played[lo]>=maxBlk[lo])continue; // lo niet boven zijn max tillen
           const tmp=new Set(blocks[b]);tmp.delete(hi);
           const conf=conflictsWith(lo,tmp);
           const allowConf=(t[lo]-played[lo])>1.0; // ver onder doel: regel mag wijken
@@ -458,6 +497,25 @@ function pickBlocks(fieldPlayers,perQ,rules){
       }
     }
     if(!swapped)break;
+  }
+  // Minimum-minuten garanderen: spelers onder hun ondergrens erbij plaatsen
+  for(const id of ids){
+    if(minBlk[id]==null)continue;
+    let guard=0;
+    while(played[id]<Math.min(minBlk[id],caps[id]) && guard++<B){
+      // zoek een blok waar id beschikbaar is maar niet speelt, en ruil een speler
+      // met de meeste overtollige minuten eruit (die geen eigen minimum schendt)
+      let done=false;
+      for(let b=0;b<B&&!done;b++){
+        if(blocks[b].has(id)||!elig[id][b])continue;
+        const cand=[...blocks[b]].filter(x=>x!==id
+          && (minBlk[x]==null || played[x]>Math.min(minBlk[x],caps[x]))
+          && !(maxBlk[id]!=null && played[id]>=maxBlk[id]))
+          .sort((a,c)=>(played[c]-t[c])-(played[a]-t[a]))[0];
+        if(cand!=null){ blocks[b].delete(cand);blocks[b].add(id);played[cand]--;played[id]++;done=true; }
+      }
+      if(!done)break;
+    }
   }
   // Ontvlechtronde: 'liever niet samen' verder terugdringen zonder minuten te wijzigen
   for(const r of apart){
@@ -496,11 +554,14 @@ function assignAll(blockSets,perQ,rules,byId){
   for(let b=0;b<B;b++){
     const ids=[...blockSets[b]];
     const on=new Set(ids);
-    const locks={},lineLocks={};
+    const locks={},lineLocks={},noLines={};
     for(const r of rules){
       if(r.type==='pos'    && on.has(r.p1)) locks[r.p1]=r.pos;
       if(r.type==='condpos'&& on.has(r.p1) && !on.has(r.p2)) locks[r.p1]=r.pos;
       if(r.type==='line'   && on.has(r.p1)) lineLocks[r.p1]=r.line;
+      if(r.type==='noline' && on.has(r.p1)){(noLines[r.p1]=noLines[r.p1]||new Set()).add(r.line);}
+      if(r.type==='rotate' && on.has(r.p1)) locks[r.p1]=r.pos;
+      if(r.type==='rotate' && on.has(r.p2)) locks[r.p2]=r.pos;
     }
     const short=ids.length<10;
     const score=(pid,pos)=>{
@@ -509,6 +570,7 @@ function assignAll(blockSets,perQ,rules,byId){
       s+=pos.line==='achter'?(short?60:6):(pos.line==='midden'?(short?30:3):0);
       if(locks[pid]) s+=(pos.id===locks[pid])?10000:-10000;
       if(lineLocks[pid]&&pos.line!==lineLocks[pid]) s-=10000;
+      if(noLines[pid]&&noLines[pid].has(pos.line)) s-=10000;
       const i=(p.prefs||[]).indexOf(pos.id);
       if(i===0)s+=100;else if(i===1)s+=80;else if(i===2)s+=60;
       else if((p.prefs||[]).some(x=>POSMAP[x]&&POSMAP[x].line===pos.line))s+=30;
@@ -782,6 +844,10 @@ function ruleSentence(r){
     case 'pos':    return `${n(r.p1)} speelt altijd ${POSMAP[r.pos].name.toLowerCase()}`;
     case 'condpos':return `${n(r.p1)} speelt ${POSMAP[r.pos].name.toLowerCase()} als ${n(r.p2)} niet meespeelt`;
     case 'noq':    return `${n(r.p1)} speelt niet in Q${r.q}`;
+    case 'minutes':return `${n(r.p1)} speelt ${r.mm==='max'?'maximaal':'minimaal'} ${r.min} minuten`;
+    case 'start':  return `${n(r.p1)} begint ${r.start==='base'?'in de basis':'op de bank'}`;
+    case 'noline': return `${n(r.p1)} speelt nooit in de ${LINES[r.line]}`;
+    case 'rotate': return `${n(r.p1)} en ${n(r.p2)} wisselen elkaar af op ${POSMAP[r.pos]?POSMAP[r.pos].name.toLowerCase():r.pos}`;
   }
   return '';
 }
@@ -875,6 +941,10 @@ function renderRegels(){
       <option value="pos" ${t==='pos'?'selected':''}>Speelt altijd op vaste positie</option>
       <option value="condpos" ${t==='condpos'?'selected':''}>Vaste positie als ander niet meespeelt</option>
       <option value="noq" ${t==='noq'?'selected':''}>Speelt niet in een bepaald kwart</option>
+      <option value="minutes" ${t==='minutes'?'selected':''}>Speelt minimaal of maximaal aantal minuten</option>
+      <option value="start" ${t==='start'?'selected':''}>Begint in de basis of op de bank</option>
+      <option value="noline" ${t==='noline'?'selected':''}>Speelt nooit in een bepaalde linie</option>
+      <option value="rotate" ${t==='rotate'?'selected':''}>Twee spelers wisselen elkaar af op één positie</option>
     </select>
     <label class="hint">Speler</label>
     <select class="sel" id="nrP1" style="margin-bottom:10px">${popts(newRule.p1)}</select>`;
@@ -884,9 +954,13 @@ function renderRegels(){
   if(t==='pos'||t==='condpos')html+=`<label class="hint">Positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   if(t==='condpos')html+=`<label class="hint">…als deze speler niet meespeelt</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select>`;
   if(t==='noq')html+=`<label class="hint">Kwart</label><select class="sel" id="nrQ" style="margin-bottom:10px"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select>`;
+  if(t==='minutes')html+=`<label class="hint">Grens</label><select class="sel" id="nrMM" style="margin-bottom:10px"><option value="max">Maximaal (ontzien)</option><option value="min">Minimaal (garanderen)</option></select><label class="hint">Aantal minuten</label><select class="sel" id="nrMin" style="margin-bottom:10px">${[10,15,20,25,30,35,40,45,50,55].map(m=>`<option value="${m}">${m} minuten</option>`).join('')}</select>`;
+  if(t==='start')html+=`<label class="hint">Begint</label><select class="sel" id="nrStart" style="margin-bottom:10px"><option value="base">In de basis (start Q1)</option><option value="bench">Op de bank (start Q1)</option></select>`;
+  if(t==='noline')html+=`<label class="hint">Niet in linie</label><select class="sel" id="nrLine" style="margin-bottom:10px"><option value="voor">Voorste linie</option><option value="midden">Middenlinie</option><option value="achter">Achterste linie</option></select>`;
+  if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 30 &middot; 24 juni 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">Wisselplanner versie 31 &middot; 24 juni 2026</div>';
   return html;
 }
 
@@ -1131,7 +1205,11 @@ function bind(v){
     if(r.type==='line')r.line=g('#nrLine');
     if(r.type==='pos'||r.type==='condpos')r.pos=g('#nrPos');
     if(r.type==='noq')r.q=Number(g('#nrQ'));
-    if((r.type==='apart'||r.type==='condpos')&&r.p1===r.p2){toast('Kies twee verschillende spelers');return;}
+    if(r.type==='minutes'){r.mm=g('#nrMM');r.min=Number(g('#nrMin'));}
+    if(r.type==='start')r.start=g('#nrStart');
+    if(r.type==='noline')r.line=g('#nrLine');
+    if(r.type==='rotate'){r.p2=g('#nrP2');r.pos=g('#nrPos');}
+    if((r.type==='apart'||r.type==='condpos'||r.type==='rotate')&&r.p1===r.p2){toast('Kies twee verschillende spelers');return;}
     state.rules.push(r);save();render();toast('Regel toegevoegd');
   };
   // Chips ruilen
