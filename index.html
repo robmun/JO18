@@ -8,9 +8,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="JO18-5">
 <meta name="theme-color" content="#0a1b36">
-<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
-<link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-180.png">
-<link rel="icon" href="icon-180.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-ghc-navy.png">
+<link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
+<link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
 <style>
 :root{
@@ -264,19 +264,19 @@ body.timermode .appbar{display:none}
 #printArea{display:none}
 @media print{
   @page{size:A4 portrait;margin:4mm}
-  html,body{width:202mm;height:289mm}
+  html,body{width:202mm;height:270mm}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body{background:#fff !important;color:#000;padding:0;margin:0}
   .appbar,.tabbar,main,#toast,#a2hs,#timerHost,#modalHost{display:none !important}
   body::before,body::after{display:none !important;content:none !important;background:none !important}
-  #printArea{display:block;color:#000;font-family:Helvetica,Arial,sans-serif;height:289mm;overflow:hidden}
-  .phead{font-size:11pt;margin:0 0 2mm;text-align:center}
-  .pgrid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:139mm 139mm;gap:3mm;height:281mm}
-  .pcell{border:1px solid #000;border-radius:1.5mm;padding:2.4mm 2.8mm;overflow:hidden;display:flex;flex-direction:column;height:139mm;box-sizing:border-box}
-  .ph{font-size:11pt;font-weight:bold;margin-bottom:1.5mm;flex:0 0 auto}
+  #printArea{display:block;color:#000;font-family:Helvetica,Arial,sans-serif;height:270mm;overflow:hidden;page-break-after:avoid;page-break-inside:avoid}
+  .phead{font-size:10pt;margin:0 0 1.5mm;text-align:center}
+  .pgrid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:129mm 129mm;gap:2.5mm;height:260.5mm}
+  .pcell{border:1px solid #000;border-radius:1.5mm;padding:2mm 2.6mm;overflow:hidden;display:flex;flex-direction:column;height:129mm;box-sizing:border-box}
+  .ph{font-size:10.5pt;font-weight:bold;margin-bottom:1.2mm;flex:0 0 auto}
   .ph span{font-weight:normal;font-size:8pt;color:#000}
-  .pf{width:auto;max-width:56mm;max-height:70mm;height:auto;display:block;margin:0 auto 1.5mm;flex:0 0 auto}
-  .pw{font-size:8.6pt;line-height:1.38;margin-top:1mm;flex:0 0 auto}
+  .pf{width:auto;max-width:52mm;max-height:62mm;height:auto;display:block;margin:0 auto 1.2mm;flex:0 0 auto}
+  .pw{font-size:8.2pt;line-height:1.32;margin-top:0.8mm;flex:0 0 auto}
   .pw b{font-weight:bold}
 }
 @media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
@@ -295,7 +295,7 @@ body.timermode .appbar{display:none}
 </header>
 
 <div id="a2hs" hidden>
-  <img src="icon-180.png" alt="" onerror="this.style.display='none'">
+  <img src="icon-ghc-navy.png" alt="" onerror="this.style.display='none'">
   <div class="txt"><b>Voeg toe aan beginscherm</b>Tik op <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8"/></svg> <b style="display:inline">Delen</b>, dan &lsquo;Zet op beginscherm&rsquo; voor volledig scherm.</div>
   <button id="a2hsClose" aria-label="Sluiten">&#10005;</button>
 </div>

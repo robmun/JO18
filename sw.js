@@ -1,8 +1,8 @@
 // Wisselplanner service worker — maakt de app offline bruikbaar.
 // Strategie: eerst netwerk proberen (zodat updates binnenkomen),
 // bij geen verbinding terugvallen op de lokale kopie.
-const CACHE = 'wisselplanner-v32';
-const ASSETS = ['./', './index.html', './icon-180.png', './logo.png'];
+const CACHE = 'wisselplanner-v34';
+const ASSETS = ['./', './index.html', './icon-ghc-navy.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
