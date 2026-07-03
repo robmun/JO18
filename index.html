@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="39">
+<meta name="app-version" content="40">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1029,7 +1029,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 39 &middot; 3 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 40 &middot; 3 juli 2026</div>';
   return html;
 }
 
@@ -1228,10 +1228,9 @@ function renderQuarter(q){
     html+=`<div class="wbench"><b>Wissels daarna:</b> ${benchAfter.map(pName).map(esc).join(', ')||'—'}</div></div>`;
   }
   html+=`</div>`;
+  if(_undoLabel)html+=`<button class="btn ghost full" id="undoBtn" style="margin-bottom:8px">&#8634; Ongedaan maken (${esc(_undoLabel)})</button>`;
   html+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
   html+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
-  html+=`<button class="btn ghost full" id="shareImgBtn" data-q="${q}" style="margin-bottom:8px">&#128228; Deel Q${q+1} als afbeelding</button>`;
-  if(_undoLabel)html+=`<button class="btn ghost full" id="undoBtn" style="margin-bottom:8px">&#8634; Ongedaan maken (${esc(_undoLabel)})</button>`;
   return html;
 }
 function wisselLines(d){
@@ -1294,8 +1293,6 @@ function bind(v){
   v.querySelectorAll('[data-regen]').forEach(b=>b.onclick=regenerate);
   const rb=v.querySelector('#replanBtn');
   if(rb)rb.onclick=()=>replanFromQuarter(Number(rb.dataset.q));
-  const sib=v.querySelector('#shareImgBtn');
-  if(sib)sib.onclick=()=>shareQuarterImage(Number(sib.dataset.q));
   const ub=v.querySelector('#undoBtn');
   if(ub)ub.onclick=doUndo;
   v.querySelectorAll('[data-goplayers]').forEach(b=>b.onclick=()=>{activeTab='spelers';render();window.scrollTo(0,0);});
@@ -1471,7 +1468,7 @@ if('serviceWorker' in navigator){
 }
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=39;
+const APP_VERSION=40;
 let _updDismissed=false;
 async function checkForUpdate(){
   if(_updDismissed||document.getElementById('updBar'))return;
