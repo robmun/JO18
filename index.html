@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="41">
+<meta name="app-version" content="42">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -56,7 +56,7 @@ body{
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
   background:#091e48;
   color:var(--txt);
-  height:100dvh;
+  height:100%;
   overflow:hidden;
   display:flex;flex-direction:column;
   -webkit-font-smoothing:antialiased;
@@ -1036,7 +1036,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 41 &middot; 3 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 42 &middot; 3 juli 2026</div>';
   return html;
 }
 
@@ -1476,7 +1476,7 @@ if('serviceWorker' in navigator){
 }
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=41;
+const APP_VERSION=42;
 let _updDismissed=false;
 async function checkForUpdate(){
   if(_updDismissed||document.getElementById('updBar'))return;
@@ -1502,6 +1502,19 @@ async function applyUpdate(){
   try{const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.update()));}catch(e){}
   location.reload();
 }
+/* Schil-hoogte actief gelijkhouden aan het echte scherm (omzeilt de
+   iOS-afwijking waarbij 100dvh/100% in beginscherm-modus te klein uitvalt). */
+function fitShell(){
+  try{
+    const h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;
+    if(h)document.body.style.height=Math.round(h)+'px';
+  }catch(e){}
+}
+fitShell();
+window.addEventListener('resize',fitShell);
+window.addEventListener('orientationchange',()=>setTimeout(fitShell,300));
+if(window.visualViewport)window.visualViewport.addEventListener('resize',fitShell);
+
 setTimeout(checkForUpdate,2500);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkForUpdate();});
 // iOS hervat de app soms zonder visibilitychange; vang ook deze signalen op,
