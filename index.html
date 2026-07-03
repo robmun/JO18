@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="35">
+<meta name="app-version" content="36">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -57,7 +57,7 @@ body{
   background:#091e48;
   color:var(--txt);
   min-height:100dvh;
-  padding-bottom:calc(86px + env(safe-area-inset-bottom));
+  padding-bottom:calc(150px + env(safe-area-inset-bottom));
   -webkit-font-smoothing:antialiased;
 }
 /* ---------- App bar ---------- */
@@ -1025,7 +1025,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 35 &middot; 3 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 36 &middot; 3 juli 2026</div>';
   return html;
 }
 
@@ -1250,6 +1250,7 @@ function wisselLines(d){
 /* ============ Renderen + events ============ */
 let _lastTab=null;
 function render(){
+  const _keepY=(_lastTab===activeTab)?window.scrollY:null;
   if(_lastTab!==activeTab){swapWarnings=[];_lastTab=activeTab;}
   document.body.classList.toggle('timermode',activeTab==='timer');
   renderTabbar();
@@ -1279,6 +1280,9 @@ function render(){
   else if(activeTab==='regels')v.innerHTML=renderRegels();
   else v.innerHTML=renderQuarter(Number(activeTab.slice(1)));
   bind(v);
+  // Bij her-renderen op hetzelfde tabblad: scrollpositie behouden
+  // (iOS springt anders naar boven zodra de inhoud even inklapt).
+  if(_keepY!==null&&Math.abs(window.scrollY-_keepY)>2)window.scrollTo(0,_keepY);
 }
 function bind(v){
   v.querySelectorAll('[data-regen]').forEach(b=>b.onclick=regenerate);
@@ -1461,7 +1465,7 @@ if('serviceWorker' in navigator){
 }
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=35;
+const APP_VERSION=36;
 let _updDismissed=false;
 async function checkForUpdate(){
   if(_updDismissed||document.getElementById('updBar'))return;
