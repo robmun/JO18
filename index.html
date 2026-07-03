@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="38">
+<meta name="app-version" content="39">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -33,7 +33,7 @@
   --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;overscroll-behavior-y:none}
+html,body{height:100%}
 /* Stadion-achtergrond: vaste schermvullende laag, identiek aan de timer */
 body::before{
   content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
@@ -58,7 +58,6 @@ body{
   color:var(--txt);
   min-height:100dvh;
   padding-bottom:calc(150px + env(safe-area-inset-bottom));
-  overscroll-behavior-y:none;
   -webkit-font-smoothing:antialiased;
 }
 /* ---------- App bar ---------- */
@@ -1030,7 +1029,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 38 &middot; 3 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 39 &middot; 3 juli 2026</div>';
   return html;
 }
 
@@ -1472,7 +1471,7 @@ if('serviceWorker' in navigator){
 }
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=38;
+const APP_VERSION=39;
 let _updDismissed=false;
 async function checkForUpdate(){
   if(_updDismissed||document.getElementById('updBar'))return;
