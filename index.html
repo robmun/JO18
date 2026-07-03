@@ -12,6 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
+<meta name="app-version" content="35">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -215,6 +216,15 @@ select,option{font-size:var(--fs-base)}
 #a2hs .txt b{display:block;font-size:var(--fs-base);color:var(--txt);margin-bottom:1px}
 #a2hs .txt svg{width:13px;height:13px;vertical-align:-2px;margin:0 1px}
 #a2hs button{flex-shrink:0;width:30px;height:30px;border-radius:50%;border:1px solid var(--stroke);background:rgba(255,255,255,.10);color:var(--txt);font-size:var(--fs-base)}
+#updBar{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 8px);z-index:60;
+  display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r-lg);
+  background:rgba(16,42,84,.97);border:1px solid var(--accent2);box-shadow:0 10px 30px rgba(0,0,0,.45);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+#updBar .txt{flex:1;min-width:0;font-size:12.5px;line-height:1.4;color:var(--dim)}
+#updBar .txt b{display:block;font-size:var(--fs-base);color:var(--txt)}
+#updBar .upd{flex-shrink:0;border:none;border-radius:var(--r-pill);padding:9px 14px;font-weight:800;font-size:var(--fs-sm);
+  background:linear-gradient(160deg,var(--accent2),#2c66b8);color:#fff}
+#updBar .dis{flex-shrink:0;width:30px;height:30px;border-radius:50%;border:1px solid var(--stroke);background:rgba(255,255,255,.10);color:var(--txt);font-size:var(--fs-base)}
 body.with-a2hs main{padding-bottom:100px}
 /* ---------- Wissels ---------- */
 .wmoment{margin-bottom:4px}
@@ -1015,7 +1025,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 34 &middot; 2 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 35 &middot; 3 juli 2026</div>';
   return html;
 }
 
@@ -1216,6 +1226,7 @@ function renderQuarter(q){
   html+=`</div>`;
   html+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
   html+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
+  html+=`<button class="btn ghost full" id="shareImgBtn" data-q="${q}" style="margin-bottom:8px">&#128228; Deel Q${q+1} als afbeelding</button>`;
   if(_undoLabel)html+=`<button class="btn ghost full" id="undoBtn" style="margin-bottom:8px">&#8634; Ongedaan maken (${esc(_undoLabel)})</button>`;
   return html;
 }
@@ -1273,6 +1284,8 @@ function bind(v){
   v.querySelectorAll('[data-regen]').forEach(b=>b.onclick=regenerate);
   const rb=v.querySelector('#replanBtn');
   if(rb)rb.onclick=()=>replanFromQuarter(Number(rb.dataset.q));
+  const sib=v.querySelector('#shareImgBtn');
+  if(sib)sib.onclick=()=>shareQuarterImage(Number(sib.dataset.q));
   const ub=v.querySelector('#undoBtn');
   if(ub)ub.onclick=doUndo;
   v.querySelectorAll('[data-goplayers]').forEach(b=>b.onclick=()=>{activeTab='spelers';render();window.scrollTo(0,0);});
@@ -1445,6 +1458,129 @@ function renderPrint(){
 /* ============ Offline (service worker) ============ */
 if('serviceWorker' in navigator){
   try{navigator.serviceWorker.register('sw.js');}catch(e){}
+}
+
+/* ============ Nieuwe-versie-melding ============ */
+const APP_VERSION=35;
+let _updDismissed=false;
+async function checkForUpdate(){
+  if(_updDismissed||document.getElementById('updBar'))return;
+  try{
+    const r=await fetch('index.html?upd='+Date.now(),{cache:'no-store'});
+    if(!r.ok)return;
+    const t=await r.text();
+    const m=t.match(/name="app-version" content="(\d+)"/);
+    if(m&&Number(m[1])>APP_VERSION)showUpdateBar(Number(m[1]));
+  }catch(e){/* offline of file:// — stil overslaan */}
+}
+function showUpdateBar(v){
+  const d=document.createElement('div');
+  d.id='updBar';
+  d.innerHTML=`<div class="txt"><b>Nieuwe versie beschikbaar (v${v})</b>Tik op vernieuwen om de update te laden.</div>
+    <button class="upd">Vernieuwen</button><button class="dis" aria-label="Sluiten">&#10005;</button>`;
+  d.querySelector('.upd').onclick=applyUpdate;
+  d.querySelector('.dis').onclick=()=>{_updDismissed=true;d.remove();};
+  document.body.appendChild(d);
+}
+async function applyUpdate(){
+  try{const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));}catch(e){}
+  try{const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.update()));}catch(e){}
+  location.reload();
+}
+setTimeout(checkForUpdate,2500);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkForUpdate();});
+
+/* ============ Kwart delen als afbeelding ============ */
+function plainChainText(d){
+  const parts=[];
+  for(const ch of d.chains){
+    let t=`${pName(ch.inP)} erin op ${POSMAP[ch.pos].kort}${ch.outP?` · ${pName(ch.outP)} eruit`:''}`;
+    if(ch.moves.length)t+=`; ${ch.moves.map(m=>`${pName(m.pid)} ${POSMAP[m.from].kort}→${POSMAP[m.to].kort}`).join(', ')}`;
+    parts.push(t);
+  }
+  return parts;
+}
+function wrapText(t,max){
+  const words=t.split(' '),lines=[];let cur='';
+  for(const w of words){ if((cur+' '+w).trim().length>max){lines.push(cur.trim());cur=w;} else cur+=' '+w; }
+  if(cur.trim())lines.push(cur.trim());
+  return lines;
+}
+async function shareQuarterImage(q){
+  const sch=state.schedule; if(!sch){toast('Genereer eerst een opstelling');return;}
+  const perQ=sch.perQ,b0=q*perQ,blockLen=17.5/perQ;
+  const asg0=sch.assignments[b0];
+  const esc2=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const W=1080,pitchX=70,pitchY=210,pitchW=940,pitchH=940;
+  // tekstregels onder het veld verzamelen
+  const blocks=[];
+  const onField=new Set(Object.values(asg0));
+  const bench=sch.fieldIds.filter(id=>!onField.has(id)&&byId(id)&&byId(id).present).map(pName);
+  if(bench.length)blocks.push({head:'Bank bij start:',lines:wrapText(bench.join(', '),58)});
+  for(let m=1;m<perQ;m++){
+    const d=wisselChains(sch.assignments[b0+m-1],sch.assignments[b0+m]);
+    const naMin=Math.round(m*blockLen);
+    const kop=(q===1||q===3)?`Na ${naMin} min (bij ${fmtMin(naMin+17.5)} min):`:`Na ${naMin} min:`;
+    const lines=chainsEmpty(d)?['geen wissels']:plainChainText(d).flatMap(t=>wrapText('• '+t,58));
+    blocks.push({head:kop,lines});
+  }
+  let textH=0; blocks.forEach(b=>{textH+=44+b.lines.length*34+10;});
+  const H=pitchY+pitchH+40+textH+90;
+  // veld
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="Helvetica,Arial,sans-serif">
+  <rect width="${W}" height="${H}" fill="#0e2247"/>
+  <text x="${W/2}" y="72" text-anchor="middle" font-size="44" font-weight="bold" fill="#ffffff">Q${q+1} · ${q<2?'eerste':'tweede'} helft</text>
+  <text x="${W/2}" y="118" text-anchor="middle" font-size="27" fill="#aec3ec">HC Gooische · opstelling &amp; wissels</text>
+  <text x="${W/2}" y="158" text-anchor="middle" font-size="24" fill="#7f9bc6">${esc2(new Date().toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long'}))}</text>
+  <rect x="${pitchX}" y="${pitchY}" width="${pitchW}" height="${pitchH}" rx="18" fill="#2f8f4e"/>
+  <rect x="${pitchX+14}" y="${pitchY+14}" width="${pitchW-28}" height="${pitchH-28}" rx="10" fill="none" stroke="#ffffff" stroke-opacity=".85" stroke-width="3"/>
+  <line x1="${pitchX+14}" y1="${pitchY+pitchH*0.35}" x2="${pitchX+pitchW-14}" y2="${pitchY+pitchH*0.35}" stroke="#ffffff" stroke-opacity=".85" stroke-width="3"/>
+  <path d="M ${pitchX+pitchW*0.28} ${pitchY+pitchH-14} A ${pitchW*0.22} ${pitchW*0.22} 0 0 1 ${pitchX+pitchW*0.72} ${pitchY+pitchH-14}" fill="none" stroke="#ffffff" stroke-opacity=".85" stroke-width="3" stroke-dasharray="10 8"/>
+  <rect x="${pitchX+pitchW/2-70}" y="${pitchY+pitchH-24}" width="140" height="12" fill="#ffffff" fill-opacity=".9"/>`;
+  for(const pos of POSITIONS){
+    const pid=asg0[pos.id]; if(!pid)continue;
+    const cx=pitchX+pitchW*pos.x/100, cy=pitchY+pitchH*((pos.y-38)/62);
+    const isK=pos.id==='keeper';
+    svg+=`<circle cx="${cx}" cy="${cy}" r="40" fill="${isK?'#ffffff':'#16335f'}" stroke="${isK?'#16335f':'#ffffff'}" stroke-width="3.5"/>
+    <text x="${cx}" y="${cy+9}" text-anchor="middle" font-size="${pos.kort.length>=3?22:26}" font-weight="bold" fill="${isK?'#16335f':'#ff8a8a'}">${pos.kort}</text>
+    <rect x="${cx-92}" y="${cy+50}" width="184" height="42" rx="21" fill="#ffffff"/>
+    <text x="${cx}" y="${cy+79}" text-anchor="middle" font-size="27" font-weight="bold" fill="#0e2247">${esc2(pName(pid))}</text>`;
+  }
+  // keeper apart (staat in eigen rol, niet in asg)
+  const kp=byId(sch.keeperId);
+  if(kp&&!asg0.keeper){
+    const cx=pitchX+pitchW/2, cy=pitchY+pitchH*((93-38)/62);
+    svg+=`<circle cx="${cx}" cy="${cy}" r="40" fill="#ffffff" stroke="#16335f" stroke-width="3.5"/>
+    <text x="${cx}" y="${cy+10}" text-anchor="middle" font-size="26" font-weight="bold" fill="#16335f">K</text>
+    <rect x="${cx-92}" y="${cy+50}" width="184" height="42" rx="21" fill="#ffffff"/>
+    <text x="${cx}" y="${cy+79}" text-anchor="middle" font-size="27" font-weight="bold" fill="#0e2247">${esc2(kp.name)}</text>`;
+  }
+  // wisselteksten
+  let ty=pitchY+pitchH+64;
+  for(const b of blocks){
+    svg+=`<text x="${pitchX}" y="${ty}" font-size="29" font-weight="bold" fill="#8ec2ff">${esc2(b.head)}</text>`; ty+=42;
+    for(const l of b.lines){ svg+=`<text x="${pitchX}" y="${ty}" font-size="27" fill="#eef4ff">${esc2(l)}</text>`; ty+=34; }
+    ty+=12;
+  }
+  svg+=`<text x="${W/2}" y="${H-34}" text-anchor="middle" font-size="23" fill="#7f9bc6" letter-spacing="3">#WIJZIJNGOOISCHE</text></svg>`;
+  // rasteren naar PNG
+  try{
+    const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml;charset=utf-8'}));
+    const img=new Image();
+    await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=url;});
+    const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+    cv.getContext('2d').drawImage(img,0,0);
+    URL.revokeObjectURL(url);
+    const blob=await new Promise(r=>cv.toBlob(r,'image/png'));
+    const file=new File([blob],`Q${q+1}-opstelling.png`,{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:`Q${q+1} opstelling`});
+    }else{
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=file.name;
+      document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);
+      toast('Afbeelding opgeslagen als download');
+    }
+  }catch(e){ if(e&&e.name==='AbortError')return; toast('Afbeelding maken lukte niet'); }
 }
 
 /* ============ Swipen tussen tabbladen ============ */
