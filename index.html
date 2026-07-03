@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="37">
+<meta name="app-version" content="38">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -33,7 +33,7 @@
   --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%}
+html,body{height:100%;overscroll-behavior-y:none}
 /* Stadion-achtergrond: vaste schermvullende laag, identiek aan de timer */
 body::before{
   content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
@@ -81,6 +81,7 @@ body{
   color:var(--txt);display:flex;align-items:center;justify-content:center;font-size:17px;
 }
 .iconbtn:active{background:var(--glass-strong)}
+.iconbtn[hidden]{display:none}
 /* ---------- Layout ---------- */
 main{padding:12px 5px 8px;max-width:560px;margin:0 auto}
 .card{
@@ -1029,7 +1030,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 37 &middot; 3 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 38 &middot; 3 juli 2026</div>';
   return html;
 }
 
@@ -1471,7 +1472,7 @@ if('serviceWorker' in navigator){
 }
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=37;
+const APP_VERSION=38;
 let _updDismissed=false;
 async function checkForUpdate(){
   if(_updDismissed||document.getElementById('updBar'))return;
@@ -1499,6 +1500,11 @@ async function applyUpdate(){
 }
 setTimeout(checkForUpdate,2500);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkForUpdate();});
+// iOS hervat de app soms zonder visibilitychange; vang ook deze signalen op,
+// en check daarnaast periodiek zolang de app open staat.
+window.addEventListener('pageshow',()=>checkForUpdate());
+window.addEventListener('focus',()=>checkForUpdate());
+setInterval(()=>{if(document.visibilityState==='visible')checkForUpdate();},60000);
 
 /* ============ Kwart delen als afbeelding ============ */
 function plainChainText(d){
