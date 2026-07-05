@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="47">
+<meta name="app-version" content="48">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -82,6 +82,19 @@ body{
 }
 .iconbtn:active{background:var(--glass-strong)}
 .iconbtn[hidden]{display:none}
+/* Scroll-aanwijzers: dun duimpje rechts + pijl-hint onderaan */
+#scrollThumb{position:fixed;right:3px;width:4px;border-radius:2px;z-index:45;
+  background:rgba(255,255,255,.26);opacity:0;transition:opacity .35s;pointer-events:none}
+#scrollThumb.show{opacity:1}
+#scrollThumb.actief{background:rgba(255,255,255,.55)}
+#scrollHint{position:fixed;left:50%;transform:translateX(-50%);z-index:45;pointer-events:none;
+  width:34px;height:22px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+  background:rgba(16,42,84,.72);border:1px solid rgba(150,190,255,.35);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  opacity:0;transition:opacity .4s}
+#scrollHint.show{opacity:1;animation:hintBob 1.6s ease-in-out infinite}
+#scrollHint svg{width:14px;height:14px;stroke:rgba(214,228,255,.9)}
+@keyframes hintBob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(4px)}}
 /* ---------- Layout ---------- */
 main{
   flex:1 1 auto;min-height:0;width:100%;
@@ -330,6 +343,8 @@ body.timermode .appbar{display:none}
 
 <main id="view"></main>
 <div id="timerHost"><iframe title="GHC Wedstrijdtimer"></iframe></div>
+<div id="scrollThumb"></div>
+<div id="scrollHint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
 
 <nav class="tabbar" id="tabbar"></nav>
 <div id="toast" role="status"></div>
@@ -1048,7 +1063,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 47 &middot; 4 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 48 &middot; 5 juli 2026</div>';
   return html;
 }
 
@@ -1298,6 +1313,7 @@ function render(){
       th.dataset.loaded='1';
     }
     th.classList.add('show');
+    requestAnimationFrame(updateScrollUI);
     return;
   }
   th.classList.remove('show'); // iframe blijft bestaan: timer loopt door
@@ -1308,6 +1324,7 @@ function render(){
   // Bij her-renderen op hetzelfde tabblad: scrollpositie behouden
   // (iOS springt anders naar boven zodra de inhoud even inklapt).
   if(_keepY!==null&&_sc&&Math.abs(_sc.scrollTop-_keepY)>2)_sc.scrollTop=_keepY;
+  requestAnimationFrame(updateScrollUI);
 }
 function bind(v){
   v.querySelectorAll('[data-regen]').forEach(b=>b.onclick=regenerate);
@@ -1487,8 +1504,46 @@ if('serviceWorker' in navigator){
   try{navigator.serviceWorker.register('sw.js');}catch(e){}
 }
 
+/* ============ Scroll-aanwijzers ============ */
+let _thumbTm=null;
+function updateScrollUI(){
+  try{
+    const v=document.getElementById('view');
+    const th=document.getElementById('scrollThumb');
+    const hint=document.getElementById('scrollHint');
+    if(!v||!th||!hint)return;
+    const zichtbaarTab=!document.body.classList.contains('timermode');
+    const scrollbaar=zichtbaarTab && v.scrollHeight>v.clientHeight+12;
+    const r=v.getBoundingClientRect();
+    if(scrollbaar){
+      const trackTop=r.top+6, trackH=r.height-12;
+      const duimH=Math.max(28, trackH*(v.clientHeight/v.scrollHeight));
+      const maxScroll=v.scrollHeight-v.clientHeight;
+      const y=trackTop+(trackH-duimH)*(maxScroll?v.scrollTop/maxScroll:0);
+      th.style.top=Math.round(y)+'px';
+      th.style.height=Math.round(duimH)+'px';
+      th.classList.add('show');
+    }else th.classList.remove('show');
+    // pijl-hint: alleen bovenaan een scrollbare pagina
+    if(scrollbaar && v.scrollTop<24){
+      hint.style.bottom=Math.round(innerHeight-r.bottom+8)+'px';
+      hint.classList.add('show');
+    }else hint.classList.remove('show');
+  }catch(e){}
+}
+(function(){
+  const v=document.getElementById('view');
+  if(v)v.addEventListener('scroll',()=>{
+    const th=document.getElementById('scrollThumb');
+    th.classList.add('actief');
+    clearTimeout(_thumbTm);_thumbTm=setTimeout(()=>th.classList.remove('actief'),600);
+    updateScrollUI();
+  },{passive:true});
+  window.addEventListener('resize',updateScrollUI);
+})();
+
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=47;
+const APP_VERSION=48;
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
