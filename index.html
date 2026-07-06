@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="48">
+<meta name="app-version" content="49">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1063,7 +1063,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 48 &middot; 5 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 49 &middot; 5 juli 2026</div>';
   return html;
 }
 
@@ -1515,8 +1515,12 @@ function updateScrollUI(){
     const zichtbaarTab=!document.body.classList.contains('timermode');
     const scrollbaar=zichtbaarTab && v.scrollHeight>v.clientHeight+12;
     const r=v.getBoundingClientRect();
+    // het scrollgebied loopt door tot ONDER de menubalk; begrens de aanwijzers
+    // daarom op de bovenkant van de balk, anders verdwijnen ze erachter
+    const tb=document.querySelector('.tabbar');
+    const balkTop=tb?tb.getBoundingClientRect().top:innerHeight;
     if(scrollbaar){
-      const trackTop=r.top+6, trackH=r.height-12;
+      const trackTop=r.top+6, trackH=Math.max(40,(Math.min(r.bottom,balkTop)-6)-trackTop);
       const duimH=Math.max(28, trackH*(v.clientHeight/v.scrollHeight));
       const maxScroll=v.scrollHeight-v.clientHeight;
       const y=trackTop+(trackH-duimH)*(maxScroll?v.scrollTop/maxScroll:0);
@@ -1524,9 +1528,9 @@ function updateScrollUI(){
       th.style.height=Math.round(duimH)+'px';
       th.classList.add('show');
     }else th.classList.remove('show');
-    // pijl-hint: alleen bovenaan een scrollbare pagina
+    // pijl-hint: alleen bovenaan een scrollbare pagina, nét boven de menubalk
     if(scrollbaar && v.scrollTop<24){
-      hint.style.bottom=Math.round(innerHeight-r.bottom+8)+'px';
+      hint.style.bottom=Math.round(innerHeight-balkTop+10)+'px';
       hint.classList.add('show');
     }else hint.classList.remove('show');
   }catch(e){}
@@ -1543,7 +1547,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=48;
+const APP_VERSION=49;
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
