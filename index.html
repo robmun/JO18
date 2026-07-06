@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="51">
+<meta name="app-version" content="52">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -235,11 +235,11 @@ select,option{font-size:var(--fs-base)}
 .chip .ball .bk{color:var(--red);font-weight:900;font-size:var(--fs-base);letter-spacing:.2px}
 .chip .ball .bk.long{font-size:var(--fs-xs);letter-spacing:0}
 .chip .ball.keeperball .bk{display:none}
-.chip .tag{background:linear-gradient(180deg,#ffffff 0%,#edf1f7 100%);color:var(--ink);font-size:var(--fs-md);font-weight:600;letter-spacing:-.1px;
-  margin-top:-7px;padding:9px 10px 3px;border-radius:var(--r-sm);
+.chip .tag{background:linear-gradient(180deg,#ffffff 0%,#edf1f7 100%);color:var(--ink);font-size:var(--fs-h);font-weight:600;letter-spacing:-.25px;
+  margin-top:-7px;padding:8px 7px 3px;border-radius:var(--r-sm);
   border:1px solid rgba(13,33,68,.10);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.9);
-  max-width:94px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;z-index:1}
+  max-width:96px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;z-index:1;line-height:1.05}
 .chip .tag .k{color:var(--red);font-weight:900;margin-right:3px}
 .chip .pos{font-size:7.5px;font-weight:700;color:rgba(255,255,255,.85);letter-spacing:.5px;text-transform:uppercase;text-shadow:0 1px 3px rgba(0,0,0,.4)}
 .chip.selected{filter:drop-shadow(0 10px 14px rgba(4,14,32,.55));transform:translate(-50%,-50%) scale(1.06)}
@@ -1079,7 +1079,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 51 &middot; 5 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 52 &middot; 6 juli 2026</div>';
   return html;
 }
 
@@ -1340,7 +1340,7 @@ function render(){
   // Bij her-renderen op hetzelfde tabblad: scrollpositie behouden
   // (iOS springt anders naar boven zodra de inhoud even inklapt).
   if(_keepY!==null&&_sc&&Math.abs(_sc.scrollTop-_keepY)>2)_sc.scrollTop=_keepY;
-  requestAnimationFrame(updateScrollUI);
+  requestAnimationFrame(()=>{updateScrollUI();fitNames();});
 }
 function bind(v){
   v.querySelectorAll('[data-regen]').forEach(b=>b.onclick=regenerate);
@@ -1520,6 +1520,23 @@ if('serviceWorker' in navigator){
   try{navigator.serviceWorker.register('sw.js');}catch(e){}
 }
 
+/* ============ Namen passend schalen ============ */
+function fitNames(){
+  try{
+    const tags=document.querySelectorAll('#field .chip .tag');
+    tags.forEach(t=>{
+      t.style.fontSize='';           // terug naar basis (15px) voor korte namen
+      let px=15;
+      // scrollWidth > clientWidth betekent: past niet binnen het vlak
+      let guard=0;
+      while(t.scrollWidth>t.clientWidth && px>11 && guard<10){
+        px-=0.7; t.style.fontSize=px.toFixed(1)+'px'; guard++;
+      }
+      // past het op de kleinste maat nóg niet, dan kapt de ellipsis netjes af
+      // (de vlakbreedte ligt vast, dus overlappen kan sowieso niet)
+    });
+  }catch(e){}
+}
 /* ============ Scroll-aanwijzers ============ */
 let _thumbTm=null;
 function updateScrollUI(){
@@ -1563,7 +1580,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=51;
+const APP_VERSION=52;
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
