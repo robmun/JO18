@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="53">
+<meta name="app-version" content="55">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -174,7 +174,11 @@ main{
 .qlbl{font-size:9px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim);white-space:nowrap}
 .qhalf.hasactive .qlbl{color:#fff}
 /* ---------- Spelers ---------- */
+/* Speler-blok: omrandt ingeklapte rij + paneel als één geheel wanneer open */
+.pcard{border:1px solid transparent;border-radius:var(--r-md);transition:border-color .18s ease, background .18s ease;margin:0 -4px}
+.pcard.open{border-color:rgba(255,255,255,.55);background:rgba(255,255,255,.04);padding:0 6px;box-shadow:var(--shadow-sm)}
 .prow{display:flex;align-items:center;gap:9px;padding:11px 2px;border-bottom:1px solid rgba(255,255,255,.08)}
+.pcard.open .prow{border-bottom:1px solid rgba(255,255,255,.14)}
 .prow:last-child{border-bottom:none}
 .sw{position:relative;width:52px;height:30px;flex-shrink:0}
 .sw input{opacity:0;width:100%;height:100%;position:absolute;z-index:2}
@@ -183,10 +187,19 @@ main{
 .sw input:checked + i{background:linear-gradient(135deg,#56c777,#2f9e5e)}
 .sw input:checked + i:before{left:24px}
 .num{
-  width:42px;height:40px;text-align:center;font-weight:800;font-size:var(--fs-h);
-  background:rgba(255,255,255,.10);border:1px solid var(--stroke);border-radius:var(--r-sm);
-  color:var(--txt);padding:0 2px;
+  width:42px;height:40px;display:flex;align-items:center;justify-content:center;
+  text-align:center;font-weight:800;font-size:var(--fs-h);flex-shrink:0;
+  background:rgba(255,255,255,.07);border:1px solid var(--stroke);border-radius:var(--r-sm);
+  color:var(--txt);
 }
+.num.leeg{color:var(--dim);font-weight:600}
+.num.dupe{border-color:#e8a24a;color:#ffcf94}
+/* Bewerkvelden in het uitklappaneel */
+.editpane .idrow{display:flex;gap:8px;margin-top:2px;margin-bottom:2px}
+.editpane .idrow label.numlbl{flex:0 0 74px}
+.editpane .idrow input{width:100%;background:rgba(255,255,255,.10);border:1px solid var(--stroke);
+  border-radius:var(--r-sm);color:var(--txt);font-size:var(--fs-base);font-weight:700;padding:8px 9px;margin-top:3px}
+.editpane .idrow input.dupe{border-color:#e8a24a}
 .pname{flex:1;min-width:0}
 .pname b{font-size:var(--fs-h);display:block}
 .pname span{font-size:var(--fs-xs);color:var(--dim);display:block;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1031,27 +1044,29 @@ function renderSpelers(){
 function dupNum(p){return p.num!==''&&p.num!=null&&state.players.filter(x=>x.num===p.num).length>1;}
 function playerRow(p){
   const open=expandedPlayer===p.id;
-  let row=`<div class="prow ${p.present?'':'dim-row'}">
+  const nummer=(p.num??'')===''?'&ndash;':esc(String(p.num));
+  let row=`<div class="pcard${open?' open':''}"><div class="prow ${p.present?'':'dim-row'}">
     <label class="sw"><input type="checkbox" data-act="present" data-id="${p.id}" ${p.present?'checked':''}><i></i></label>
-    <input class="num${dupNum(p)?' dupe':''}" type="number" inputmode="numeric" data-act="num" data-id="${p.id}" value="${p.num??''}" aria-label="Rugnummer">
-    <div class="pname">${p.guest
-      ?`<input type="text" data-act="name" data-id="${p.id}" value="${esc(p.name)}" placeholder="Naam gast">`
-      :`<b>${esc(p.name)}</b>`}<span>${prefSummary(p)}</span></div>
+    <div class="num${(p.num??'')===''?' leeg':''}${dupNum(p)?' dupe':''}" aria-label="Rugnummer ${nummer}">${nummer}</div>
+    <div class="pname"><b>${esc(p.name)||'<span style=\'color:var(--dim)\'>Naamloos</span>'}</b><span>${prefSummary(p)}</span></div>
     ${p.guest?`<button class="chev" data-act="delguest" data-id="${p.id}" aria-label="Verwijderen" style="color:#ffb39e">&#10005;</button>`:''}
-    <button class="chev" data-act="expand" data-id="${p.id}" aria-label="Posities aanpassen">${open?'&#9652;':'&#9662;'}</button>
+    <button class="chev" data-act="expand" data-id="${p.id}" aria-label="Naam, nummer en posities aanpassen">${open?'&#9652;':'&#9662;'}</button>
   </div>`;
   if(open){
     const opts=(sel)=>`<option value="">—</option>`+POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.name}</option>`).join('');
     // Eerste voorkeur kan óók 'Keeper' zijn (alleen hier, niet als alternatief).
     const optsK=(sel)=>`<option value="">—</option><option value="keeper" ${sel==='keeper'?'selected':''}>&#129508; Keeper</option>`+POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.name}</option>`).join('');
     const isK=p.prefs[0]==='keeper';
-    row+=`<div class="editpane"><div class="frow">
+    row+=`<div class="editpane"><div class="idrow">
+      <label class="numlbl">Rugnummer<input class="${dupNum(p)?'dupe':''}" type="number" inputmode="numeric" data-act="num" data-id="${p.id}" value="${p.num??''}" placeholder="&ndash;"></label>
+      <label>Naam<input type="text" data-act="name" data-id="${p.id}" value="${esc(p.name)}" placeholder="Naam speler"></label>
+    </div><div class="frow">
       <label>Voorkeur<select class="sel" data-act="pref" data-i="0" data-id="${p.id}">${optsK(p.prefs[0])}</select></label>
       <label>Alternatief 1<select class="sel ${isK?'lockedalt':''}" data-act="pref" data-i="1" data-id="${p.id}" ${isK?'disabled':''}>${opts(p.prefs[1])}</select></label>
       <label>Alternatief 2<select class="sel ${isK?'lockedalt':''}" data-act="pref" data-i="2" data-id="${p.id}" ${isK?'disabled':''}>${opts(p.prefs[2])}</select></label>
     </div>${isK?`<p class="hint" style="margin-top:8px">&#129508; Deze speler is de keeper: staat de hele wedstrijd op doel en telt niet mee in de veldwissels.</p>`:''}</div>`;
   }
-  return row;
+  return row+`</div>`;
 }
 
 /* ============ Tab: Regels ============ */
@@ -1092,7 +1107,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 53 &middot; 6 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 15 &middot; 6 juli 2026</div>';
   return html;
 }
 
@@ -1383,7 +1398,7 @@ function bind(v){
     }
     render();
   });
-  v.querySelectorAll('[data-act="name"]').forEach(el=>el.onchange=e=>{byId(el.dataset.id).name=e.target.value.trim()||'Gast';save();render();});
+  v.querySelectorAll('[data-act="name"]').forEach(el=>el.onchange=e=>{const p=byId(el.dataset.id);const v=e.target.value.trim();p.name=v||(p.guest?'Gast':p.name);save();render();});
   v.querySelectorAll('[data-act="expand"]').forEach(el=>el.onclick=()=>{expandedPlayer=expandedPlayer===el.dataset.id?null:el.dataset.id;render();});
   v.querySelectorAll('[data-act="delguest"]').forEach(el=>el.onclick=()=>{
     const p=byId(el.dataset.id);
@@ -1601,12 +1616,14 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=53;
+const APP_VERSION=55;
+const SHOWN_OFFSET=40; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
+const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
   const _seen=Number(localStorage.getItem('wisselplanner_lastver')||0);
-  if(_seen&&_seen<APP_VERSION)setTimeout(()=>toast('Bijgewerkt naar versie '+APP_VERSION),900);
+  if(_seen&&_seen<APP_VERSION)setTimeout(()=>toast('Bijgewerkt naar versie '+shownVer(APP_VERSION)),900);
   localStorage.setItem('wisselplanner_lastver',String(APP_VERSION));
 }catch(e){}
 async function checkForUpdate(){
@@ -1622,7 +1639,7 @@ async function checkForUpdate(){
 function showUpdateBar(v){
   const d=document.createElement('div');
   d.id='updBar';
-  d.innerHTML=`<div class="txt"><b>Nieuwe versie beschikbaar (v${v})</b>Tik op vernieuwen om de update te laden.</div>
+  d.innerHTML=`<div class="txt"><b>Nieuwe versie beschikbaar (v${shownVer(v)})</b>Tik op vernieuwen om de update te laden.</div>
     <button class="upd">Vernieuwen</button><button class="dis" aria-label="Sluiten">&#10005;</button>`;
   d.querySelector('.upd').onclick=applyUpdate;
   d.querySelector('.dis').onclick=()=>{_updDismissed=true;d.remove();};
