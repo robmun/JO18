@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="52">
+<meta name="app-version" content="53">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -137,7 +137,12 @@ main{
   background:linear-gradient(135deg,#5b95e6,#3b6fc4);color:#fff;
   box-shadow:0 4px 14px rgba(60,110,200,.4);
 }
-.btn:active{transform:scale(.97)}
+.btn{transition:transform .13s cubic-bezier(.34,1.56,.64,1), filter .13s ease}
+.btn:active{transform:scale(.96)}
+.iconbtn{transition:transform .13s cubic-bezier(.34,1.56,.64,1)}
+.iconbtn:active{transform:scale(.90)}
+.tab{transition:transform .12s cubic-bezier(.34,1.56,.64,1)}
+.tab:active{transform:scale(.93)}
 .btn.ghost{background:var(--glass);border:1px solid var(--stroke);box-shadow:none;color:var(--txt)}
 .btn.small{padding:8px 12px;font-size:var(--fs-md);border-radius:var(--r-md)}
 .btn.full{width:100%}
@@ -309,7 +314,7 @@ body.timermode .appbar{display:none}
   position:fixed;left:50%;bottom:calc(100px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
   background:rgba(15,30,60,.92);border:1px solid var(--stroke);color:var(--txt);
   padding:11px 18px;border-radius:var(--r-lg);font-size:var(--fs-md);font-weight:600;z-index:99;
-  opacity:0;pointer-events:none;transition:.25s;max-width:88vw;text-align:center;
+  opacity:0;pointer-events:none;transition:opacity .22s ease, transform .32s cubic-bezier(.34,1.56,.64,1);max-width:88vw;text-align:center;
   backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
   box-shadow:var(--shadow-md), var(--edge-light);
 }
@@ -333,6 +338,14 @@ body.timermode .appbar{display:none}
   .pw{font-size:8.2pt;line-height:1.32;margin-top:0.8mm;flex:0 0 auto}
   .pw b{font-weight:bold}
 }
+/* Tabwissel: subtiele schuif in de richting van de veeg + fade */
+@keyframes viewInR{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}
+@keyframes viewInL{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:translateX(0)}}
+#view.slideR{animation:viewInR .22s cubic-bezier(.22,.61,.36,1)}
+#view.slideL{animation:viewInL .22s cubic-bezier(.22,.61,.36,1)}
+/* Speler oppakken bij selecteren: kleine veer-pop */
+@keyframes tokenPop{0%{transform:translate(-50%,-50%) scale(1)}55%{transform:translate(-50%,-50%) scale(1.12)}100%{transform:translate(-50%,-50%) scale(1.06)}}
+.chip.selected{animation:tokenPop .24s cubic-bezier(.34,1.56,.64,1)}
 @media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
 </style>
 </head>
@@ -1079,7 +1092,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 52 &middot; 6 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 53 &middot; 6 juli 2026</div>';
   return html;
 }
 
@@ -1305,6 +1318,13 @@ let _lastTab=null;
 function render(){
   const _sc=document.getElementById('view');
   const _keepY=(_lastTab===activeTab&&_sc)?_sc.scrollTop:null;
+  // richting van de tabwissel bepalen voor de schuif-animatie
+  const _order=['timer','spelers','regels','q0','q1','q2','q3'];
+  let _slide='';
+  if(_lastTab!==activeTab){
+    const a=_order.indexOf(_lastTab), b=_order.indexOf(activeTab);
+    if(a>=0&&b>=0)_slide=b>a?'slideR':'slideL';
+  }
   if(_lastTab!==activeTab){swapWarnings=[];_lastTab=activeTab;}
   document.body.classList.toggle('timermode',activeTab==='timer');
   const stb=document.getElementById('shareTopBtn');
@@ -1337,6 +1357,7 @@ function render(){
   else if(activeTab==='regels')v.innerHTML=renderRegels();
   else v.innerHTML=renderQuarter(Number(activeTab.slice(1)));
   bind(v);
+  if(_slide){ v.classList.remove('slideL','slideR'); void v.offsetWidth; v.classList.add(_slide); }
   // Bij her-renderen op hetzelfde tabblad: scrollpositie behouden
   // (iOS springt anders naar boven zodra de inhoud even inklapt).
   if(_keepY!==null&&_sc&&Math.abs(_sc.scrollTop-_keepY)>2)_sc.scrollTop=_keepY;
@@ -1580,7 +1601,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=52;
+const APP_VERSION=53;
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
