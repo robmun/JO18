@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="55">
+<meta name="app-version" content="56">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -204,7 +204,14 @@ main{
 .pname b{font-size:var(--fs-h);display:block}
 .pname span{font-size:var(--fs-xs);color:var(--dim);display:block;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pname input{width:100%;background:rgba(255,255,255,.10);border:1px solid var(--stroke);border-radius:var(--r-sm);color:var(--txt);font-size:var(--fs-h);font-weight:700;padding:7px 9px}
-.chev{border:none;background:rgba(255,255,255,.10);border:1px solid var(--stroke);color:var(--dim);width:40px;height:40px;border-radius:var(--r-sm);font-size:var(--fs-base);flex-shrink:0}
+.chev{background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.28);color:var(--txt);
+  width:46px;height:46px;border-radius:var(--r-sm);flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;font-weight:900;line-height:1;
+  transition:transform .13s cubic-bezier(.34,1.56,.64,1), background .15s ease}
+.chev:active{transform:scale(.90)}
+.chev svg{width:20px;height:20px;stroke:currentColor;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.pcard.open .chev[data-act="expand"]{background:var(--accent);border-color:var(--accent);color:#fff}
 .editpane{padding:4px 2px 12px;border-bottom:1px solid rgba(255,255,255,.08)}
 .editpane .frow{display:flex;gap:8px;margin-top:8px}
 .editpane label{flex:1;font-size:var(--fs-xs);color:var(--dim);font-weight:700}
@@ -1050,7 +1057,7 @@ function playerRow(p){
     <div class="num${(p.num??'')===''?' leeg':''}${dupNum(p)?' dupe':''}" aria-label="Rugnummer ${nummer}">${nummer}</div>
     <div class="pname"><b>${esc(p.name)||'<span style=\'color:var(--dim)\'>Naamloos</span>'}</b><span>${prefSummary(p)}</span></div>
     ${p.guest?`<button class="chev" data-act="delguest" data-id="${p.id}" aria-label="Verwijderen" style="color:#ffb39e">&#10005;</button>`:''}
-    <button class="chev" data-act="expand" data-id="${p.id}" aria-label="Naam, nummer en posities aanpassen">${open?'&#9652;':'&#9662;'}</button>
+    <button class="chev" data-act="expand" data-id="${p.id}" aria-label="Naam, nummer en posities aanpassen"><svg viewBox="0 0 24 24"><polyline points="${open?'6 15 12 9 18 15':'6 9 12 15 18 9'}"/></svg></button>
   </div>`;
   if(open){
     const opts=(sel)=>`<option value="">—</option>`+POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.name}</option>`).join('');
@@ -1107,7 +1114,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 15 &middot; 6 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 16 &middot; 6 juli 2026</div>';
   return html;
 }
 
@@ -1616,7 +1623,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=55;
+const APP_VERSION=56;
 const SHOWN_OFFSET=40; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
