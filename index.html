@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="58">
+<meta name="app-version" content="59">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -225,7 +225,7 @@ select,option{font-size:var(--fs-base)}
 .sel.lockedalt,.sel:disabled{opacity:.4;cursor:not-allowed}
 .num.dupe{border-color:rgba(255,140,90,.85);background:rgba(255,120,70,.16)}
 /* ---------- Regels ---------- */
-.rule{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:var(--r-md);padding:11px 12px;margin-bottom:8px;font-size:var(--fs-md);line-height:1.4}
+.rule{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:var(--r-md);padding:11px 12px;margin-bottom:8px;font-size:var(--fs-base);line-height:1.4}
 .rule .del{margin-left:auto;flex-shrink:0;width:38px;height:38px;border-radius:var(--r-sm);border:none;background:rgba(214,81,47,.18);color:#ffb39e;font-size:var(--fs-lg);font-weight:700}
 /* ---------- Veld ---------- */
 .fieldwrap{position:relative;border-radius:var(--r-lg);overflow:hidden;border:1px solid rgba(255,255,255,.2);
@@ -1114,7 +1114,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 18 &middot; 7 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 19 &middot; 7 juli 2026</div>';
   return html;
 }
 
@@ -1623,7 +1623,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=58;
+const APP_VERSION=59;
 const SHOWN_OFFSET=40; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
