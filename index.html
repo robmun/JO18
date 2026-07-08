@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="59">
+<meta name="app-version" content="63">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -24,7 +24,11 @@
   --green1:#2f9e5e; --green2:#26824d;
   --warn:#ffd27a; --kp:#d6512f;
   --danger:#d6512f; --danger-soft:rgba(214,81,47,.18); --danger-txt:#ffb39e;
-  --red:var(--red);
+  /* Semantische kleuren: rood=urgentie/eruit, groen=erin/aanwezig, blauw=doorschuiven/navigatie */
+  --sem-in:#7be09a;        /* erin, aanwezig */
+  --sem-out:#ff9d86;       /* eruit */
+  --sem-move:var(--accent);/* doorschuiven binnen het veld */
+  --num:#ffffff;           /* rugnummer/keeper-teken op het token (wit, niet rood) */
   /* Hoekrondingen */
   --r-xs:8px; --r-sm:10px; --r-md:12px; --r-lg:16px; --r-xl:22px; --r-pill:99px;
   /* Schaduwen: één lichtbron (recht van boven), vaste sterkteladder */
@@ -257,7 +261,7 @@ select,option{font-size:var(--fs-base)}
   box-shadow:inset 0 2px 3px rgba(255,255,255,.30), inset 0 -4px 6px rgba(0,0,0,.32);
   position:relative;z-index:2;
 }
-.chip .ball .bk{color:var(--red);font-weight:900;font-size:var(--fs-base);letter-spacing:.2px}
+.chip .ball .bk{color:var(--num);font-weight:900;font-size:var(--fs-base);letter-spacing:.2px}
 .chip .ball .bk.long{font-size:var(--fs-xs);letter-spacing:0}
 .chip .ball.keeperball .bk{display:none}
 .chip .tag{background:linear-gradient(180deg,#ffffff 0%,#edf1f7 100%);color:var(--ink);font-size:var(--fs-h);font-weight:600;letter-spacing:-.25px;
@@ -265,7 +269,7 @@ select,option{font-size:var(--fs-base)}
   border:1px solid rgba(13,33,68,.10);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.9);
   max-width:96px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;z-index:1;line-height:1.05}
-.chip .tag .k{color:var(--red);font-weight:900;margin-right:3px}
+.chip .tag .k{color:var(--sem-out);font-weight:900;margin-right:3px}
 .chip .pos{font-size:7.5px;font-weight:700;color:rgba(255,255,255,.85);letter-spacing:.5px;text-transform:uppercase;text-shadow:0 1px 3px rgba(0,0,0,.4)}
 .chip.selected{filter:drop-shadow(0 10px 14px rgba(4,14,32,.55));transform:translate(-50%,-50%) scale(1.06)}
 .chip.selected .ball{outline:3px solid var(--accent);outline-offset:2px}
@@ -301,8 +305,11 @@ body.with-a2hs main{padding-bottom:calc(230px + env(safe-area-inset-bottom))}
 .wtime{font-size:var(--fs-sm);font-weight:800;color:var(--accent);letter-spacing:.4px;text-transform:uppercase;margin-bottom:7px}
 .wline{display:flex;align-items:baseline;gap:8px;font-size:var(--fs-base);padding:4px 0;line-height:1.32}
 .wline .arr{font-weight:800;flex-shrink:0;width:16px;text-align:center}
-.wline .arr.in{color:#7be09a}.wline .arr.out{color:#ff9d86}.wline .arr.mv{color:var(--accent)}
-.wline .posname{color:var(--dim);font-size:var(--fs-md)}
+.wline .arr.in{color:var(--sem-in)}.wline .arr.out{color:var(--sem-out)}.wline .arr.mv{color:#ffffff}
+.wline .pl-in{color:var(--sem-in)}
+.wline .pl-out{color:var(--sem-out)}
+.wline .pl-mv{color:#ffffff;font-weight:800}
+.wline .posname{color:var(--txt);font-size:var(--fs-md)}
 .wbench{margin-top:7px;font-size:var(--fs-sm);color:var(--dim)}
 .empty{font-size:var(--fs-md);color:var(--dim);font-style:italic}
 /* ---------- Timer-tab ---------- */
@@ -1114,7 +1121,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 19 &middot; 7 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 23 &middot; 7 juli 2026</div>';
   return html;
 }
 
@@ -1321,16 +1328,16 @@ function renderQuarter(q){
 function wisselLines(d){
   let s='';
   for(const ch of d.chains){
-    let line=`<b>${esc(pName(ch.inP))}</b> erin op <span class="posname">${POSMAP[ch.pos].name}</span>`;
-    if(ch.outP)line+=` &middot; <b>${esc(pName(ch.outP))}</b> eruit`;
-    if(ch.moves.length)line+=`; daardoor schuift `+ch.moves.map(m=>`<b>${esc(pName(m.pid))}</b> van ${POSMAP[m.from].name} naar <b>${POSMAP[m.to].name}</b>`).join(' en ');
+    let line=`<b class="pl-in">${esc(pName(ch.inP))}</b> erin op <span class="posname">${POSMAP[ch.pos].name}</span>`;
+    if(ch.outP)line+=` &middot; <b class="pl-out">${esc(pName(ch.outP))}</b> eruit`;
+    if(ch.moves.length)line+=`; daardoor schuift `+ch.moves.map(m=>`<b class="pl-mv">${esc(pName(m.pid))}</b> van ${POSMAP[m.from].name} naar ${POSMAP[m.to].name}`).join(' en ');
     s+=`<div class="wline"><span class="arr in">&#8645;</span><span>${line}</span></div>`;
   }
   for(const o of d.looseOuts){
-    s+=`<div class="wline"><span class="arr out">&#9660;</span><span><b>${esc(pName(o.pid))}</b> eruit <span class="posname">— ${POSMAP[o.pos].name}</span></span></div>`;
+    s+=`<div class="wline"><span class="arr out">&#9660;</span><span><b class="pl-out">${esc(pName(o.pid))}</b> eruit <span class="posname">— ${POSMAP[o.pos].name}</span></span></div>`;
   }
   for(const m of d.looseMoves){
-    s+=`<div class="wline"><span class="arr mv">&#8594;</span><span><b>${esc(pName(m.pid))}</b> schuift van ${POSMAP[m.from].name} naar <b>${POSMAP[m.to].name}</b></span></div>`;
+    s+=`<div class="wline"><span class="arr mv">&#8594;</span><span><b class="pl-mv">${esc(pName(m.pid))}</b> schuift van ${POSMAP[m.from].name} naar ${POSMAP[m.to].name}</span></div>`;
   }
   return s;
 }
@@ -1623,7 +1630,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=59;
+const APP_VERSION=63;
 const SHOWN_OFFSET=40; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
