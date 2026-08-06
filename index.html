@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="63">
+<meta name="app-version" content="64">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -716,6 +716,11 @@ function buildSchedule(state){
   const perQ=(dev3<dev2-0.01)?3:2;
   const res=perQ===3?r3:r2;
   const assignments=assignAll(res.blocks,perQ,state.rules,byId);
+  // Regel 'q3likeq1': laat Q3 met exact dezelfde opstelling starten als Q1.
+  // Alleen het startblok van Q3 wordt gelijkgetrokken; de wissels binnen Q3 lopen daarna door.
+  if((state.rules||[]).some(r=>r.type==='q3likeq1') && assignments.length>=2*perQ+1){
+    assignments[2*perQ]={...assignments[0]};
+  }
   return {perQ,assignments,keeperId:keeper?keeper.id:null,
           fieldIds:fieldPlayers.map(p=>p.id),
           minutes:Object.fromEntries(fieldPlayers.map(p=>[p.id,(res.played[p.id]||0)*(17.5/perQ)]))};
@@ -998,6 +1003,7 @@ function ruleSentence(r){
     case 'start':  return `${n(r.p1)} begint ${r.start==='base'?'in de basis':'op de bank'}`;
     case 'noline': return `${n(r.p1)} speelt nooit in de ${LINES[r.line]}`;
     case 'rotate': return `${n(r.p1)} en ${n(r.p2)} wisselen elkaar af op ${POSMAP[r.pos]?POSMAP[r.pos].name.toLowerCase():r.pos}`;
+    case 'q3likeq1': return `Start Q3 gelijk aan start Q1`;
   }
   return '';
 }
@@ -1106,9 +1112,10 @@ function renderRegels(){
       <option value="start" ${t==='start'?'selected':''}>Begint in de basis of op de bank</option>
       <option value="noline" ${t==='noline'?'selected':''}>Speelt nooit in een bepaalde linie</option>
       <option value="rotate" ${t==='rotate'?'selected':''}>Twee spelers wisselen elkaar af op één positie</option>
+      <option value="q3likeq1" ${t==='q3likeq1'?'selected':''}>Start Q3 gelijk aan start Q1</option>
     </select>
-    <label class="hint">Speler</label>
-    <select class="sel" id="nrP1" style="margin-bottom:10px">${popts(newRule.p1)}</select>`;
+    ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.</p>':`<label class="hint">Speler</label>
+    <select class="sel" id="nrP1" style="margin-bottom:10px">${popts(newRule.p1)}</select>`}`;
   if(t==='half')html+=`<label class="hint">Helft</label><select class="sel" id="nrHalf" style="margin-bottom:10px"><option value="1">Eerste helft</option><option value="2">Tweede helft</option></select>`;
   if(t==='apart')html+=`<label class="hint">Niet samen met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select>`;
   if(t==='line')html+=`<label class="hint">Linie</label><select class="sel" id="nrLine" style="margin-bottom:10px"><option value="voor">Voorste linie</option><option value="midden">Middenlinie</option><option value="achter">Achterste linie</option></select>`;
@@ -1121,7 +1128,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 23 &middot; 7 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 24 &middot; 7 juli 2026</div>';
   return html;
 }
 
@@ -1468,7 +1475,8 @@ function bind(v){
   const ar=v.querySelector('#addRule');
   if(ar)ar.onclick=()=>{
     const g=id=>{const el=v.querySelector(id);return el?el.value:undefined;};
-    const r={id:'r'+Date.now(),type:g('#nrType'),p1:g('#nrP1')};
+    const _ty=g('#nrType');
+    const r=_ty==='q3likeq1'?{id:'r'+Date.now(),type:_ty}:{id:'r'+Date.now(),type:_ty,p1:g('#nrP1')};
     if(r.type==='half')r.half=Number(g('#nrHalf'));
     if(r.type==='apart'||r.type==='condpos')r.p2=g('#nrP2');
     if(r.type==='line')r.line=g('#nrLine');
@@ -1479,6 +1487,7 @@ function bind(v){
     if(r.type==='noline')r.line=g('#nrLine');
     if(r.type==='rotate'){r.p2=g('#nrP2');r.pos=g('#nrPos');}
     if((r.type==='apart'||r.type==='condpos'||r.type==='rotate')&&r.p1===r.p2){toast('Kies twee verschillende spelers');return;}
+    if(r.type==='q3likeq1'&&state.rules.some(x=>x.type==='q3likeq1')){toast('Deze regel bestaat al');return;}
     state.rules.push(r);save();render();toast('Regel toegevoegd');
   };
   // Chips ruilen
@@ -1630,7 +1639,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=63;
+const APP_VERSION=64;
 const SHOWN_OFFSET=40; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
