@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="64">
+<meta name="app-version" content="66">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -708,10 +708,17 @@ function assignAll(blockSets,perQ,rules,byId){
 function buildSchedule(state){
   const present=state.players.filter(p=>p.present);
   const keeper=present.find(p=>p.id===state.keeperId)||null;
+  // Vervangkeepers per kwart (regels 'gk'), gebruikt als er geen vaste keeper is
+  const gkRules=(state.rules||[]).filter(r=>r.type==='gk');
+  const gkByQ={}; gkRules.forEach(r=>(r.qs||[]).forEach(q=>{if(!gkByQ[q])gkByQ[q]=r.p1;}));
+  // Spelers die in ÉÉN of meer kwarten keepen (en dus daar niet in het veld staan)
+  const gkIds=new Set(Object.values(gkByQ));
+  // Veldspelers: iedereen behalve de vaste keeper; vervangkeepers blijven meedoen
+  // in hun niet-keeper-kwarten, dus die houden we in de pool en halen we per kwart weg.
   const fieldPlayers=present.filter(p=>!keeper||p.id!==keeper.id);
   const byId=Object.fromEntries(state.players.map(p=>[p.id,p]));
-  const r2=pickBlocks(fieldPlayers,2,state.rules);
-  const r3=pickBlocks(fieldPlayers,3,state.rules);
+  const r2=pickBlocks(fieldPlayers.filter(p=>!gkIds.has(p.id)),2,state.rules);
+  const r3=pickBlocks(fieldPlayers.filter(p=>!gkIds.has(p.id)),3,state.rules);
   const dev2=r2.dev*8.75, dev3=r3.dev*(17.5/3);
   const perQ=(dev3<dev2-0.01)?3:2;
   const res=perQ===3?r3:r2;
@@ -721,8 +728,10 @@ function buildSchedule(state){
   if((state.rules||[]).some(r=>r.type==='q3likeq1') && assignments.length>=2*perQ+1){
     assignments[2*perQ]={...assignments[0]};
   }
-  return {perQ,assignments,keeperId:keeper?keeper.id:null,
-          fieldIds:fieldPlayers.map(p=>p.id),
+  // Keeper per kwart bepalen: vaste keeper voor alle kwarten, anders de gk-regel.
+  const keeperByQ=[0,1,2,3].map(q=>keeper?keeper.id:(gkByQ[q+1]||null));
+  return {perQ,assignments,keeperId:keeper?keeper.id:null,keeperByQ,
+          fieldIds:fieldPlayers.filter(p=>!gkIds.has(p.id)).map(p=>p.id),
           minutes:Object.fromEntries(fieldPlayers.map(p=>[p.id,(res.played[p.id]||0)*(17.5/perQ)]))};
 }
 
@@ -1004,6 +1013,7 @@ function ruleSentence(r){
     case 'noline': return `${n(r.p1)} speelt nooit in de ${LINES[r.line]}`;
     case 'rotate': return `${n(r.p1)} en ${n(r.p2)} wisselen elkaar af op ${POSMAP[r.pos]?POSMAP[r.pos].name.toLowerCase():r.pos}`;
     case 'q3likeq1': return `Start Q3 gelijk aan start Q1`;
+    case 'gk': return `${n(r.p1)} keept ${(r.qs||[]).length===4?'de hele wedstrijd':(r.qs||[]).map(q=>'Q'+q).join(' + ')}`;
   }
   return '';
 }
@@ -1112,10 +1122,13 @@ function renderRegels(){
       <option value="start" ${t==='start'?'selected':''}>Begint in de basis of op de bank</option>
       <option value="noline" ${t==='noline'?'selected':''}>Speelt nooit in een bepaalde linie</option>
       <option value="rotate" ${t==='rotate'?'selected':''}>Twee spelers wisselen elkaar af op één positie</option>
+      <option value="gk" ${t==='gk'?'selected':''}>Keeper voor bepaalde kwarten (vervanger)</option>
       <option value="q3likeq1" ${t==='q3likeq1'?'selected':''}>Start Q3 gelijk aan start Q1</option>
     </select>
     ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.</p>':`<label class="hint">Speler</label>
     <select class="sel" id="nrP1" style="margin-bottom:10px">${popts(newRule.p1)}</select>`}`;
+  if(t==='gk')html+=`<label class="hint">Keept in welke kwarten?</label>
+    <div class="qpick" style="display:flex;gap:8px;margin-bottom:10px">${[1,2,3,4].map(q=>`<label class="qp" style="flex:1"><input type="checkbox" class="nrGKq" value="${q}" ${(newRule.qs||[]).includes(q)?'checked':''}> Q${q}</label>`).join('')}</div>`;
   if(t==='half')html+=`<label class="hint">Helft</label><select class="sel" id="nrHalf" style="margin-bottom:10px"><option value="1">Eerste helft</option><option value="2">Tweede helft</option></select>`;
   if(t==='apart')html+=`<label class="hint">Niet samen met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select>`;
   if(t==='line')html+=`<label class="hint">Linie</label><select class="sel" id="nrLine" style="margin-bottom:10px"><option value="voor">Voorste linie</option><option value="midden">Middenlinie</option><option value="achter">Achterste linie</option></select>`;
@@ -1128,7 +1141,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 24 &middot; 7 juli 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 25 &middot; 7 augustus 2026</div>';
   return html;
 }
 
@@ -1185,11 +1198,31 @@ function regenerate(){
   const present=state.players.filter(p=>p.present);
   // Keeper = de speler met 'Keeper' als eerste voorkeur. Precies één, en aanwezig.
   const keepers=state.players.filter(p=>p.prefs&&p.prefs[0]==='keeper');
-  if(keepers.length===0){toast('Geen keeper gekozen — geef één speler ‘Keeper’ als eerste voorkeur');activeTab='spelers';render();return;}
-  if(keepers.length>1){toast('Er zijn meerdere keepers — er mag er maar één zijn');activeTab='spelers';render();return;}
-  const keeper=keepers[0];
-  state.keeperId=keeper.id;
-  if(!keeper.present){toast('De keeper ('+esc(keeper.name)+') staat op afwezig — wijs een andere keeper aan');activeTab='spelers';render();return;}
+  const vasteKeeperAanwezig=keepers.length===1&&keepers[0].present;
+  // Vervangkeepers per kwart (regels van type 'gk')
+  const gkRules=(state.rules||[]).filter(r=>r.type==='gk');
+  const gkDekking={}; gkRules.forEach(r=>(r.qs||[]).forEach(q=>{if(!gkDekking[q])gkDekking[q]=r.p1;}));
+  const gastKeeper=keepers.find(k=>k.guest&&k.present);
+
+  if(vasteKeeperAanwezig){
+    // Normale situatie: de vaste keeper doet de hele wedstrijd
+    if(keepers.length>1){toast('Er zijn meerdere keepers — er mag er maar één zijn');activeTab='spelers';render();return;}
+    state.keeperId=keepers[0].id;
+  } else if(gastKeeper){
+    // Een aanwezige gastspeler is als keeper aangewezen: die doet het
+    state.keeperId=gastKeeper.id;
+  } else {
+    // Vaste keeper afwezig én geen gastkeeper -> dwing af dat álle 4 kwarten via 'gk'-regels gedekt zijn
+    const ontbreekt=[1,2,3,4].filter(q=>!gkDekking[q]);
+    if(ontbreekt.length){
+      toast('Geen keeper voor '+ontbreekt.map(q=>'Q'+q).join(', ')+' — wijs via Regels een keeper aan voor elk kwart');
+      activeTab='regels';render();return;
+    }
+    // check dat de aangewezen keepers ook aanwezig zijn
+    const afweznaam=Object.values(gkDekking).map(id=>byId(id)).find(p=>!p||!p.present);
+    if(afweznaam!==undefined){toast('Een aangewezen keeper is afwezig — pas de keeper-regels aan');activeTab='regels';render();return;}
+    state.keeperId=null; // geen vaste keeper; per kwart geregeld via gkDekking
+  }
   // 10 veldspelers + keeper = 11 aanwezigen minimaal
   if(present.length<11){toast('Minimaal 11 aanwezige spelers nodig (incl. keeper)');return;}
   snapshot('genereren');
@@ -1287,7 +1320,7 @@ function renderQuarter(q){
   html+=warnBoxesHTML();
   const sch=state.schedule, perQ=sch.perQ, b0=q*perQ, blockLen=17.5/perQ;
   const asg0=sch.assignments[b0];
-  const keeper=byId(sch.keeperId);
+  const keeper=byId((sch.keeperByQ&&sch.keeperByQ[q])||sch.keeperId);
   const onField=new Set(Object.values(asg0));
   const benchIds=sch.fieldIds.filter(id=>!onField.has(id)&&byId(id)&&byId(id).present);
   // Veld: eigen helft onderin, bank als lijstje op de helft van de tegenstander
@@ -1476,7 +1509,15 @@ function bind(v){
   if(ar)ar.onclick=()=>{
     const g=id=>{const el=v.querySelector(id);return el?el.value:undefined;};
     const _ty=g('#nrType');
-    const r=_ty==='q3likeq1'?{id:'r'+Date.now(),type:_ty}:{id:'r'+Date.now(),type:_ty,p1:g('#nrP1')};
+    let r;
+    if(_ty==='q3likeq1'){r={id:'r'+Date.now(),type:_ty};}
+    else if(_ty==='gk'){
+      const qs=[...v.querySelectorAll('.nrGKq:checked')].map(c=>Number(c.value));
+      if(!g('#nrP1')){toast('Kies een speler');return;}
+      if(!qs.length){toast('Kies minstens één kwart');return;}
+      r={id:'r'+Date.now(),type:'gk',p1:g('#nrP1'),qs};
+    }
+    else {r={id:'r'+Date.now(),type:_ty,p1:g('#nrP1')};}
     if(r.type==='half')r.half=Number(g('#nrHalf'));
     if(r.type==='apart'||r.type==='condpos')r.p2=g('#nrP2');
     if(r.type==='line')r.line=g('#nrLine');
@@ -1639,8 +1680,8 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=64;
-const SHOWN_OFFSET=40; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
+const APP_VERSION=66;
+const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
