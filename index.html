@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="66">
+<meta name="app-version" content="67">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1108,6 +1108,10 @@ function renderRegels(){
   html+=state.rules.length?state.rules.map(r=>`<div class="rule"><span>${esc(ruleSentence(r))}</span><button class="del" data-delrule="${r.id}" aria-label="Regel verwijderen">&#10005;</button></div>`).join('')
     :`<p class="empty">Geen regels — de opstelling volgt dan alleen de voorkeursposities.</p>`;
   html+=`</div>`;
+  // Vervangkeeper-regel alleen tonen als er GEEN aanwezige keeper is
+  // (vaste keeper uitgevinkt én geen aanwezige gastkeeper)
+  const keeperAanwezig=state.players.some(p=>p.present&&p.prefs&&p.prefs[0]==='keeper');
+  if(newRule.type==='gk' && keeperAanwezig)newRule.type='half'; // val terug op geldig type
   const t=newRule.type;
   html+=`<div class="card"><h2>Regel toevoegen</h2>
     <label class="hint">Soort regel</label>
@@ -1122,7 +1126,7 @@ function renderRegels(){
       <option value="start" ${t==='start'?'selected':''}>Begint in de basis of op de bank</option>
       <option value="noline" ${t==='noline'?'selected':''}>Speelt nooit in een bepaalde linie</option>
       <option value="rotate" ${t==='rotate'?'selected':''}>Twee spelers wisselen elkaar af op één positie</option>
-      <option value="gk" ${t==='gk'?'selected':''}>Keeper voor bepaalde kwarten (vervanger)</option>
+      ${!keeperAanwezig?`<option value="gk" ${t==='gk'?'selected':''}>Keeper voor bepaalde kwarten (vervanger)</option>`:''}
       <option value="q3likeq1" ${t==='q3likeq1'?'selected':''}>Start Q3 gelijk aan start Q1</option>
     </select>
     ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.</p>':`<label class="hint">Speler</label>
@@ -1141,7 +1145,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 25 &middot; 7 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 26 &middot; 7 augustus 2026</div>';
   return html;
 }
 
@@ -1680,7 +1684,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=66;
+const APP_VERSION=67;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
