@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="67">
+<meta name="app-version" content="68">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1145,7 +1145,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 26 &middot; 7 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 27 &middot; 7 augustus 2026</div>';
   return html;
 }
 
@@ -1330,7 +1330,7 @@ function renderQuarter(q){
   // Veld: eigen helft onderin, bank als lijstje op de helft van de tegenstander
   html+=`<div class="card tight"><h2>Start Q${q+1} <span class="sub">${q<2?'eerste':'tweede'} helft</span></h2><div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>`;
   if(benchIds.length){
-    const half=benchIds.length>4?Math.ceil(benchIds.length/2):benchIds.length;
+    const half=benchIds.length>3?Math.ceil(benchIds.length/2):benchIds.length;
     const cols=[benchIds.slice(0,half),benchIds.slice(half)].filter(c=>c.length);
     html+=`<div class="benchlist">`+cols.map(col=>`<div class="benchcol">`+col.map(id=>`<div class="brow ${selChip===id?'selected':''}" data-chip="${id}"><div class="bball">${pNum(id)}</div><span>${esc(pName(id))}</span></div>`).join('')+`</div>`).join('')+`</div>`;
   }
@@ -1684,7 +1684,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=67;
+const APP_VERSION=68;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
