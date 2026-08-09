@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="72">
+<meta name="app-version" content="73">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -421,7 +421,7 @@ body.viewer #app{padding-top:34px}
 
 <main id="view"></main>
 <div id="timerHost"><iframe title="GHC Wedstrijdtimer"></iframe></div>
-<div id="viewerBar">&#128065;&#65039; Kijkstand — spelers kunnen alleen lezen. Coaches/manager kan wijzigen.</div>
+<div id="viewerBar">&#128065;&#65039; Kijkstand — alleen lezen &middot; <span id="viewerTeam"></span></div>
 <div id="scrollThumb"></div>
 <div id="scrollHint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
 
@@ -835,7 +835,7 @@ function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e)
 // Vaste Firebase-config van dit project (mag openbaar: beveiliging zit in de Firestore-regels + login, niet in deze sleutel)
 const FB_CONFIG={"apiKey":"AIzaSyDwrfF3mDmievts5mme5fOlRJ3O3fhKGb8","authDomain":"hockey-app-teaming.firebaseapp.com","projectId":"hockey-app-teaming","storageBucket":"hockey-app-teaming.firebasestorage.app","messagingSenderId":"527542328518","appId":"1:527542328518:web:e2537891c7941d09568bc7"};
 const CLOUD={on:false,cfg:FB_CONFIG,team:'',role:'editor',name:'',db:null,ref:null,unsub:null,applying:false,writeT:null,status:'uit',lastBy:'',lastAt:0};
-function cloudLoadSettings(){try{const r=JSON.parse(localStorage.getItem('gw_cloud')||'null');if(r){CLOUD.cfg=r.cfg||FB_CONFIG;CLOUD.team=r.team||'';CLOUD.role=r.role||'editor';CLOUD.name=r.name||'';CLOUD.on=!!r.on;}}catch(e){}}
+function cloudLoadSettings(){try{const r=JSON.parse(localStorage.getItem('gw_cloud')||'null');if(r){CLOUD.cfg=r.cfg||FB_CONFIG;CLOUD.team=(r.team||'').trim().toLowerCase();CLOUD.role=r.role||'editor';CLOUD.name=r.name||'';CLOUD.on=!!r.on;}}catch(e){}}
 function cloudSaveSettings(){try{localStorage.setItem('gw_cloud',JSON.stringify({on:CLOUD.on,cfg:CLOUD.cfg,team:CLOUD.team,role:CLOUD.role,name:CLOUD.name}));}catch(e){}}
 function loadScript(src){return new Promise((res,rej)=>{if([...document.scripts].some(x=>x.src===src))return res();const el=document.createElement('script');el.src=src;el.onload=()=>res();el.onerror=()=>rej(new Error('kan Firebase niet laden'));document.head.appendChild(el);});}
 async function cloudConnect(){
@@ -846,6 +846,7 @@ async function cloudConnect(){
     await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
     if(!firebase.apps||!firebase.apps.length)firebase.initializeApp(CLOUD.cfg);
     CLOUD.db=firebase.firestore();
+    CLOUD.team=(CLOUD.team||'').trim().toLowerCase();
     CLOUD.ref=CLOUD.db.collection('teams').doc(CLOUD.team);
     CLOUD.on=true;cloudSaveSettings();
     cloudListen();
@@ -914,7 +915,8 @@ function cloudUpdateCard(){
   let t=map[CLOUD.status]||'';
   if(CLOUD.status==='verbonden'){
     t+=' &middot; rol: '+(CLOUD.role==='viewer'?'Kijker (alleen lezen)':'Coach (mag wijzigen)');
-    if(CLOUD.lastAt){const d=new Date(CLOUD.lastAt);t+='<br>laatst bijgewerkt door '+esc(CLOUD.lastBy||'?')+' om '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+    t+='<br>teamcode: <b>'+esc(CLOUD.team||'?')+'</b>';
+    if(CLOUD.lastAt){const d=new Date(CLOUD.lastAt);t+='<br>laatst bijgewerkt door '+esc(CLOUD.lastBy||'?')+' om '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
   }
   el.innerHTML=t;
 }
@@ -1312,7 +1314,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 31 &middot; 9 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 32 &middot; 9 augustus 2026</div>';
   return html;
 }
 
@@ -1488,7 +1490,7 @@ function renderQuarter(q){
       <button class="btn" data-regen>Opstelling genereren</button></div>`;
     return html;
   }
-  if(stale)html+=`<div class="banner">&#9888;&#65039; Spelers of regels zijn gewijzigd.<button class="btn small" data-regen>Opnieuw genereren</button></div>`;
+  if(stale&&!(CLOUD.on&&CLOUD.role==='viewer'))html+=`<div class="banner">&#9888;&#65039; Spelers of regels zijn gewijzigd.<button class="btn small" data-regen>Opnieuw genereren</button></div>`;
   html+=warnBoxesHTML();
   const sch=state.schedule, perQ=sch.perQ, b0=q*perQ, blockLen=17.5/perQ;
   const asg0=sch.assignments[b0];
@@ -1558,6 +1560,7 @@ function wisselLines(d){
 let _lastTab=null;
 function render(){
   if(CLOUD.on&&CLOUD.role==='viewer'&&['timer','spelers','regels'].includes(activeTab)){activeTab='q0';}
+  if(CLOUD.on&&CLOUD.role==='viewer'){const vt=document.getElementById('viewerTeam');if(vt){const d=CLOUD.lastAt?new Date(CLOUD.lastAt):null;vt.innerHTML='team '+esc(CLOUD.team||'?')+(d?' &middot; '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0'):'');}}
   const _sc=document.getElementById('view');
   const _keepY=(_lastTab===activeTab&&_sc)?_sc.scrollTop:null;
   // richting van de tabwissel bepalen voor de schuif-animatie
@@ -1865,7 +1868,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=72;
+const APP_VERSION=73;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
