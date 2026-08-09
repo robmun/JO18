@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="70">
+<meta name="app-version" content="71">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -387,6 +387,15 @@ body.viewer .prow .sw, body.viewer .prow .chev, body.viewer .rule .del,
 body.viewer #cloudSetup{opacity:.4;pointer-events:none}
 body.viewer .card .sub.readonly{color:var(--sem-out)}
 
+
+/* Kijkstand-balk voor spelers */
+#viewerBar{position:fixed;left:0;right:0;top:0;z-index:60;display:none;
+  background:linear-gradient(180deg,#1f5a9e,#183466);color:#fff;text-align:center;
+  font-size:var(--fs-sm);font-weight:700;padding:calc(env(safe-area-inset-top) + 6px) 12px 6px;
+  box-shadow:0 2px 10px rgba(0,0,0,.35)}
+body.viewer #viewerBar{display:block}
+body.viewer #app{padding-top:34px}
+
 </style>
 </head>
 <body>
@@ -412,6 +421,7 @@ body.viewer .card .sub.readonly{color:var(--sem-out)}
 
 <main id="view"></main>
 <div id="timerHost"><iframe title="GHC Wedstrijdtimer"></iframe></div>
+<div id="viewerBar">&#128065;&#65039; Kijkstand — spelers kunnen alleen lezen. Coaches/manager kan wijzigen.</div>
 <div id="scrollThumb"></div>
 <div id="scrollHint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
 
@@ -876,7 +886,27 @@ function cloudPush(force){
       .catch(e=>toast('Opslaan in cloud mislukt: '+(e.message||e)));
   }, force?0:600);
 }
-function cloudViewerBlocked(){ if(CLOUD.on&&CLOUD.role==='viewer'){toast('Kijkstand — alleen lezen');return true;} return false; }
+const READONLY_MSG='Spelers kunnen alleen lezen — coaches/manager kan wijzigen';
+function cloudShareLink(rol){
+  if(!CLOUD.team){toast('Stel eerst een teamcode in (Instellen…) en verbind');return;}
+  const url=location.origin+location.pathname+'?team='+encodeURIComponent(CLOUD.team)+'&rol='+(rol==='viewer'?'kijker':'coach');
+  const titel=rol==='viewer'?'Kijk-link (spelers, alleen lezen)':'Coach-link (mag wijzigen)';
+  if(navigator.share){ navigator.share({title:'opstelling & wissels',text:titel,url}).catch(()=>{}); }
+  else if(navigator.clipboard){ navigator.clipboard.writeText(url).then(()=>toast(titel+' gekopieerd')).catch(()=>cloudShowLink(titel,url)); }
+  else cloudShowLink(titel,url);
+}
+function cloudShowLink(titel,url){
+  const h=document.getElementById('modalHost');
+  h.innerHTML=`<div class="modal-back center" id="mback"><div class="modal" role="dialog" aria-modal="true">
+    <h3>${esc(titel)}</h3>
+    <p style="font-size:var(--fs-sm);color:var(--dim)">Kopieer deze link en stuur hem in de groep:</p>
+    <textarea class="cin" style="height:70px" readonly>${esc(url)}</textarea>
+    <div class="row" style="margin-top:10px"><button class="btn" id="mok">Sluiten</button></div>
+  </div></div>`;
+  document.getElementById('mback').onclick=e=>{if(e.target.id==='mback')closeModal();};
+  document.getElementById('mok').onclick=closeModal;
+}
+function cloudViewerBlocked(){ if(CLOUD.on&&CLOUD.role==='viewer'){toast(READONLY_MSG);return true;} return false; }
 function cloudUpdateCard(){
   const el=document.getElementById('cloudStatus'); if(!el)return;
   const map={uit:'Uit — alleen deze telefoon',verbinden:'Verbinden…',verbonden:'Verbonden',fout:'Verbindingsfout'};
@@ -1194,6 +1224,9 @@ function renderSpelers(){
     <div id="cloudStatus" class="cloudstat">Uit — alleen deze telefoon</div>
     <button class="btn ghost full" id="cloudSetup" style="margin-top:10px">&#9881;&#65039; Instellen&#8230;</button>
     <button class="btn ghost full" id="cloudToggle" style="margin-top:8px">&#128268; Verbinden / verbreken</button>
+    <button class="btn ghost full" id="cloudShareView" style="margin-top:8px">&#128065;&#65039; Deel kijk-link voor spelers</button>
+    <button class="btn ghost full" id="cloudShareCoach" style="margin-top:8px">&#128100; Deel coach-link (mag wijzigen)</button>
+    <p class="hint" style="margin-top:10px">De kijk-link geeft spelers alleen leesrechten; ze zien altijd de laatste stand, maar kunnen niets wijzigen. De coach-link is voor je mede-coach.</p>
   </div>`;
   html+=`<div class="card"><h2>Back-up</h2>
     <button class="btn ghost full" id="backupExport">&#128190; Opslaan als back-upbestand</button>
@@ -1276,7 +1309,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 29 &middot; 9 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 30 &middot; 9 augustus 2026</div>';
   return html;
 }
 
@@ -1576,10 +1609,12 @@ function bind(v){
   if(ub)ub.onclick=doUndo;
   v.querySelectorAll('[data-goplayers]').forEach(b=>b.onclick=()=>{activeTab='spelers';render();document.getElementById('view').scrollTop=0;});
   v.querySelectorAll('[data-act="present"]').forEach(el=>el.onchange=e=>{
+    if(CLOUD.on&&CLOUD.role==='viewer'){ e.target.checked=!e.target.checked; toast(READONLY_MSG); return; }
     const p=byId(el.dataset.id);p.present=e.target.checked;
     save();render();
   });
   v.querySelectorAll('[data-act="num"]').forEach(el=>el.onchange=e=>{
+    if(cloudViewerBlocked()){render();return;}
     const val=e.target.value===''?'':Number(e.target.value);
     byId(el.dataset.id).num=val;save();
     if(val!==''){
@@ -1588,7 +1623,7 @@ function bind(v){
     }
     render();
   });
-  v.querySelectorAll('[data-act="name"]').forEach(el=>el.onchange=e=>{const p=byId(el.dataset.id);const v=e.target.value.trim();p.name=v||(p.guest?'Gast':p.name);save();render();});
+  v.querySelectorAll('[data-act="name"]').forEach(el=>el.onchange=e=>{if(cloudViewerBlocked()){render();return;}const p=byId(el.dataset.id);const v=e.target.value.trim();p.name=v||(p.guest?'Gast':p.name);save();render();});
   v.querySelectorAll('[data-act="expand"]').forEach(el=>el.onclick=()=>{expandedPlayer=expandedPlayer===el.dataset.id?null:el.dataset.id;render();});
   v.querySelectorAll('[data-act="delguest"]').forEach(el=>el.onclick=()=>{
     const p=byId(el.dataset.id);
@@ -1628,6 +1663,10 @@ function bind(v){
   if(bim)bim.onclick=backupImportPrompt;
   const cs=v.querySelector('#cloudSetup');
   if(cs)cs.onclick=cloudSetupDialog;
+  const shv=v.querySelector('#cloudShareView');
+  if(shv)shv.onclick=()=>cloudShareLink('viewer');
+  const shc=v.querySelector('#cloudShareCoach');
+  if(shc)shc.onclick=()=>cloudShareLink('editor');
   const ct=v.querySelector('#cloudToggle');
   if(ct)ct.onclick=()=>{ if(CLOUD.on){cloudDisconnect();toast('Verbinding verbroken');} else {cloudConnect().then(ok=>{if(ok)toast('Verbonden met team '+CLOUD.team);});} };
   cloudUpdateCard();
@@ -1822,7 +1861,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=70;
+const APP_VERSION=71;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -2012,6 +2051,21 @@ if(!state.schedule&&state.players.filter(p=>p.present).length>=11){
   try{state.schedule=buildSchedule(state);state.genHash=inputHash(state);save();}catch(e){}
 }
 cloudLoadSettings();
+// Kijk-/coach-link: ?team=CODE&rol=kijker|coach -> automatisch instellen en verbinden
+try{
+  const _q=new URLSearchParams(location.search);
+  const _team=_q.get('team'), _rol=(_q.get('rol')||'').toLowerCase();
+  if(_team){
+    CLOUD.cfg=FB_CONFIG;
+    CLOUD.team=_team.toLowerCase();
+    CLOUD.role=(_rol==='kijker'||_rol==='viewer')?'viewer':'editor';
+    if(!CLOUD.name)CLOUD.name=CLOUD.role==='viewer'?'speler':'coach';
+    CLOUD.on=true; cloudSaveSettings();
+    document.body.classList.toggle('viewer',CLOUD.role==='viewer');
+    // schone URL (parameters weghalen) zodat de code niet blijft rondslingeren
+    try{history.replaceState(null,'',location.pathname);}catch(e){}
+  }
+}catch(e){}
 if(CLOUD.on&&CLOUD.cfg&&CLOUD.team){ cloudConnect().then(ok=>{ if(!ok)CLOUD.on=false; }); }
 render();
 checkIncomingShare();
