@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="71">
+<meta name="app-version" content="72">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -851,6 +851,7 @@ async function cloudConnect(){
     cloudListen();
     CLOUD.status='verbonden';cloudUpdateCard();
     document.body.classList.toggle('viewer',CLOUD.role==='viewer');
+    if(CLOUD.role==='viewer'&&['timer','spelers','regels'].includes(activeTab))activeTab='q0';
     return true;
   }catch(e){CLOUD.status='fout';cloudUpdateCard();toast('Verbinden mislukt: '+(e.message||e));return false;}
 }
@@ -1182,8 +1183,10 @@ const TABS=[
 ];
 function renderTabbar(){
   const el=document.getElementById('tabbar');
+  const kijk=(CLOUD.on&&CLOUD.role==='viewer');
   el.innerHTML=TABS.map(t=>{
     const act=activeTab===t.id?' active':'';
+    if(kijk&&(t.id==='timer'||t.id==='spelers'||t.id==='regels'))return ''; // spelers zien alleen de kwarten
     if(t.id==='timer')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.8 1.8"/><path d="M9.5 2.5h5"/><path d="M12 2.5V6"/></svg>${t.label}</button>`;
     if(t.id==='spelers')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 19c.7-3.2 3.4-5 6.5-5s5.8 1.8 6.5 5"/><circle cx="17.5" cy="9.5" r="2.6"/><path d="M16 14.2c2.9.2 5 1.8 5.5 4.3"/></svg>${t.label}</button>`;
     if(t.id==='regels')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 4h14v17l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 9h6M9 13h6"/></svg>${t.label}</button>`;
@@ -1309,7 +1312,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 30 &middot; 9 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 31 &middot; 9 augustus 2026</div>';
   return html;
 }
 
@@ -1554,6 +1557,7 @@ function wisselLines(d){
 /* ============ Renderen + events ============ */
 let _lastTab=null;
 function render(){
+  if(CLOUD.on&&CLOUD.role==='viewer'&&['timer','spelers','regels'].includes(activeTab)){activeTab='q0';}
   const _sc=document.getElementById('view');
   const _keepY=(_lastTab===activeTab&&_sc)?_sc.scrollTop:null;
   // richting van de tabwissel bepalen voor de schuif-animatie
@@ -1861,7 +1865,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=71;
+const APP_VERSION=72;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -2062,6 +2066,7 @@ try{
     if(!CLOUD.name)CLOUD.name=CLOUD.role==='viewer'?'speler':'coach';
     CLOUD.on=true; cloudSaveSettings();
     document.body.classList.toggle('viewer',CLOUD.role==='viewer');
+    if(CLOUD.role==='viewer')activeTab='q0'; // spelers starten op Q1
     // schone URL (parameters weghalen) zodat de code niet blijft rondslingeren
     try{history.replaceState(null,'',location.pathname);}catch(e){}
   }
