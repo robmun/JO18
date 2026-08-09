@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="69">
+<meta name="app-version" content="70">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -822,8 +822,10 @@ function loadState(){
 function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e){} cloudPush();}
 
 /* ============ Samenwerken (live, via Firebase Firestore) ============ */
-const CLOUD={on:false,cfg:null,team:'',role:'editor',name:'',db:null,ref:null,unsub:null,applying:false,writeT:null,status:'uit',lastBy:'',lastAt:0};
-function cloudLoadSettings(){try{const r=JSON.parse(localStorage.getItem('gw_cloud')||'null');if(r){CLOUD.cfg=r.cfg||null;CLOUD.team=r.team||'';CLOUD.role=r.role||'editor';CLOUD.name=r.name||'';CLOUD.on=!!r.on;}}catch(e){}}
+// Vaste Firebase-config van dit project (mag openbaar: beveiliging zit in de Firestore-regels + login, niet in deze sleutel)
+const FB_CONFIG={"apiKey":"AIzaSyDwrfF3mDmievts5mme5fOlRJ3O3fhKGb8","authDomain":"hockey-app-teaming.firebaseapp.com","projectId":"hockey-app-teaming","storageBucket":"hockey-app-teaming.firebasestorage.app","messagingSenderId":"527542328518","appId":"1:527542328518:web:e2537891c7941d09568bc7"};
+const CLOUD={on:false,cfg:FB_CONFIG,team:'',role:'editor',name:'',db:null,ref:null,unsub:null,applying:false,writeT:null,status:'uit',lastBy:'',lastAt:0};
+function cloudLoadSettings(){try{const r=JSON.parse(localStorage.getItem('gw_cloud')||'null');if(r){CLOUD.cfg=r.cfg||FB_CONFIG;CLOUD.team=r.team||'';CLOUD.role=r.role||'editor';CLOUD.name=r.name||'';CLOUD.on=!!r.on;}}catch(e){}}
 function cloudSaveSettings(){try{localStorage.setItem('gw_cloud',JSON.stringify({on:CLOUD.on,cfg:CLOUD.cfg,team:CLOUD.team,role:CLOUD.role,name:CLOUD.name}));}catch(e){}}
 function loadScript(src){return new Promise((res,rej)=>{if([...document.scripts].some(x=>x.src===src))return res();const el=document.createElement('script');el.src=src;el.onload=()=>res();el.onerror=()=>rej(new Error('kan Firebase niet laden'));document.head.appendChild(el);});}
 async function cloudConnect(){
@@ -1057,11 +1059,9 @@ function cloudSetupDialog(){
   const cfgStr=CLOUD.cfg?JSON.stringify(CLOUD.cfg,null,0):'';
   h.innerHTML=`<div class="modal-back center" id="mback"><div class="modal" role="dialog" aria-modal="true" style="max-width:min(94vw,460px)">
     <h3>Samenwerken instellen</h3>
-    <p style="font-size:var(--fs-sm);color:var(--dim);margin:0 0 8px">Plak de Firebase-config (uit je Firebase-project), kies een teamcode die je met je mede-coach deelt, en je rol. Zie het stappenplan voor het aanmaken van het gratis project.</p>
-    <label class="clab">Firebase-config (JSON)</label>
-    <textarea id="cfgIn" class="cin" style="height:96px" placeholder='{"apiKey":"...","projectId":"...","appId":"..."}'>${esc(cfgStr)}</textarea>
-    <label class="clab">Teamcode (zelf kiezen, deel met je mede-coach)</label>
-    <input id="teamIn" class="cin" value="${esc(CLOUD.team)}" placeholder="bijv. jo18-5-gooische">
+    <p style="font-size:var(--fs-sm);color:var(--dim);margin:0 0 8px">Vul de teamcode in die je met je mede-coach deelt (dezelfde bij allebei), kies je rol en je naam. De verbinding met het team is al ingesteld.</p>
+    <label class="clab">Teamcode <span style="font-weight:400">(dezelfde als je mede-coach &middot; kleine letters, geen spaties)</span></label>
+    <input id="teamIn" class="cin" value="${esc(CLOUD.team)}" placeholder="afgesproken teamcode" autocapitalize="none" autocorrect="off" spellcheck="false">
     <label class="clab">Jouw rol</label>
     <select id="roleIn" class="cin sel">
       <option value="editor" ${CLOUD.role==='editor'?'selected':''}>Coach — mag wijzigen</option>
@@ -1069,6 +1069,10 @@ function cloudSetupDialog(){
     </select>
     <label class="clab">Jouw naam (voor 'laatst bijgewerkt door')</label>
     <input id="nameIn" class="cin" value="${esc(CLOUD.name)}" placeholder="bijv. Rob">
+    <details style="margin-top:12px"><summary style="font-size:var(--fs-sm);color:var(--dim);cursor:pointer">Geavanceerd: eigen Firebase-config</summary>
+      <p style="font-size:var(--fs-xs);color:var(--dim);margin:6px 0 4px">Alleen nodig als je een eigen Firebase-project gebruikt in plaats van het standaardproject. Leeg laten = standaard.</p>
+      <textarea id="cfgIn" class="cin" style="height:80px" placeholder='{"apiKey":"...","projectId":"...","appId":"..."}'>${esc(cfgStr)}</textarea>
+    </details>
     <div class="row" style="margin-top:12px">
       <button class="btn ghost" id="mcancel">Annuleren</button>
       <button class="btn" id="mok">Bewaren</button>
@@ -1079,10 +1083,10 @@ function cloudSetupDialog(){
   back.onclick=e=>{if(e.target===back)closeModal();};
   document.getElementById('mok').onclick=()=>{
     const raw=document.getElementById('cfgIn').value.trim();
-    let cfg=null;
+    let cfg=FB_CONFIG;
     if(raw){ try{ cfg=JSON.parse(raw); }catch(e){ toast('De Firebase-config is geen geldige JSON'); return; } }
     CLOUD.cfg=cfg;
-    CLOUD.team=document.getElementById('teamIn').value.trim();
+    CLOUD.team=document.getElementById('teamIn').value.trim().toLowerCase();
     CLOUD.role=document.getElementById('roleIn').value;
     CLOUD.name=document.getElementById('nameIn').value.trim();
     cloudSaveSettings();
@@ -1186,7 +1190,7 @@ function renderSpelers(){
     <button class="btn ghost full" id="importShare" style="margin-top:8px">&#128229; Gedeelde link overnemen&#8230;</button>
     <p class="hint" style="margin-top:10px">Stuur de link in de coachgroep. De ontvanger tikt op de link, of kopieert hem en kiest hier &quot;Gedeelde link overnemen&quot;. Aanwezigheid, regels en het schema gaan allemaal mee.</p></div>`;
   html+=`<div class="card"><h2>Samenwerken <span class="sub">live &middot; nieuw</span></h2>
-    <p class="hint" style="margin:0 0 10px">E&#233;n gedeelde versie voor coach en manager, met live-sync. Spelers kun je een kijk-link geven (alleen lezen). Standaard staat dit uit; je huidige werkwijze verandert niet tot je verbindt.</p>
+    <p class="hint" style="margin:0 0 10px">E&#233;n gedeelde versie voor coach en manager, met live-sync. Je mede-coach hoeft alleen dezelfde teamcode in te vullen. Standaard staat dit uit; je huidige werkwijze verandert niet tot je verbindt.</p>
     <div id="cloudStatus" class="cloudstat">Uit — alleen deze telefoon</div>
     <button class="btn ghost full" id="cloudSetup" style="margin-top:10px">&#9881;&#65039; Instellen&#8230;</button>
     <button class="btn ghost full" id="cloudToggle" style="margin-top:8px">&#128268; Verbinden / verbreken</button>
@@ -1272,7 +1276,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 28 &middot; 7 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 29 &middot; 9 augustus 2026</div>';
   return html;
 }
 
@@ -1818,7 +1822,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=69;
+const APP_VERSION=70;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
