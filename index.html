@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="68">
+<meta name="app-version" content="69">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -374,6 +374,19 @@ body.timermode .appbar{display:none}
 @keyframes tokenPop{0%{transform:translate(-50%,-50%) scale(1)}55%{transform:translate(-50%,-50%) scale(1.12)}100%{transform:translate(-50%,-50%) scale(1.06)}}
 .chip.selected{animation:tokenPop .24s cubic-bezier(.34,1.56,.64,1)}
 @media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
+
+/* Samenwerken-kaart + kijkstand */
+.cloudstat{font-size:var(--fs-sm);color:var(--dim);background:rgba(255,255,255,.05);border:1px solid var(--stroke);border-radius:var(--r-sm);padding:9px 11px;line-height:1.5}
+.clab{display:block;font-size:var(--fs-xs);color:var(--dim);font-weight:700;margin:10px 0 3px}
+.cin{width:100%;background:rgba(255,255,255,.10);border:1px solid var(--stroke);border-radius:var(--r-sm);color:var(--txt);font-size:var(--fs-base);padding:9px 10px;font-family:inherit}
+textarea.cin{resize:vertical}
+/* Kijkstand: bewerk-knoppen dempen (server-regel dwingt het echt af) */
+body.viewer #genBtn, body.viewer #replanBtn, body.viewer #addGuest, body.viewer #addRule,
+body.viewer #shareState, body.viewer #importShare, body.viewer #backupImport,
+body.viewer .prow .sw, body.viewer .prow .chev, body.viewer .rule .del,
+body.viewer #cloudSetup{opacity:.4;pointer-events:none}
+body.viewer .card .sub.readonly{color:var(--sem-out)}
+
 </style>
 </head>
 <body>
@@ -806,7 +819,74 @@ function loadState(){
   }catch(e){}
   return defaultState();
 }
-function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e){}}
+function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e){} cloudPush();}
+
+/* ============ Samenwerken (live, via Firebase Firestore) ============ */
+const CLOUD={on:false,cfg:null,team:'',role:'editor',name:'',db:null,ref:null,unsub:null,applying:false,writeT:null,status:'uit',lastBy:'',lastAt:0};
+function cloudLoadSettings(){try{const r=JSON.parse(localStorage.getItem('gw_cloud')||'null');if(r){CLOUD.cfg=r.cfg||null;CLOUD.team=r.team||'';CLOUD.role=r.role||'editor';CLOUD.name=r.name||'';CLOUD.on=!!r.on;}}catch(e){}}
+function cloudSaveSettings(){try{localStorage.setItem('gw_cloud',JSON.stringify({on:CLOUD.on,cfg:CLOUD.cfg,team:CLOUD.team,role:CLOUD.role,name:CLOUD.name}));}catch(e){}}
+function loadScript(src){return new Promise((res,rej)=>{if([...document.scripts].some(x=>x.src===src))return res();const el=document.createElement('script');el.src=src;el.onload=()=>res();el.onerror=()=>rej(new Error('kan Firebase niet laden'));document.head.appendChild(el);});}
+async function cloudConnect(){
+  if(!CLOUD.cfg||!CLOUD.team){toast('Vul eerst de Firebase-gegevens en een teamcode in');return false;}
+  CLOUD.status='verbinden';cloudUpdateCard();
+  try{
+    await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+    await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
+    if(!firebase.apps||!firebase.apps.length)firebase.initializeApp(CLOUD.cfg);
+    CLOUD.db=firebase.firestore();
+    CLOUD.ref=CLOUD.db.collection('teams').doc(CLOUD.team);
+    CLOUD.on=true;cloudSaveSettings();
+    cloudListen();
+    CLOUD.status='verbonden';cloudUpdateCard();
+    document.body.classList.toggle('viewer',CLOUD.role==='viewer');
+    return true;
+  }catch(e){CLOUD.status='fout';cloudUpdateCard();toast('Verbinden mislukt: '+(e.message||e));return false;}
+}
+function cloudDisconnect(){
+  if(CLOUD.unsub){try{CLOUD.unsub();}catch(e){}CLOUD.unsub=null;}
+  CLOUD.on=false;CLOUD.status='uit';cloudSaveSettings();
+  document.body.classList.remove('viewer');
+  cloudUpdateCard();
+}
+function cloudListen(){
+  if(CLOUD.unsub){try{CLOUD.unsub();}catch(e){}}
+  CLOUD.unsub=CLOUD.ref.onSnapshot(snap=>{
+    if(!snap.exists){ if(CLOUD.role==='editor')cloudPush(true); return; }
+    const d=snap.data(); if(!d||!d.state)return;
+    CLOUD.lastBy=d.updatedBy||''; CLOUD.lastAt=d.updatedAt||0;
+    try{
+      const incoming=JSON.parse(d.state);
+      if(!incoming||!Array.isArray(incoming.players))return;
+      CLOUD.applying=true;
+      state=incoming;
+      try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e){}
+      CLOUD.applying=false;
+      render();
+    }catch(e){CLOUD.applying=false;}
+  }, err=>{ CLOUD.status='fout'; toast('Sync-fout: '+(err.message||err)); cloudUpdateCard(); });
+}
+function cloudPush(force){
+  if(!CLOUD.on||CLOUD.applying||!CLOUD.ref)return;
+  if(CLOUD.role!=='editor')return;              // kijkers schrijven nooit
+  clearTimeout(CLOUD.writeT);
+  CLOUD.writeT=setTimeout(()=>{
+    CLOUD.ref.set({state:JSON.stringify(state),updatedBy:CLOUD.name||'coach',updatedAt:Date.now()})
+      .catch(e=>toast('Opslaan in cloud mislukt: '+(e.message||e)));
+  }, force?0:600);
+}
+function cloudViewerBlocked(){ if(CLOUD.on&&CLOUD.role==='viewer'){toast('Kijkstand — alleen lezen');return true;} return false; }
+function cloudUpdateCard(){
+  const el=document.getElementById('cloudStatus'); if(!el)return;
+  const map={uit:'Uit — alleen deze telefoon',verbinden:'Verbinden…',verbonden:'Verbonden',fout:'Verbindingsfout'};
+  let t=map[CLOUD.status]||'';
+  if(CLOUD.status==='verbonden'){
+    t+=' &middot; rol: '+(CLOUD.role==='viewer'?'Kijker (alleen lezen)':'Coach (mag wijzigen)');
+    if(CLOUD.lastAt){const d=new Date(CLOUD.lastAt);t+='<br>laatst bijgewerkt door '+esc(CLOUD.lastBy||'?')+' om '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+  }
+  el.innerHTML=t;
+}
+
+
 
 /* ============ Ongedaan maken (één stap terug) ============ */
 let _undo=null;        // bewaarde momentopname van het schema vóór een actie
@@ -817,6 +897,7 @@ function snapshot(label){
 }
 function canUndo(){return _undo!==undefined && _undo!==null || _undoLabel!=='';}
 function doUndo(){
+  if(cloudViewerBlocked())return;
   if(!_undoLabel){toast('Niets om ongedaan te maken');return;}
   state.schedule=_undo?JSON.parse(JSON.stringify(_undo)):null;
   _undo=null;_undoLabel='';
@@ -971,6 +1052,46 @@ function confirmDialog(opts){
   back.onclick=e=>{if(e.target===back)closeModal();};
   document.getElementById('mok').onclick=()=>{closeModal();opts.onOk&&opts.onOk();};
 }
+function cloudSetupDialog(){
+  const h=document.getElementById('modalHost');
+  const cfgStr=CLOUD.cfg?JSON.stringify(CLOUD.cfg,null,0):'';
+  h.innerHTML=`<div class="modal-back center" id="mback"><div class="modal" role="dialog" aria-modal="true" style="max-width:min(94vw,460px)">
+    <h3>Samenwerken instellen</h3>
+    <p style="font-size:var(--fs-sm);color:var(--dim);margin:0 0 8px">Plak de Firebase-config (uit je Firebase-project), kies een teamcode die je met je mede-coach deelt, en je rol. Zie het stappenplan voor het aanmaken van het gratis project.</p>
+    <label class="clab">Firebase-config (JSON)</label>
+    <textarea id="cfgIn" class="cin" style="height:96px" placeholder='{"apiKey":"...","projectId":"...","appId":"..."}'>${esc(cfgStr)}</textarea>
+    <label class="clab">Teamcode (zelf kiezen, deel met je mede-coach)</label>
+    <input id="teamIn" class="cin" value="${esc(CLOUD.team)}" placeholder="bijv. jo18-5-gooische">
+    <label class="clab">Jouw rol</label>
+    <select id="roleIn" class="cin sel">
+      <option value="editor" ${CLOUD.role==='editor'?'selected':''}>Coach — mag wijzigen</option>
+      <option value="viewer" ${CLOUD.role==='viewer'?'selected':''}>Kijker — alleen lezen</option>
+    </select>
+    <label class="clab">Jouw naam (voor 'laatst bijgewerkt door')</label>
+    <input id="nameIn" class="cin" value="${esc(CLOUD.name)}" placeholder="bijv. Rob">
+    <div class="row" style="margin-top:12px">
+      <button class="btn ghost" id="mcancel">Annuleren</button>
+      <button class="btn" id="mok">Bewaren</button>
+    </div>
+  </div></div>`;
+  const back=document.getElementById('mback');
+  document.getElementById('mcancel').onclick=closeModal;
+  back.onclick=e=>{if(e.target===back)closeModal();};
+  document.getElementById('mok').onclick=()=>{
+    const raw=document.getElementById('cfgIn').value.trim();
+    let cfg=null;
+    if(raw){ try{ cfg=JSON.parse(raw); }catch(e){ toast('De Firebase-config is geen geldige JSON'); return; } }
+    CLOUD.cfg=cfg;
+    CLOUD.team=document.getElementById('teamIn').value.trim();
+    CLOUD.role=document.getElementById('roleIn').value;
+    CLOUD.name=document.getElementById('nameIn').value.trim();
+    cloudSaveSettings();
+    document.body.classList.toggle('viewer',CLOUD.on&&CLOUD.role==='viewer');
+    closeModal();
+    toast('Instellingen bewaard');
+    cloudUpdateCard();
+  };
+}
 function inputDialog(opts){
   // opts: {title, body, placeholder, okLabel, onOk(value)}
   const h=document.getElementById('modalHost');
@@ -1064,6 +1185,12 @@ function renderSpelers(){
     <button class="btn ghost full" id="shareState">&#128228; Deel actuele stand</button>
     <button class="btn ghost full" id="importShare" style="margin-top:8px">&#128229; Gedeelde link overnemen&#8230;</button>
     <p class="hint" style="margin-top:10px">Stuur de link in de coachgroep. De ontvanger tikt op de link, of kopieert hem en kiest hier &quot;Gedeelde link overnemen&quot;. Aanwezigheid, regels en het schema gaan allemaal mee.</p></div>`;
+  html+=`<div class="card"><h2>Samenwerken <span class="sub">live &middot; nieuw</span></h2>
+    <p class="hint" style="margin:0 0 10px">E&#233;n gedeelde versie voor coach en manager, met live-sync. Spelers kun je een kijk-link geven (alleen lezen). Standaard staat dit uit; je huidige werkwijze verandert niet tot je verbindt.</p>
+    <div id="cloudStatus" class="cloudstat">Uit — alleen deze telefoon</div>
+    <button class="btn ghost full" id="cloudSetup" style="margin-top:10px">&#9881;&#65039; Instellen&#8230;</button>
+    <button class="btn ghost full" id="cloudToggle" style="margin-top:8px">&#128268; Verbinden / verbreken</button>
+  </div>`;
   html+=`<div class="card"><h2>Back-up</h2>
     <button class="btn ghost full" id="backupExport">&#128190; Opslaan als back-upbestand</button>
     <button class="btn ghost full" id="backupImport" style="margin-top:8px">&#128194; Herstel uit back-up&#8230;</button>
@@ -1145,7 +1272,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 27 &middot; 7 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 28 &middot; 7 augustus 2026</div>';
   return html;
 }
 
@@ -1199,6 +1326,7 @@ function detectRuleConflicts(){
   return out.filter((x,i)=>out.indexOf(x)===i);
 }
 function regenerate(){
+  if(cloudViewerBlocked())return;
   const present=state.players.filter(p=>p.present);
   // Keeper = de speler met 'Keeper' als eerste voorkeur. Precies één, en aanwezig.
   const keepers=state.players.filter(p=>p.prefs&&p.prefs[0]==='keeper');
@@ -1494,6 +1622,11 @@ function bind(v){
   if(bex)bex.onclick=backupExport;
   const bim=v.querySelector('#backupImport');
   if(bim)bim.onclick=backupImportPrompt;
+  const cs=v.querySelector('#cloudSetup');
+  if(cs)cs.onclick=cloudSetupDialog;
+  const ct=v.querySelector('#cloudToggle');
+  if(ct)ct.onclick=()=>{ if(CLOUD.on){cloudDisconnect();toast('Verbinding verbroken');} else {cloudConnect().then(ok=>{if(ok)toast('Verbonden met team '+CLOUD.team);});} };
+  cloudUpdateCard();
   const ag=v.querySelector('#addGuest');
   if(ag)ag.onclick=()=>{
     const id='gast'+Date.now();
@@ -1540,6 +1673,7 @@ function bind(v){
   v.querySelectorAll('[data-warnx]').forEach(el=>el.onclick=()=>{swapWarnings.splice(Number(el.dataset.warnx),1);render();});
 }
 function chipTap(pid){
+  if(cloudViewerBlocked())return;
   if(!activeTab.startsWith('q')||!state.schedule)return;
   if(selChip===null){selChip=pid;render();return;}
   if(selChip===pid){selChip=null;render();return;}
@@ -1684,7 +1818,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=68;
+const APP_VERSION=69;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -1873,6 +2007,8 @@ document.getElementById('printBtn').onclick=()=>{
 if(!state.schedule&&state.players.filter(p=>p.present).length>=11){
   try{state.schedule=buildSchedule(state);state.genHash=inputHash(state);save();}catch(e){}
 }
+cloudLoadSettings();
+if(CLOUD.on&&CLOUD.cfg&&CLOUD.team){ cloudConnect().then(ok=>{ if(!ok)CLOUD.on=false; }); }
 render();
 checkIncomingShare();
 </script>
