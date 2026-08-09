@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="73">
+<meta name="app-version" content="75">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -421,7 +421,7 @@ body.viewer #app{padding-top:34px}
 
 <main id="view"></main>
 <div id="timerHost"><iframe title="GHC Wedstrijdtimer"></iframe></div>
-<div id="viewerBar">&#128065;&#65039; Kijkstand — alleen lezen &middot; <span id="viewerTeam"></span></div>
+<div id="viewerBar">&#128065;&#65039; Kijkstand — spelers kunnen alleen lezen. Coaches/manager kan wijzigen.</div>
 <div id="scrollThumb"></div>
 <div id="scrollHint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
 
@@ -915,8 +915,7 @@ function cloudUpdateCard(){
   let t=map[CLOUD.status]||'';
   if(CLOUD.status==='verbonden'){
     t+=' &middot; rol: '+(CLOUD.role==='viewer'?'Kijker (alleen lezen)':'Coach (mag wijzigen)');
-    t+='<br>teamcode: <b>'+esc(CLOUD.team||'?')+'</b>';
-    if(CLOUD.lastAt){const d=new Date(CLOUD.lastAt);t+='<br>laatst bijgewerkt door '+esc(CLOUD.lastBy||'?')+' om '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
+    if(CLOUD.lastAt){const d=new Date(CLOUD.lastAt);t+='<br>laatst bijgewerkt door '+esc(CLOUD.lastBy||'?')+' om '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
   }
   el.innerHTML=t;
 }
@@ -1314,7 +1313,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 32 &middot; 9 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 34 &middot; 9 augustus 2026</div>';
   return html;
 }
 
@@ -1514,7 +1513,7 @@ function renderQuarter(q){
     }
   }
   if(keeper)html+=`<div class="chip kpc" style="left:50%;top:93%"><div class="ball keeperball">${KEEPER_HELM}</div><div class="tag">${esc(keeper.name)}</div></div>`;
-  html+=`</div><p class="hint" style="margin-top:10px">Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor de start van dit kwart.</p></div>`;
+  html+=`</div>${(CLOUD.on&&CLOUD.role==='viewer')?'':`<p class="hint" style="margin-top:10px">Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor de start van dit kwart.</p>`}</div>`;
   // Wissel bij start van kwart (t.o.v. vorige kwart)
   if(q>0){
     const d=wisselChains(sch.assignments[b0-1],asg0);
@@ -1534,9 +1533,11 @@ function renderQuarter(q){
     html+=`<div class="wbench"><b>Wissels daarna:</b> ${benchAfter.map(pName).map(esc).join(', ')||'—'}</div></div>`;
   }
   html+=`</div>`;
-  if(_undoLabel)html+=`<button class="btn ghost full" id="undoBtn" style="margin-bottom:8px">&#8634; Ongedaan maken (${esc(_undoLabel)})</button>`;
-  html+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
-  html+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
+  if(!(CLOUD.on&&CLOUD.role==='viewer')){
+    if(_undoLabel)html+=`<button class="btn ghost full" id="undoBtn" style="margin-bottom:8px">&#8634; Ongedaan maken (${esc(_undoLabel)})</button>`;
+    html+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
+    html+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
+  }
   return html;
 }
 function wisselLines(d){
@@ -1560,7 +1561,6 @@ function wisselLines(d){
 let _lastTab=null;
 function render(){
   if(CLOUD.on&&CLOUD.role==='viewer'&&['timer','spelers','regels'].includes(activeTab)){activeTab='q0';}
-  if(CLOUD.on&&CLOUD.role==='viewer'){const vt=document.getElementById('viewerTeam');if(vt){const d=CLOUD.lastAt?new Date(CLOUD.lastAt):null;vt.innerHTML='team '+esc(CLOUD.team||'?')+(d?' &middot; '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0'):'');}}
   const _sc=document.getElementById('view');
   const _keepY=(_lastTab===activeTab&&_sc)?_sc.scrollTop:null;
   // richting van de tabwissel bepalen voor de schuif-animatie
@@ -1868,7 +1868,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=73;
+const APP_VERSION=75;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
