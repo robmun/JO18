@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="76">
+<meta name="app-version" content="78">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -511,7 +511,11 @@ function fairTargets(ids,caps,totalSlots){
   return t;
 }
 
-function pickBlocks(fieldPlayers,perQ,rules){
+function pickBlocks(fieldPlayers,perQ,rules,opts){
+  opts=opts||{};
+  const fromBlock=opts.fromBlock||0;           // vanaf welk blok (her)plannen; daarvoor ligt vast
+  const fixedBlocks=opts.fixedBlocks||null;    // reeds gespeelde blokken (Set per index) die vaststaan
+  const playedInit=opts.playedSoFar||null;     // al gespeelde blokken per speler tot fromBlock
   const B=perQ*4;
   const elig={},caps={};
   fieldPlayers.forEach(p=>{elig[p.id]=eligibleVec(p,perQ,rules);caps[p.id]=elig[p.id].filter(Boolean).length;});
@@ -531,7 +535,7 @@ function pickBlocks(fieldPlayers,perQ,rules){
   const remFrom={};ids.forEach(i=>{remFrom[i]=new Array(B+1).fill(0);for(let b=B-1;b>=0;b--)remFrom[i][b]=remFrom[i][b+1]+(elig[i][b]?1:0);});
   const slots=10*B;
   const t=fairTargets(ids,caps,Math.min(slots,ids.reduce((s,i)=>s+caps[i],0)));
-  const played={},bench={};ids.forEach(i=>{played[i]=0;bench[i]=0;});
+  const played={},bench={};ids.forEach(i=>{played[i]=playedInit&&playedInit[i]!=null?playedInit[i]:0;bench[i]=0;});
   const apart=rules.filter(r=>r.type==='apart');
   const conflictsWith=(id,set)=>{
     for(const r of apart){
@@ -544,11 +548,26 @@ function pickBlocks(fieldPlayers,perQ,rules){
   // 'Begint in de basis / op de bank' geldt alleen voor blok 0 (start Q1)
   const startBase=rules.filter(r=>r.type==='start'&&r.start==='base'&&ids.includes(r.p1)).map(r=>r.p1);
   const startBench=new Set(rules.filter(r=>r.type==='start'&&r.start==='bench'&&ids.includes(r.p1)).map(r=>r.p1));
+  // 'Speelt zeker het einde': forceer deze spelers in de laatste blokken.
+  // hele laatste kwart = laatste perQ blokken; laatste ~10 min = laatste round(10/blockMin) blokken.
+  const endForce={}; // blokindex b -> Set van spelers die daar sowieso spelen
+  for(const r of rules){
+    if(r.type!=='endstrong'||!ids.includes(r.p1))continue;
+    const n=r.amt==='min10'?Math.max(1,Math.round(10/blockMin)):perQ;
+    for(let b=B-n;b<B;b++){ if(b<0)continue; (endForce[b]=endForce[b]||new Set()).add(r.p1); }
+  }
   // 'Twee spelers wisselen elkaar af op één positie': per blok speelt er precies één
   // van het paar (om en om), die op de gedeelde positie komt te staan.
   const rotates=rules.filter(r=>r.type==='rotate'&&ids.includes(r.p1)&&ids.includes(r.p2));
   const rotateBlocked=new Set(); // spelers die in dit blok juist NIET ingezet worden (de 'rust'-helft van het paar)
   for(let b=0;b<B;b++){
+    // Reeds gespeelde blokken (vóór het herplan-moment) liggen vast
+    if(b<fromBlock && fixedBlocks && fixedBlocks[b]){
+      const fixed=new Set(fixedBlocks[b]);
+      blocks.push(fixed);
+      ids.forEach(i=>{ if(fixed.has(i)){/* played is al meegeteld via playedSoFar */} else if(elig[i][b])bench[i]++; });
+      continue;
+    }
     const cands=fieldPlayers.filter(p=>elig[p.id][b]).map(p=>p.id);
     cands.sort((a,c)=>{
       const ua=(t[a]-played[a])/Math.max(1,remFrom[a][b]);
@@ -576,6 +595,8 @@ function pickBlocks(fieldPlayers,perQ,rules){
     }
     // blok 0: eerst de 'begint in de basis'-spelers plaatsen
     if(b===0){ for(const id of startBase){ if(sel.size>=10)break; if(rotateBlocked.has(id))continue; if(elig[id]&&elig[id][0]&&!(maxBlk[id]!=null&&played[id]>=maxBlk[id]))sel.add(id); } }
+    // eind-blokken: 'speelt zeker het einde'-spelers geforceerd plaatsen
+    if(endForce[b]){ for(const id of endForce[b]){ if(sel.size>=10)break; if(rotateBlocked.has(id))continue; if(elig[id]&&elig[id][b])sel.add(id); } }
     for(const id of cands){
       if(sel.size>=10)break;
       if(sel.has(id))continue;
@@ -606,8 +627,10 @@ function pickBlocks(fieldPlayers,perQ,rules){
         const lo=sorted[loI];
         if((played[hi]-t[hi])-(played[lo]-t[lo])<=1.0001)break outer;
         for(let b=0;b<B;b++){
+          if(b<fromBlock)continue; // reeds gespeelde blokken liggen vast
           if(!blocks[b].has(hi)||blocks[b].has(lo)||!elig[lo][b])continue;
           if(rotateIds.has(hi)||rotateIds.has(lo))continue; // rotate-paren niet verstoren
+          if(endForce[b]&&endForce[b].has(hi))continue; // geforceerde eindspeler niet uit eindblok halen
           if(maxBlk[lo]!=null&&played[lo]>=maxBlk[lo])continue; // lo niet boven zijn max tillen
           const tmp=new Set(blocks[b]);tmp.delete(hi);
           const conf=conflictsWith(lo,tmp);
@@ -728,7 +751,8 @@ function assignAll(blockSets,perQ,rules,byId){
   return out;
 }
 
-function buildSchedule(state){
+function buildSchedule(state,opts){
+  opts=opts||{};
   const present=state.players.filter(p=>p.present);
   const keeper=present.find(p=>p.id===state.keeperId)||null;
   // Vervangkeepers per kwart (regels 'gk'), gebruikt als er geen vaste keeper is
@@ -740,11 +764,18 @@ function buildSchedule(state){
   // in hun niet-keeper-kwarten, dus die houden we in de pool en halen we per kwart weg.
   const fieldPlayers=present.filter(p=>!keeper||p.id!==keeper.id);
   const byId=Object.fromEntries(state.players.map(p=>[p.id,p]));
-  const r2=pickBlocks(fieldPlayers.filter(p=>!gkIds.has(p.id)),2,state.rules);
-  const r3=pickBlocks(fieldPlayers.filter(p=>!gkIds.has(p.id)),3,state.rules);
-  const dev2=r2.dev*8.75, dev3=r3.dev*(17.5/3);
-  const perQ=(dev3<dev2-0.01)?3:2;
-  const res=perQ===3?r3:r2;
+  const pool=fieldPlayers.filter(p=>!gkIds.has(p.id));
+  let perQ,res;
+  if(opts.forcePerQ){                 // herplannen: perQ ligt vast op de bestaande indeling
+    perQ=opts.forcePerQ;
+    res=pickBlocks(pool,perQ,state.rules,{fromBlock:opts.fromBlock,fixedBlocks:opts.fixedBlocks,playedSoFar:opts.playedSoFar});
+  }else{
+    const r2=pickBlocks(pool,2,state.rules);
+    const r3=pickBlocks(pool,3,state.rules);
+    const dev2=r2.dev*8.75, dev3=r3.dev*(17.5/3);
+    perQ=(dev3<dev2-0.01)?3:2;
+    res=perQ===3?r3:r2;
+  }
   const assignments=assignAll(res.blocks,perQ,state.rules,byId);
   // Regel 'q3likeq1': laat Q3 met exact dezelfde opstelling starten als Q1.
   // Alleen het startblok van Q3 wordt gelijkgetrokken; de wissels binnen Q3 lopen daarna door.
@@ -1178,6 +1209,7 @@ function ruleSentence(r){
     case 'noq':    return `${n(r.p1)} speelt niet in Q${r.q}`;
     case 'minutes':return `${n(r.p1)} speelt ${r.mm==='max'?'maximaal':'minimaal'} ${r.min} minuten`;
     case 'start':  return `${n(r.p1)} begint ${r.start==='base'?'in de basis':'op de bank'}`;
+    case 'endstrong': return `${n(r.p1)} speelt zeker ${r.amt==='min10'?'de laatste ~10 minuten':'het hele laatste kwart'}`;
     case 'noline': return `${n(r.p1)} speelt nooit in de ${LINES[r.line]}`;
     case 'rotate': return `${n(r.p1)} en ${n(r.p2)} wisselen elkaar af op ${POSMAP[r.pos]?POSMAP[r.pos].name.toLowerCase():r.pos}`;
     case 'q3likeq1': return `Start Q3 gelijk aan start Q1`;
@@ -1297,34 +1329,39 @@ function renderRegels(){
     <select class="sel" id="nrType" style="margin-bottom:10px">
       <option value="half" ${t==='half'?'selected':''}>Speelt alleen één helft</option>
       <option value="apart" ${t==='apart'?'selected':''}>Twee spelers liever niet samen</option>
-      <option value="line" ${t==='line'?'selected':''}>Speelt altijd in een linie</option>
+      <option value="line" ${(t==='line'||t==='noline')?'selected':''}>Speelt altijd of nooit in een linie</option>
       <option value="pos" ${t==='pos'?'selected':''}>Speelt altijd op vaste positie</option>
       <option value="condpos" ${t==='condpos'?'selected':''}>Vaste positie als ander niet meespeelt</option>
       <option value="noq" ${t==='noq'?'selected':''}>Speelt niet in een bepaald kwart</option>
       <option value="minutes" ${t==='minutes'?'selected':''}>Speelt minimaal of maximaal aantal minuten</option>
       <option value="start" ${t==='start'?'selected':''}>Begint in de basis of op de bank</option>
-      <option value="noline" ${t==='noline'?'selected':''}>Speelt nooit in een bepaalde linie</option>
+      <option value="endstrong" ${t==='endstrong'?'selected':''}>Speelt zeker het einde (sterkste slot)</option>
       <option value="rotate" ${t==='rotate'?'selected':''}>Twee spelers wisselen elkaar af op één positie</option>
       ${!keeperAanwezig?`<option value="gk" ${t==='gk'?'selected':''}>Keeper voor bepaalde kwarten (vervanger)</option>`:''}
       <option value="q3likeq1" ${t==='q3likeq1'?'selected':''}>Start Q3 gelijk aan start Q1</option>
     </select>
     ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.</p>':`<label class="hint">Speler</label>
     <select class="sel" id="nrP1" style="margin-bottom:10px">${popts(newRule.p1)}</select>`}`;
+  if(t==='endstrong')html+=`<label class="hint">Hoeveel van het einde?</label>
+    <select class="sel" id="nrEndAmt" style="margin-bottom:10px">
+      <option value="q4">Het hele laatste kwart (Q4)</option>
+      <option value="min10">De laatste ~10 minuten</option>
+    </select>`;
   if(t==='gk')html+=`<label class="hint">Keept in welke kwarten?</label>
     <div class="qpick" style="display:flex;gap:8px;margin-bottom:10px">${[1,2,3,4].map(q=>`<label class="qp" style="flex:1"><input type="checkbox" class="nrGKq" value="${q}" ${(newRule.qs||[]).includes(q)?'checked':''}> Q${q}</label>`).join('')}</div>`;
   if(t==='half')html+=`<label class="hint">Helft</label><select class="sel" id="nrHalf" style="margin-bottom:10px"><option value="1">Eerste helft</option><option value="2">Tweede helft</option></select>`;
   if(t==='apart')html+=`<label class="hint">Niet samen met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select>`;
-  if(t==='line')html+=`<label class="hint">Linie</label><select class="sel" id="nrLine" style="margin-bottom:10px"><option value="voor">Voorste linie</option><option value="midden">Middenlinie</option><option value="achter">Achterste linie</option></select>`;
+  if(t==='line'||t==='noline')html+=`<label class="hint">Altijd of nooit?</label><select class="sel" id="nrLineDir" style="margin-bottom:10px"><option value="altijd" ${t==='line'?'selected':''}>Altijd in deze linie</option><option value="nooit" ${t==='noline'?'selected':''}>Nooit in deze linie</option></select><label class="hint">Linie</label><select class="sel" id="nrLine" style="margin-bottom:10px"><option value="voor" ${newRule.line==='voor'?'selected':''}>Voorste linie</option><option value="midden" ${newRule.line==='midden'?'selected':''}>Middenlinie</option><option value="achter" ${newRule.line==='achter'?'selected':''}>Achterste linie</option></select>`;
   if(t==='pos'||t==='condpos')html+=`<label class="hint">Positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   if(t==='condpos')html+=`<label class="hint">…als deze speler niet meespeelt</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select>`;
   if(t==='noq')html+=`<label class="hint">Kwart</label><select class="sel" id="nrQ" style="margin-bottom:10px"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select>`;
   if(t==='minutes')html+=`<label class="hint">Grens</label><select class="sel" id="nrMM" style="margin-bottom:10px"><option value="max">Maximaal (ontzien)</option><option value="min">Minimaal (garanderen)</option></select><label class="hint">Aantal minuten</label><select class="sel" id="nrMin" style="margin-bottom:10px">${[10,15,20,25,30,35,40,45,50,55].map(m=>`<option value="${m}">${m} minuten</option>`).join('')}</select>`;
   if(t==='start')html+=`<label class="hint">Begint</label><select class="sel" id="nrStart" style="margin-bottom:10px"><option value="base">In de basis (start Q1)</option><option value="bench">Op de bank (start Q1)</option></select>`;
-  if(t==='noline')html+=`<label class="hint">Niet in linie</label><select class="sel" id="nrLine" style="margin-bottom:10px"><option value="voor">Voorste linie</option><option value="midden">Middenlinie</option><option value="achter">Achterste linie</option></select>`;
+  
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 35 &middot; 9 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 37 &middot; 10 augustus 2026</div>';
   return html;
 }
 
@@ -1421,6 +1458,70 @@ function regenerate(){
   }else{
     toast(state.schedule.perQ===3?'Schema gemaakt — 2 wissels per kwart voor eerlijke minuten':'Schema gemaakt — 1 wissel halverwege elk kwart');
   }
+}
+function injuryDialog(){
+  if(!state.schedule){toast('Genereer eerst een opstelling');return;}
+  const perQ=state.schedule.perQ;
+  const veld=state.players.filter(p=>p.present && p.id!==state.keeperId);
+  const h=document.getElementById('modalHost');
+  h.innerHTML=`<div class="modal-back center" id="mback"><div class="modal" role="dialog" aria-modal="true" style="max-width:min(94vw,460px)">
+    <h3>&#127973; Speler geblesseerd</h3>
+    <p style="font-size:var(--fs-sm);color:var(--dim);margin:0 0 8px">Wie moet eruit, en vanaf wanneer? De rest van de wedstrijd wordt opnieuw eerlijk verdeeld, waarbij spelers die tot nu toe weinig speelden voorrang krijgen.</p>
+    <label class="clab">Speler</label>
+    <select id="ijP" class="cin sel">${veld.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select>
+    <label class="clab">Vanaf welk kwart</label>
+    <select id="ijQ" class="cin sel">${[0,1,2,3].map(q=>`<option value="${q}">Q${q+1}</option>`).join('')}</select>
+    <label class="clab">Moment in dat kwart</label>
+    <select id="ijH" class="cin sel">
+      <option value="0">Bij het begin</option>
+      <option value="half">Halverwege</option>
+    </select>
+    <div class="row" style="margin-top:12px">
+      <button class="btn ghost" id="mcancel">Annuleren</button>
+      <button class="btn" id="mok">Herplan</button>
+    </div>
+  </div></div>`;
+  const back=document.getElementById('mback');
+  back.onclick=e=>{if(e.target===back)closeModal();};
+  document.getElementById('mcancel').onclick=closeModal;
+  document.getElementById('mok').onclick=()=>{
+    const pid=document.getElementById('ijP').value;
+    const q=Number(document.getElementById('ijQ').value);
+    const hh=document.getElementById('ijH').value;
+    // blok-index: kwart-start + (halverwege? halve kwart in blokken)
+    let block=q*perQ;
+    if(hh==='half')block+=Math.floor(perQ/2)||(perQ===2?1:0); // perQ2: +1 (=halverwege), perQ3: +1
+    closeModal();
+    injuryReplan(pid,block);
+  };
+}
+// Speler raakt geblesseerd op een bepaald moment; herplan de rest mét de al gespeelde minuten.
+// momentBlock = blokindex vanaf waar opnieuw wordt verdeeld (de geblesseerde speelt tot dan mee).
+function injuryReplan(playerId,momentBlock){
+  if(!state.schedule){toast('Genereer eerst een opstelling');return;}
+  const sch=state.schedule, perQ=sch.perQ, B=perQ*4;
+  momentBlock=Math.max(0,Math.min(B,momentBlock));
+  const byId2=Object.fromEntries(state.players.map(p=>[p.id,p]));
+  // reeds gespeelde blokken (per index) uit het huidige schema, en played-telling tot momentBlock
+  const fixedBlocks={}, playedSoFar={};
+  const pool=state.players.filter(p=>p.present && p.id!==state.keeperId);
+  pool.forEach(p=>playedSoFar[p.id]=0);
+  for(let b=0;b<momentBlock;b++){
+    const set=new Set(Object.values(sch.assignments[b]||{}));
+    fixedBlocks[b]=set;
+    set.forEach(pid=>{ if(playedSoFar[pid]!=null)playedSoFar[pid]++; });
+  }
+  // geblesseerde speler op afwezig zetten zodat hij vanaf momentBlock niet meer meedoet
+  const inj=byId2[playerId];
+  snapshot('blessure '+(inj?inj.name:''));
+  if(inj)inj.present=false;
+  // herplan met vast perQ, vaste voorgeschiedenis en meegewogen speelminuten
+  const fresh=buildSchedule(state,{forcePerQ:perQ,fromBlock:momentBlock,fixedBlocks,playedSoFar});
+  state.schedule=fresh;
+  state.genHash=inputHash(state);
+  save();render();sendSwapTimesToTimer();
+  const minLabel=Math.round(momentBlock*(17.5/perQ));
+  toast((inj?inj.name:'Speler')+' eruit na ~'+minLabel+' min — rest eerlijk herverdeeld');
 }
 // Herplan vanaf een bepaald kwart met de spelers die nú aanwezig zijn.
 // De kwarten vóór 'fromQ' blijven exact staan; alleen 'fromQ' t/m Q4 worden opnieuw verdeeld.
@@ -1548,6 +1649,7 @@ function renderQuarter(q){
     if(_undoLabel)html+=`<button class="btn ghost full" id="undoBtn" style="margin-bottom:8px">&#8634; Ongedaan maken (${esc(_undoLabel)})</button>`;
     html+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
     html+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
+    html+=`<button class="btn ghost full" id="injuryBtn" style="margin-bottom:8px">&#127973; Speler geblesseerd &mdash; herplan met gespeelde minuten</button>`;
   }
   return html;
 }
@@ -1623,6 +1725,8 @@ function bind(v){
   v.querySelectorAll('[data-regen]').forEach(b=>b.onclick=regenerate);
   const rb=v.querySelector('#replanBtn');
   if(rb)rb.onclick=()=>replanFromQuarter(Number(rb.dataset.q));
+  const ijb=v.querySelector('#injuryBtn');
+  if(ijb)ijb.onclick=injuryDialog;
   const ub=v.querySelector('#undoBtn');
   if(ub)ub.onclick=doUndo;
   v.querySelectorAll('[data-goplayers]').forEach(b=>b.onclick=()=>{activeTab='spelers';render();document.getElementById('view').scrollTop=0;});
@@ -1718,12 +1822,16 @@ function bind(v){
     else {r={id:'r'+Date.now(),type:_ty,p1:g('#nrP1')};}
     if(r.type==='half')r.half=Number(g('#nrHalf'));
     if(r.type==='apart'||r.type==='condpos')r.p2=g('#nrP2');
-    if(r.type==='line')r.line=g('#nrLine');
+    if(r.type==='line'){
+      r.line=g('#nrLine');
+      // richting bepaalt het onderliggende type: 'nooit' -> noline
+      if(g('#nrLineDir')==='nooit')r.type='noline';
+    }
     if(r.type==='pos'||r.type==='condpos')r.pos=g('#nrPos');
     if(r.type==='noq')r.q=Number(g('#nrQ'));
     if(r.type==='minutes'){r.mm=g('#nrMM');r.min=Number(g('#nrMin'));}
     if(r.type==='start')r.start=g('#nrStart');
-    if(r.type==='noline')r.line=g('#nrLine');
+    if(r.type==='endstrong')r.amt=g('#nrEndAmt')||'q4';
     if(r.type==='rotate'){r.p2=g('#nrP2');r.pos=g('#nrPos');}
     if((r.type==='apart'||r.type==='condpos'||r.type==='rotate')&&r.p1===r.p2){toast('Kies twee verschillende spelers');return;}
     if(r.type==='q3likeq1'&&state.rules.some(x=>x.type==='q3likeq1')){toast('Deze regel bestaat al');return;}
@@ -1879,7 +1987,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=76;
+const APP_VERSION=78;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
