@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="75">
+<meta name="app-version" content="76">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -829,7 +829,18 @@ function loadState(){
   }catch(e){}
   return defaultState();
 }
-function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e){} cloudPush();}
+function cleanupGkRules(){
+  // Vervangkeeper-regels ('speler wordt keeper') hebben alleen zin als er GEEN aanwezige keeper is.
+  // Zodra er weer een keeper is (vaste keeper aangevinkt of een aanwezige gastkeeper), vervallen ze automatisch.
+  if(!state.rules||!state.rules.some(r=>r.type==='gk'))return false;
+  const keeperAanwezig=state.players.some(p=>p.present&&p.prefs&&p.prefs[0]==='keeper');
+  if(keeperAanwezig){
+    state.rules=state.rules.filter(r=>r.type!=='gk');
+    return true;
+  }
+  return false;
+}
+function save(){cleanupGkRules();try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e){} cloudPush();}
 
 /* ============ Samenwerken (live, via Firebase Firestore) ============ */
 // Vaste Firebase-config van dit project (mag openbaar: beveiliging zit in de Firestore-regels + login, niet in deze sleutel)
@@ -1313,7 +1324,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 34 &middot; 9 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 35 &middot; 9 augustus 2026</div>';
   return html;
 }
 
@@ -1868,7 +1879,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=75;
+const APP_VERSION=76;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
