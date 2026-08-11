@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="79">
+<meta name="app-version" content="80">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1367,7 +1367,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 38 &middot; 10 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 39 &middot; 10 augustus 2026</div>';
   return html;
 }
 
@@ -1411,6 +1411,16 @@ function detectRuleConflicts(){
     // alleen-één-helft + max te laag om de helft te vullen
     const halfR=rs.find(r=>r.type==='half');
     if(halfR&&maxs.length&&Math.min(...maxs)<17) out.push(`${nm(pid)} speelt maar één helft én heeft een laag maximum — mogelijk weinig speeltijd.`);
+    // 'speelt zeker het einde' botst met regels die het einde juist uitsluiten
+    const endR=rs.find(r=>r.type==='endstrong');
+    if(endR){
+      if(rs.some(r=>r.type==='noq'&&Number(r.q)===4)) out.push(`${nm(pid)} moet zeker het einde spelen, maar mag ook niet in Q4 — die regels botsen.`);
+      if(halfR&&halfR.half===1) out.push(`${nm(pid)} moet zeker het einde spelen, maar speelt alleen de eerste helft — die regels botsen.`);
+      if(rs.some(r=>r.type==='start'&&r.start==='bench')&&endR.amt!=='min10'){/* start-bank en eind-spelen kunnen prima samen */}
+    }
+    // vervangkeeper die ook veldregels heeft: die gelden alleen in zijn niet-keeper-kwarten
+    if(rs.some(r=>r.type==='gk')&&rs.some(r=>['pos','line','noline','rotate'].includes(r.type)))
+      out.push(`${nm(pid)} keept een deel van de wedstrijd; positie- of linieregels gelden alleen in de kwarten dat hij níét keept.`);
   }
   // rotate: een speler in twee verschillende rotatieparen
   const inRot={};
@@ -1993,7 +2003,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=79;
+const APP_VERSION=80;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
