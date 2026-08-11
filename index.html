@@ -563,6 +563,10 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
   // 'Twee spelers wisselen elkaar af op één positie': per blok speelt er precies één
   // van het paar (om en om), die op de gedeelde positie komt te staan.
   const rotates=rules.filter(r=>r.type==='rotate'&&ids.includes(r.p1)&&ids.includes(r.p2));
+  // 'Start Q3 gelijk aan start Q1': het startblok van Q3 krijgt dezelfde spelers als blok 0,
+  // voor zover die dan beschikbaar zijn (wie in Q3 keept, valt hier vanzelf af).
+  const q3like=rules.some(r=>r.type==='q3likeq1');
+  const q3Block=perQ*2;
   const rotateBlocked=new Set(); // spelers die in dit blok juist NIET ingezet worden (de 'rust'-helft van het paar)
   for(let b=0;b<B;b++){
     // Reeds gespeelde blokken (vóór het herplan-moment) liggen vast
@@ -599,6 +603,16 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
     }
     // blok 0: eerst de 'begint in de basis'-spelers plaatsen
     if(b===0){ for(const id of startBase){ if(sel.size>=10)break; if(rotateBlocked.has(id))continue; if(elig[id]&&elig[id][0]&&!(maxBlk[id]!=null&&played[id]>=maxBlk[id]))sel.add(id); } }
+    // start Q3 gelijk aan start Q1: eerst dezelfde spelers overnemen
+    if(q3like && b===q3Block && blocks[0]){
+      for(const id of blocks[0]){
+        if(sel.size>=10)break;
+        if(rotateBlocked.has(id))continue;
+        if(!elig[id]||!elig[id][b])continue;              // keept dit kwart of anderszins niet inzetbaar
+        if(maxBlk[id]!=null&&played[id]>=maxBlk[id])continue;
+        sel.add(id);
+      }
+    }
     // eind-blokken: 'speelt zeker het einde'-spelers geforceerd plaatsen
     if(endForce[b]){ for(const id of endForce[b]){ if(sel.size>=10)break; if(rotateBlocked.has(id))continue; if(elig[id]&&elig[id][b])sel.add(id); } }
     for(const id of cands){
@@ -632,6 +646,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
         if((played[hi]-t[hi])-(played[lo]-t[lo])<=1.0001)break outer;
         for(let b=0;b<B;b++){
           if(b<fromBlock)continue; // reeds gespeelde blokken liggen vast
+          if(q3like&&b===q3Block)continue; // start Q3 moet gelijk blijven aan start Q1
           if(!blocks[b].has(hi)||blocks[b].has(lo)||!elig[lo][b])continue;
           if(rotateIds.has(hi)||rotateIds.has(lo))continue; // rotate-paren niet verstoren
           if(endForce[b]&&endForce[b].has(hi))continue; // geforceerde eindspeler niet uit eindblok halen
@@ -670,11 +685,13 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
   for(const r of apart){
     for(let pass=0;pass<3;pass++){
       for(let b1=0;b1<B;b1++){
+        if(q3like&&b1===q3Block)continue; // start Q3 blijft gelijk aan start Q1
         if(!(blocks[b1].has(r.p1)&&blocks[b1].has(r.p2)))continue;
         let fixed=false;
         for(const mv of [r.p1,r.p2]){
           for(let b2=0;b2<B&&!fixed;b2++){
             if(b2===b1||blocks[b2].has(mv)||!elig[mv][b2])continue;
+            if(q3like&&b2===q3Block)continue;
             const other=mv===r.p1?r.p2:r.p1;
             if(blocks[b2].has(other))continue;
             for(const x of blocks[b2]){
@@ -699,6 +716,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
 
 function assignAll(blockSets,perQ,rules,byId){
   const B=perQ*4, out=[];
+  const q3like=rules.some(r=>r.type==='q3likeq1');
   let prev=null,q1a=null;
   for(let b=0;b<B;b++){
     const ids=[...blockSets[b]];
@@ -727,7 +745,7 @@ function assignAll(blockSets,perQ,rules,byId){
         if(prev[pos.id]===pid)s+=35;
         else{const pe=Object.entries(prev).find(e=>e[1]===pid);if(pe&&POSMAP[pe[0]].line===pos.line)s+=12;}
       }
-      if(b===perQ*2&&q1a&&q1a[pos.id]===pid)s+=45;
+      if(b===perQ*2&&q1a&&q1a[pos.id]===pid)s+=q3like?4000:45;
       return s;
     };
     const pairs=[];
@@ -783,11 +801,8 @@ function buildSchedule(state,opts){
     res=perQ===3?r3:r2;
   }
   const assignments=assignAll(res.blocks,perQ,state.rules,byId);
-  // Regel 'q3likeq1': laat Q3 met exact dezelfde opstelling starten als Q1.
-  // Alleen het startblok van Q3 wordt gelijkgetrokken; de wissels binnen Q3 lopen daarna door.
-  if((state.rules||[]).some(r=>r.type==='q3likeq1') && assignments.length>=2*perQ+1){
-    assignments[2*perQ]={...assignments[0]};
-  }
+  // Regel 'q3likeq1' wordt in pickBlocks (zelfde spelers) en assignAll (zelfde posities)
+  // afgedwongen, zodat minuten, wissels en keeper consistent blijven.
   // Keeper per kwart bepalen: vaste keeper voor alle kwarten, anders de gk-regel.
   const keeperByQ=[0,1,2,3].map(q=>keeper?keeper.id:(gkByQ[q+1]||null));
   return {perQ,assignments,keeperId:keeper?keeper.id:null,keeperByQ,
@@ -844,7 +859,7 @@ function inputHash(state){
   return JSON.stringify({
     p:state.players.map(p=>[p.id,p.present,p.num,p.prefs,p.name]),
     k:state.keeperId,
-    r:state.rules.map(r=>[r.type,r.p1,r.p2,r.half,r.line,r.pos,r.q]),
+    r:state.rules,
   });
 }
 //==ENDCORE==
@@ -1105,6 +1120,16 @@ function backupImportPrompt(){
 }
 
 function byId(id){return state.players.find(p=>p.id===id);}
+// Wie staat er in kwart q op doel? (vaste keeper, of de vervanger uit de 'gk'-regels)
+function keeperOfQ(sch,q){ if(!sch)return null; return (sch.keeperByQ&&sch.keeperByQ[q])||sch.keeperId||null; }
+// Bank bij blok b: alle aanwezige veldspelers die niet in het veld staan EN niet keepen in dat kwart.
+function benchOfBlock(sch,b){
+  if(!sch)return [];
+  const q=Math.floor(b/sch.perQ);
+  const kid=keeperOfQ(sch,q);
+  const on=new Set(Object.values(sch.assignments[b]||{}));
+  return (sch.fieldIds||[]).filter(id=>id!==kid&&!on.has(id)&&byId(id)&&byId(id).present);
+}
 function pName(id){const p=byId(id);return p?p.name:'?';}
 function pNum(id){const p=byId(id);return p&&p.num!==''&&p.num!=null?p.num:'·';}
 function fmtMin(x){return (Math.round(x*100)/100).toString().replace('.',',');}
@@ -1367,7 +1392,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 39 &middot; 10 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 40 &middot; 11 augustus 2026</div>';
   return html;
 }
 
@@ -1430,8 +1455,9 @@ function detectRuleConflicts(){
   R.forEach(r=>{ if(r.p1&&!present(r.p1)&&byId(r.p1)) { /* stille regel: afwezig telt toch niet mee */ } });
   return out.filter((x,i)=>out.indexOf(x)===i);
 }
-function regenerate(){
-  if(cloudViewerBlocked())return;
+// Bepaalt wie er op doel staat: vaste keeper, aanwezige gastkeeper, of per kwart via 'gk'-regels.
+// Zet state.keeperId en geeft true terug als alles klopt; anders false met een melding.
+function resolveKeeperOrWarn(){
   const present=state.players.filter(p=>p.present);
   // Keeper = de speler met 'Keeper' als eerste voorkeur. Precies één, en aanwezig.
   const keepers=state.players.filter(p=>p.prefs&&p.prefs[0]==='keeper');
@@ -1443,7 +1469,7 @@ function regenerate(){
 
   if(vasteKeeperAanwezig){
     // Normale situatie: de vaste keeper doet de hele wedstrijd
-    if(keepers.length>1){toast('Er zijn meerdere keepers — er mag er maar één zijn');activeTab='spelers';render();return;}
+    if(keepers.length>1){toast('Er zijn meerdere keepers — er mag er maar één zijn');activeTab='spelers';render();return false;}
     state.keeperId=keepers[0].id;
   } else if(gastKeeper){
     // Een aanwezige gastspeler is als keeper aangewezen: die doet het
@@ -1453,15 +1479,20 @@ function regenerate(){
     const ontbreekt=[1,2,3,4].filter(q=>!gkDekking[q]);
     if(ontbreekt.length){
       toast('Geen keeper voor '+ontbreekt.map(q=>'Q'+q).join(', ')+' — wijs via Regels een keeper aan voor elk kwart');
-      activeTab='regels';render();return;
+      activeTab='regels';render();return false;
     }
-    // check dat de aangewezen keepers ook aanwezig zijn
-    const afweznaam=Object.values(gkDekking).map(id=>byId(id)).find(p=>!p||!p.present);
-    if(afweznaam!==undefined){toast('Een aangewezen keeper is afwezig — pas de keeper-regels aan');activeTab='regels';render();return;}
+    // check dat de aangewezen keepers ook bestaan en aanwezig zijn
+    const afwezig=Object.values(gkDekking).some(id=>{const p=byId(id);return !p||!p.present;});
+    if(afwezig){toast('Een aangewezen keeper is afwezig — pas de keeper-regels aan');activeTab='regels';render();return false;}
     state.keeperId=null; // geen vaste keeper; per kwart geregeld via gkDekking
   }
   // 10 veldspelers + keeper = 11 aanwezigen minimaal
-  if(present.length<11){toast('Minimaal 11 aanwezige spelers nodig (incl. keeper)');return;}
+  if(present.length<11){toast('Minimaal 11 aanwezige spelers nodig (incl. keeper)');return false;}
+  return true;
+}
+function regenerate(){
+  if(cloudViewerBlocked())return;
+  if(!resolveKeeperOrWarn())return;
   snapshot('genereren');
   state.schedule=buildSchedule(state);
   state.genHash=inputHash(state);
@@ -1543,12 +1574,7 @@ function injuryReplan(playerId,momentBlock){
 // De kwarten vóór 'fromQ' blijven exact staan; alleen 'fromQ' t/m Q4 worden opnieuw verdeeld.
 function replanFromQuarter(fromQ){
   if(!state.schedule){regenerate();return;}
-  const present=state.players.filter(p=>p.present);
-  const keepers=state.players.filter(p=>p.prefs&&p.prefs[0]==='keeper');
-  if(keepers.length!==1){toast('Zorg eerst voor precies één keeper');activeTab='spelers';render();return;}
-  if(!keepers[0].present){toast('De keeper staat op afwezig');activeTab='spelers';render();return;}
-  if(present.length<11){toast('Minimaal 11 aanwezige spelers nodig (incl. keeper)');return;}
-  state.keeperId=keepers[0].id;
+  if(!resolveKeeperOrWarn())return;
   snapshot('herplannen vanaf Q'+(fromQ+1));
   const oldSched=state.schedule;
   const oldPerQ=oldSched.perQ;
@@ -1622,8 +1648,7 @@ function renderQuarter(q){
   const sch=state.schedule, perQ=sch.perQ, b0=q*perQ, blockLen=17.5/perQ;
   const asg0=sch.assignments[b0];
   const keeper=byId((sch.keeperByQ&&sch.keeperByQ[q])||sch.keeperId);
-  const onField=new Set(Object.values(asg0));
-  const benchIds=sch.fieldIds.filter(id=>!onField.has(id)&&byId(id)&&byId(id).present);
+  const benchIds=benchOfBlock(sch,b0);
   // Veld: eigen helft onderin, bank als lijstje op de helft van de tegenstander
   html+=`<div class="card tight"><h2>Start Q${q+1} <span class="sub">${q<2?'eerste':'tweede'} helft</span></h2><div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>`;
   if(benchIds.length){
@@ -1645,15 +1670,19 @@ function renderQuarter(q){
   // Wissel bij start van kwart (t.o.v. vorige kwart)
   if(q>0){
     const d=wisselChains(sch.assignments[b0-1],asg0);
-    html+=`<div class="card"><h2>Bij start van Q${q+1}</h2>${chainsEmpty(d)?'<p class="empty">Geen wissels — zelfde elf als eind Q'+q+'.</p>':wisselLines(d)}</div>`;
+    const prevK=keeperOfQ(sch,q-1), curK=keeperOfQ(sch,q);
+    let kLine='';
+    if(prevK&&curK&&prevK!==curK){
+      kLine=`<div class="wline"><span class="arr in">&#8645;</span><span><b class="pl-in">${esc(pName(curK))}</b> op doel &middot; <b class="pl-out">${esc(pName(prevK))}</b> uit het doel</span></div>`;
+    }
+    html+=`<div class="card"><h2>Bij start van Q${q+1}</h2>${kLine}${chainsEmpty(d)?(kLine?'':'<p class="empty">Geen wissels — zelfde elf als eind Q'+q+'.</p>'):wisselLines(d)}</div>`;
   }
   // Wisselmomenten binnen het kwart
   html+=`<div class="card"><h2>Wissels in Q${q+1} <span class="sub">${perQ-1}&times; per kwart</span></h2>`;
   for(let m=1;m<perQ;m++){
     const d=wisselChains(sch.assignments[b0+m-1],sch.assignments[b0+m]);
     const t=m*blockLen;
-    const after=new Set(Object.values(sch.assignments[b0+m]));
-    const benchAfter=sch.fieldIds.filter(id=>!after.has(id)&&byId(id)&&byId(id).present);
+    const benchAfter=benchOfBlock(sch,b0+m);
     const naMin=Math.round(t);
     const kop=(q===1||q===3)?`Na ${naMin} min in Q${q+1}, dus bij ${fmtMin(naMin+17.5)} min`:`Na ${naMin} min`;
     html+=`<div class="wmoment"><div class="wtime">${kop}</div>`;
@@ -1926,14 +1955,15 @@ function renderPrint(){
   let cells='';
   for(let q=0;q<4;q++){
     const b0=q*perQ,asg0=sch.assignments[b0];
-    const on=new Set(Object.values(asg0));
-    const bench=sch.fieldIds.filter(id=>!on.has(id)&&byId(id)&&byId(id).present).map(pName).map(esc).join(', ')||'—';
+    const bench=benchOfBlock(sch,b0).map(pName).map(esc).join(', ')||'—';
     let w='';
     for(let m=1;m<perQ;m++){
       const dd=wisselChains(sch.assignments[b0+m-1],sch.assignments[b0+m]);
       w+=`<div class="pw"><b>Na ${Math.round(m*blockLen)} min:</b><br>${chainsEmpty(dd)?'geen wissels':printChainText(dd)}</div>`;
     }
-    cells+=`<div class="pcell"><div class="ph">Q${q+1} <span>${q<2?'eerste':'tweede'} helft</span></div>${printFieldSVG(asg0,sch.keeperId)}<div class="pw"><b>Wissels bij start:</b> ${bench}</div>${w}</div>`;
+    const pk=q>0?keeperOfQ(sch,q-1):null, ck=keeperOfQ(sch,q);
+    const kw=(pk&&ck&&pk!==ck)?`<div class="pw"><b>Keeper:</b> ${esc(pName(ck))} (was ${esc(pName(pk))})</div>`:'';
+    cells+=`<div class="pcell"><div class="ph">Q${q+1} <span>${q<2?'eerste':'tweede'} helft</span></div>${printFieldSVG(asg0,ck)}${kw}<div class="pw"><b>Wissels bij start:</b> ${bench}</div>${w}</div>`;
   }
   area.innerHTML=`<div class="phead"><b>Wisselschema HC Gooische</b> &nbsp;·&nbsp; ${ds}</div><div class="pgrid">${cells}</div>`;
 }
@@ -2003,7 +2033,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=80;
+const APP_VERSION=81;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -2069,8 +2099,7 @@ async function shareQuarterImage(q){
   const W=1080,pitchX=70,pitchY=210,pitchW=940,pitchH=940;
   // tekstregels onder het veld verzamelen
   const blocks=[];
-  const onField=new Set(Object.values(asg0));
-  const bench=sch.fieldIds.filter(id=>!onField.has(id)&&byId(id)&&byId(id).present).map(pName);
+  const bench=benchOfBlock(sch,b0).map(pName);
   if(bench.length)blocks.push({head:'Bank bij start:',lines:wrapText(bench.join(', '),58)});
   for(let m=1;m<perQ;m++){
     const d=wisselChains(sch.assignments[b0+m-1],sch.assignments[b0+m]);
@@ -2102,7 +2131,7 @@ async function shareQuarterImage(q){
     <text x="${cx}" y="${cy+79}" text-anchor="middle" font-size="27" font-weight="bold" fill="#0e2247">${esc2(pName(pid))}</text>`;
   }
   // keeper apart (staat in eigen rol, niet in asg)
-  const kp=byId(sch.keeperId);
+  const kp=byId(keeperOfQ(sch,q));
   if(kp&&!asg0.keeper){
     const cx=pitchX+pitchW/2, cy=pitchY+pitchH*((93-38)/62);
     svg+=`<circle cx="${cx}" cy="${cy}" r="40" fill="#ffffff" stroke="#16335f" stroke-width="3.5"/>
