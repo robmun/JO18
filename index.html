@@ -29,6 +29,7 @@
   --sem-out:#ff9d86;       /* eruit */
   --sem-move:var(--accent);/* doorschuiven binnen het veld */
   --num:#ffffff;           /* rugnummer/keeper-teken op het token (wit, niet rood) */
+  --capt:#f2c94c;          /* aanvoerder: goud randje om het token */
   /* Hoekrondingen */
   --r-xs:8px; --r-sm:10px; --r-md:12px; --r-lg:16px; --r-xl:22px; --r-pill:99px;
   /* Schaduwen: één lichtbron (recht van boven), vaste sterkteladder */
@@ -245,6 +246,7 @@ select,option{font-size:var(--fs-base)}
 .benchcol{display:flex;flex-direction:column;gap:6px;min-width:0}
 .brow{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border-radius:var(--r-pill);background:rgba(11,24,48,.58);border:1px solid rgba(255,255,255,.24);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .brow .bball{width:32px;height:32px;border-radius:50%;background:linear-gradient(160deg,#21437e,#0e2247);border:1.5px solid rgba(255,255,255,.7);color:#fff;font-weight:800;font-size:var(--fs-sm);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.brow .bball.capt{border-color:var(--capt);box-shadow:0 0 0 1.5px rgba(242,201,76,.30)}
 .brow span{font-size:var(--fs-base);font-weight:700;color:#eef4ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brow.selected{outline:2.5px solid var(--accent);outline-offset:1px}
 .brow:active{transform:scale(.96)}
@@ -272,6 +274,24 @@ select,option{font-size:var(--fs-base)}
 .chip .tag .k{color:var(--sem-out);font-weight:900;margin-right:3px}
 .chip .pos{font-size:7.5px;font-weight:700;color:rgba(255,255,255,.85);letter-spacing:.5px;text-transform:uppercase;text-shadow:0 1px 3px rgba(0,0,0,.4)}
 .chip.selected{filter:drop-shadow(0 10px 14px rgba(4,14,32,.55));transform:translate(-50%,-50%) scale(1.06)}
+/* Aanvoerder: goud randje om het token plus een klein gouden A-schildje */
+.chip .ball.capt{border-color:var(--capt);
+  box-shadow:inset 0 2px 3px rgba(255,255,255,.30), inset 0 -4px 6px rgba(0,0,0,.32), 0 0 0 2px rgba(242,201,76,.28)}
+.chip .ball .cbadge{position:absolute;top:-7px;right:-8px;width:15px;height:15px;border-radius:50%;
+  background:linear-gradient(160deg,#ffe28c,#d6a01f);color:#2b1c00;font-size:9.5px;font-weight:900;line-height:1;
+  display:flex;align-items:center;justify-content:center;border:1.5px solid #fff6dd;
+  box-shadow:0 1px 2px rgba(4,14,32,.45);z-index:3}
+/* Bank: zelfde teken, iets kleiner, tegen het balletje aan */
+.brow .bball{position:relative}
+.brow .bball .cbadge{position:absolute;top:-5px;right:-6px;width:13px;height:13px;border-radius:50%;
+  background:linear-gradient(160deg,#ffe28c,#d6a01f);color:#2b1c00;font-size:8.5px;font-weight:900;line-height:1;
+  display:flex;align-items:center;justify-content:center;border:1.5px solid #fff6dd;
+  box-shadow:0 1px 2px rgba(4,14,32,.45)}
+.captrow{display:flex;align-items:center;gap:10px;margin-top:10px}
+.captrow span{font-size:var(--fs-sm);color:var(--dim);font-weight:600}
+.captbadge{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;padding:0 3px;
+  border-radius:5px;background:linear-gradient(160deg,#ffe28c,#d6a01f);color:#2b1c00;font-weight:900;
+  font-size:var(--fs-xs);vertical-align:-2px;margin-left:6px}
 .chip.selected .ball{outline:3px solid var(--accent);outline-offset:2px}
 .chip:active .ball{transform:scale(.93)}
 .kbadge{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:var(--r-xs);background:linear-gradient(135deg,#e2653f,#b03e1f);color:#fff;font-weight:800;font-size:var(--fs-xs);vertical-align:-3px}
@@ -363,6 +383,9 @@ body.timermode .appbar{display:none}
   .ph span{font-weight:normal;font-size:8pt;color:#000}
   .pf{width:auto;max-width:52mm;max-height:62mm;height:auto;display:block;margin:0 auto 1.2mm;flex:0 0 auto}
   .pw{font-size:8.2pt;line-height:1.32;margin-top:0.8mm;flex:0 0 auto}
+  /* 3 wisselmomenten per kwart: veld iets kleiner en tekst compacter, zodat het een A4 blijft */
+  .pgrid.dense .pf{max-height:50mm}
+  .pgrid.dense .pw{font-size:7.3pt;line-height:1.22;margin-top:0.5mm}
   .pw b{font-weight:bold}
 }
 /* Tabwissel: subtiele schuif in de richting van de veeg + fade */
@@ -794,11 +817,26 @@ function buildSchedule(state,opts){
     perQ=opts.forcePerQ;
     res=pickBlocks(pool,perQ,state.rules,{fromBlock:opts.fromBlock,fixedBlocks:opts.fixedBlocks,playedSoFar:opts.playedSoFar});
   }else{
-    const r2=pickBlocks(pool,2,state.rules);
-    const r3=pickBlocks(pool,3,state.rules);
-    const dev2=r2.dev*8.75, dev3=r3.dev*(17.5/3);
-    perQ=(dev3<dev2-0.01)?3:2;
-    res=perQ===3?r3:r2;
+    // Drie indelingen doorrekenen: 2, 3 of 4 blokken per kwart (= 1, 2 of 3 wisselmomenten).
+    const cands=[2,3,4].map(n=>{const r=pickBlocks(pool,n,state.rules);return {n,r,dev:r.dev*(17.5/n)};});
+    // Hoeveel wisselspelers zijn er gemiddeld per blok? Een speler die dat kwart keept,
+    // telt daar niet als wisselspeler mee.
+    const e2=cands[0].r.elig; let seats=0;
+    for(let b=0;b<8;b++){ let n=0; for(const id in e2){ if(e2[id][b])n++; } seats+=Math.max(0,n-10); }
+    const bankPlekken=seats/8;
+    // Krappe bank (1 a 2 wisselspelers): dan duurt een rustbeurt anders een heel blok van
+    // ruim 8 minuten en komt niet iedereen aan de beurt. Liever vaker en korter wisselen,
+    // zodat de rustbeurt rond de 5 minuten blijft. Bij een ruimere bank weegt rust in het veld zwaarder.
+    const krappeBank=bankPlekken>0 && bankPlekken<2.5;
+    let keuze;
+    if(krappeBank){
+      keuze=cands[2];                       // 4 blokken = 3 wisselmomenten van ~4,4 min
+    }else{
+      // Ruimere bank: zoals voorheen kiezen tussen 1 en 2 wisselmomenten,
+      // en bij gelijke eerlijkheid de rustigste indeling.
+      keuze=(cands[1].dev<cands[0].dev-0.01)?cands[1]:cands[0];
+    }
+    perQ=keuze.n; res=keuze.r;
   }
   const assignments=assignAll(res.blocks,perQ,state.rules,byId);
   // Regel 'q3likeq1' wordt in pickBlocks (zelfde spelers) en assignAll (zelfde posities)
@@ -1121,6 +1159,8 @@ function backupImportPrompt(){
 
 function byId(id){return state.players.find(p=>p.id===id);}
 // Wie staat er in kwart q op doel? (vaste keeper, of de vervanger uit de 'gk'-regels)
+// Wie is de aanvoerder? (maximaal een; niet-aanwezig telt gewoon niet mee op het veld)
+function captainId(){const c=state.players.find(p=>p.captain);return c?c.id:null;}
 function keeperOfQ(sch,q){ if(!sch)return null; return (sch.keeperByQ&&sch.keeperByQ[q])||sch.keeperId||null; }
 // Bank bij blok b: alle aanwezige veldspelers die niet in het veld staan EN niet keepen in dat kwart.
 function benchOfBlock(sch,b){
@@ -1310,7 +1350,7 @@ function renderSpelers(){
     <button class="btn ghost full" id="backupExport">&#128190; Opslaan als back-upbestand</button>
     <button class="btn ghost full" id="backupImport" style="margin-top:8px">&#128194; Herstel uit back-up&#8230;</button>
     <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p></div>`;
-  html+=`<p class="hint" style="padding:0 6px 10px">Keeper instellen? Geef &#233;&#233;n speler &#39;Keeper&#39; als eerste voorkeur via &#9662;. Alles wordt automatisch bewaard op dit toestel.</p>`;
+  html+=`<p class="hint" style="padding:0 6px 10px">Keeper instellen? Geef &#233;&#233;n speler &#39;Keeper&#39; als eerste voorkeur via &#9662;. Daar zet je ook de aanvoerder aan &mdash; die krijgt een goud randje in de opstelling. Alles wordt automatisch bewaard op dit toestel.</p>`;
   return html;
 }
 function dupNum(p){return p.num!==''&&p.num!=null&&state.players.filter(x=>x.num===p.num).length>1;}
@@ -1320,7 +1360,7 @@ function playerRow(p){
   let row=`<div class="pcard${open?' open':''}"><div class="prow ${p.present?'':'dim-row'}">
     <label class="sw"><input type="checkbox" data-act="present" data-id="${p.id}" ${p.present?'checked':''}><i></i></label>
     <div class="num${(p.num??'')===''?' leeg':''}${dupNum(p)?' dupe':''}" aria-label="Rugnummer ${nummer}">${nummer}</div>
-    <div class="pname"><b>${esc(p.name)||'<span style=\'color:var(--dim)\'>Naamloos</span>'}</b><span>${prefSummary(p)}</span></div>
+    <div class="pname"><b>${esc(p.name)||'<span style=\'color:var(--dim)\'>Naamloos</span>'}${p.captain?'<span class="captbadge" title="Aanvoerder">C</span>':''}</b><span>${prefSummary(p)}</span></div>
     ${p.guest?`<button class="chev" data-act="delguest" data-id="${p.id}" aria-label="Verwijderen" style="color:#ffb39e">&#10005;</button>`:''}
     <button class="chev" data-act="expand" data-id="${p.id}" aria-label="Naam, nummer en posities aanpassen"><svg viewBox="0 0 24 24"><polyline points="${open?'6 15 12 9 18 15':'6 9 12 15 18 9'}"/></svg></button>
   </div>`;
@@ -1336,7 +1376,10 @@ function playerRow(p){
       <label>Voorkeur<select class="sel" data-act="pref" data-i="0" data-id="${p.id}">${optsK(p.prefs[0])}</select></label>
       <label>Alternatief 1<select class="sel ${isK?'lockedalt':''}" data-act="pref" data-i="1" data-id="${p.id}" ${isK?'disabled':''}>${opts(p.prefs[1])}</select></label>
       <label>Alternatief 2<select class="sel ${isK?'lockedalt':''}" data-act="pref" data-i="2" data-id="${p.id}" ${isK?'disabled':''}>${opts(p.prefs[2])}</select></label>
-    </div>${isK?`<p class="hint" style="margin-top:8px">&#129508; Deze speler is de keeper: staat de hele wedstrijd op doel en telt niet mee in de veldwissels.</p>`:''}</div>`;
+    </div>
+    <div class="captrow"><label class="sw"><input type="checkbox" data-act="captain" data-id="${p.id}" ${p.captain?'checked':''}><i></i></label>
+      <span>Aanvoerder <b class="captbadge">C</b></span></div>
+    ${isK?`<p class="hint" style="margin-top:8px">&#129508; Deze speler is de keeper: staat de hele wedstrijd op doel en telt niet mee in de veldwissels.</p>`:''}</div>`;
   }
   return row+`</div>`;
 }
@@ -1392,7 +1435,7 @@ function renderRegels(){
   if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 40 &middot; 11 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 41 &middot; 12 augustus 2026</div>';
   return html;
 }
 
@@ -1503,7 +1546,9 @@ function regenerate(){
     swapWarnings=conflicts;
     toast('Let op: sommige regels botsen — zie de melding');
   }else{
-    toast(state.schedule.perQ===3?'Schema gemaakt — 2 wissels per kwart voor eerlijke minuten':'Schema gemaakt — 1 wissel halverwege elk kwart');
+    const _pq=state.schedule.perQ, _bl=Math.round(17.5/_pq*10)/10;
+    toast(_pq===2?'Schema gemaakt — 1 wissel halverwege elk kwart'
+                :`Schema gemaakt — ${_pq-1} wisselmomenten per kwart (blokken van ${fmtMin(_bl)} min)`);
   }
 }
 function injuryDialog(){
@@ -1649,23 +1694,25 @@ function renderQuarter(q){
   const asg0=sch.assignments[b0];
   const keeper=byId((sch.keeperByQ&&sch.keeperByQ[q])||sch.keeperId);
   const benchIds=benchOfBlock(sch,b0);
+  const capt=captainId();
   // Veld: eigen helft onderin, bank als lijstje op de helft van de tegenstander
   html+=`<div class="card tight"><h2>Start Q${q+1} <span class="sub">${q<2?'eerste':'tweede'} helft</span></h2><div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>`;
   if(benchIds.length){
     const half=benchIds.length>3?Math.ceil(benchIds.length/2):benchIds.length;
     const cols=[benchIds.slice(0,half),benchIds.slice(half)].filter(c=>c.length);
-    html+=`<div class="benchlist">`+cols.map(col=>`<div class="benchcol">`+col.map(id=>`<div class="brow ${selChip===id?'selected':''}" data-chip="${id}"><div class="bball">${pNum(id)}</div><span>${esc(pName(id))}</span></div>`).join('')+`</div>`).join('')+`</div>`;
+    html+=`<div class="benchlist">`+cols.map(col=>`<div class="benchcol">`+col.map(id=>`<div class="brow ${selChip===id?'selected':''}" data-chip="${id}"><div class="bball${id===capt?' capt':''}">${pNum(id)}${id===capt?'<span class="cbadge">C</span>':''}</div><span>${esc(pName(id))}</span></div>`).join('')+`</div>`).join('')+`</div>`;
   }
   for(const pos of POSITIONS){
     const pid=asg0[pos.id];
     if(pid){
+      const isC=pid===capt;
       html+=`<div class="chip ${selChip===pid?'selected':''}" data-chip="${pid}" style="left:${pos.x}%;top:${pos.y}%">
-        <div class="ball"><span class="bk${pos.kort.length>=4?' long':''}">${pos.kort}</span></div><div class="tag">${esc(pName(pid))}</div></div>`;
+        <div class="ball${isC?' capt':''}"><span class="bk${pos.kort.length>=4?' long':''}">${pos.kort}</span>${isC?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(pName(pid))}</div></div>`;
     }else{
       html+=`<div class="chip" style="left:${pos.x}%;top:${pos.y}%;opacity:.45"><div class="ball" style="border-style:dashed;background:none">·</div><div class="pos">${pos.kort}</div></div>`;
     }
   }
-  if(keeper)html+=`<div class="chip kpc" style="left:50%;top:93%"><div class="ball keeperball">${KEEPER_HELM}</div><div class="tag">${esc(keeper.name)}</div></div>`;
+  if(keeper)html+=`<div class="chip kpc" style="left:50%;top:93%"><div class="ball keeperball${keeper.id===capt?' capt':''}">${KEEPER_HELM}${keeper.id===capt?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(keeper.name)}</div></div>`;
   html+=`</div>${(CLOUD.on&&CLOUD.role==='viewer')?'':`<p class="hint" style="margin-top:10px">Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor de start van dit kwart.</p>`}</div>`;
   // Wissel bij start van kwart (t.o.v. vorige kwart)
   if(q>0){
@@ -1791,6 +1838,15 @@ function bind(v){
     render();
   });
   v.querySelectorAll('[data-act="name"]').forEach(el=>el.onchange=e=>{if(cloudViewerBlocked()){render();return;}const p=byId(el.dataset.id);const v=e.target.value.trim();p.name=v||(p.guest?'Gast':p.name);save();render();});
+  v.querySelectorAll('[data-act="captain"]').forEach(el=>el.onchange=e=>{
+    if(CLOUD.on&&CLOUD.role==='viewer'){ e.target.checked=!e.target.checked; toast(READONLY_MSG); return; }
+    const aan=e.target.checked;
+    // Er kan er maar een aanvoerder zijn: bij aanzetten vervalt de rol bij de vorige.
+    state.players.forEach(p=>{delete p.captain;});
+    if(aan){const p=byId(el.dataset.id);p.captain=true;toast(p.name+' is aanvoerder');}
+    else toast('Geen aanvoerder ingesteld');
+    save();render();
+  });
   v.querySelectorAll('[data-act="expand"]').forEach(el=>el.onclick=()=>{expandedPlayer=expandedPlayer===el.dataset.id?null:el.dataset.id;render();});
   v.querySelectorAll('[data-act="delguest"]').forEach(el=>el.onclick=()=>{
     const p=byId(el.dataset.id);
@@ -1917,6 +1973,11 @@ function chipTap(pid){
 /* ============ Print ============ */
 function printFieldSVG(asg,keeperId){
   const my=y=>((y-35)/65)*78+8;   // eigen helft -> 0..100
+  const capt=captainId();
+  // aanvoerder in zwart-wit: extra ring om het bolletje plus een klein A-schildje
+  const captMark=(x,y)=>`<circle cx="${x}" cy="${y}" r="6.1" fill="none" stroke="#000" stroke-width=".45"/>`
+    +`<circle cx="${x+4.6}" cy="${y-4.6}" r="2.1" fill="#fff" stroke="#000" stroke-width=".45"/>`
+    +`<text x="${x+4.6}" y="${y-3.75}" text-anchor="middle" font-size="2.7" font-weight="700" fill="#000">C</text>`;
   let s=`<svg class="pf" viewBox="0 0 100 104" xmlns="http://www.w3.org/2000/svg">
   <rect x="1" y="1" width="98" height="102" fill="#fff" stroke="#000" stroke-width=".7"/>
   <line x1="1" y1="1.4" x2="99" y2="1.4" stroke="#000" stroke-width="1"/>
@@ -1927,12 +1988,14 @@ function printFieldSVG(asg,keeperId){
     const x=pos.x,y=my(pos.y);
     s+=`<circle cx="${x}" cy="${y}" r="4.4" fill="#fff" stroke="#000" stroke-width="1"/><text x="${x}" y="${y+1.5}" text-anchor="middle" font-size="4.2" font-weight="700" fill="#000">${pNum(pid)}</text>
     <text x="${x}" y="${y+8.4}" text-anchor="middle" font-size="3.6" font-weight="700" fill="#000">${POSMAP[pos.id].kort}&#160;${esc(pName(pid))}</text>`;
+    if(pid===capt)s+=captMark(x,y);
   }
   const k=byId(keeperId);
   if(k){
     const x=50,y=my(93);
     s+=`<circle cx="${x}" cy="${y}" r="4.4" fill="#fff" stroke="#000" stroke-width="1.8"/><text x="${x}" y="${y+1.5}" text-anchor="middle" font-size="4.2" font-weight="700" fill="#000">${pNum(k.id)}</text>
     <text x="${x}" y="${y+8.4}" text-anchor="middle" font-size="3.6" font-weight="700" fill="#000">K&#160;${esc(k.name)}</text>`;
+    if(k.id===capt)s+=captMark(x,y);
   }
   return s+'</svg>';
 }
@@ -1965,7 +2028,7 @@ function renderPrint(){
     const kw=(pk&&ck&&pk!==ck)?`<div class="pw"><b>Keeper:</b> ${esc(pName(ck))} (was ${esc(pName(pk))})</div>`:'';
     cells+=`<div class="pcell"><div class="ph">Q${q+1} <span>${q<2?'eerste':'tweede'} helft</span></div>${printFieldSVG(asg0,ck)}${kw}<div class="pw"><b>Wissels bij start:</b> ${bench}</div>${w}</div>`;
   }
-  area.innerHTML=`<div class="phead"><b>Wisselschema HC Gooische</b> &nbsp;·&nbsp; ${ds}</div><div class="pgrid">${cells}</div>`;
+  area.innerHTML=`<div class="phead"><b>Wisselschema HC Gooische</b> &nbsp;·&nbsp; ${ds}</div><div class="pgrid${perQ>=4?' dense':''}">${cells}</div>`;
 }
 
 /* ============ Offline (service worker) ============ */
@@ -2033,7 +2096,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=81;
+const APP_VERSION=82;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -2121,23 +2184,28 @@ async function shareQuarterImage(q){
   <line x1="${pitchX+14}" y1="${pitchY+pitchH*0.35}" x2="${pitchX+pitchW-14}" y2="${pitchY+pitchH*0.35}" stroke="#ffffff" stroke-opacity=".85" stroke-width="3"/>
   <path d="M ${pitchX+pitchW*0.28} ${pitchY+pitchH-14} A ${pitchW*0.22} ${pitchW*0.22} 0 0 1 ${pitchX+pitchW*0.72} ${pitchY+pitchH-14}" fill="none" stroke="#ffffff" stroke-opacity=".85" stroke-width="3" stroke-dasharray="10 8"/>
   <rect x="${pitchX+pitchW/2-70}" y="${pitchY+pitchH-24}" width="140" height="12" fill="#ffffff" fill-opacity=".9"/>`;
+  const capt=captainId();
+  const captMarkImg=(cx,cy)=>`<circle cx="${cx+30}" cy="${cy-30}" r="13" fill="#f2c94c" stroke="#fff6dd" stroke-width="2.5"/>`
+    +`<text x="${cx+30}" y="${cy-24}" text-anchor="middle" font-size="16" font-weight="bold" fill="#2b1c00">C</text>`;
   for(const pos of POSITIONS){
     const pid=asg0[pos.id]; if(!pid)continue;
     const cx=pitchX+pitchW*pos.x/100, cy=pitchY+pitchH*((pos.y-38)/62);
     const isK=pos.id==='keeper';
-    svg+=`<circle cx="${cx}" cy="${cy}" r="40" fill="${isK?'#ffffff':'#16335f'}" stroke="${isK?'#16335f':'#ffffff'}" stroke-width="3.5"/>
+    svg+=`<circle cx="${cx}" cy="${cy}" r="40" fill="${isK?'#ffffff':'#16335f'}" stroke="${pid===capt?'#f2c94c':(isK?'#16335f':'#ffffff')}" stroke-width="${pid===capt?5:3.5}"/>
     <text x="${cx}" y="${cy+9}" text-anchor="middle" font-size="${pos.kort.length>=3?22:26}" font-weight="bold" fill="${isK?'#16335f':'#ff8a8a'}">${pos.kort}</text>
     <rect x="${cx-92}" y="${cy+50}" width="184" height="42" rx="21" fill="#ffffff"/>
     <text x="${cx}" y="${cy+79}" text-anchor="middle" font-size="27" font-weight="bold" fill="#0e2247">${esc2(pName(pid))}</text>`;
+    if(pid===capt)svg+=captMarkImg(cx,cy);
   }
   // keeper apart (staat in eigen rol, niet in asg)
   const kp=byId(keeperOfQ(sch,q));
   if(kp&&!asg0.keeper){
     const cx=pitchX+pitchW/2, cy=pitchY+pitchH*((93-38)/62);
-    svg+=`<circle cx="${cx}" cy="${cy}" r="40" fill="#ffffff" stroke="#16335f" stroke-width="3.5"/>
+    svg+=`<circle cx="${cx}" cy="${cy}" r="40" fill="#ffffff" stroke="${kp.id===capt?'#d6a01f':'#16335f'}" stroke-width="${kp.id===capt?5:3.5}"/>
     <text x="${cx}" y="${cy+10}" text-anchor="middle" font-size="26" font-weight="bold" fill="#16335f">K</text>
     <rect x="${cx-92}" y="${cy+50}" width="184" height="42" rx="21" fill="#ffffff"/>
     <text x="${cx}" y="${cy+79}" text-anchor="middle" font-size="27" font-weight="bold" fill="#0e2247">${esc2(kp.name)}</text>`;
+    if(kp.id===capt)svg+=captMarkImg(cx,cy);
   }
   // wisselteksten
   let ty=pitchY+pitchH+64;
