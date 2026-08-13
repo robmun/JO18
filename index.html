@@ -500,7 +500,7 @@ function defaultPlayers(){return [
   {id:'mauk',    name:'Mauk',    num:1,  prefs:['keeper','',''],  present:true, guest:false, isKeeper:true},
 ];}
 function defaultRules(){return [
-  {id:'r1',type:'half',   p1:'hidde', half:1},
+  {id:'r1',type:'noq',    p1:'hidde', qs:[3,4]},
   {id:'r2',type:'apart',  p1:'thijo', p2:'tom'},
   {id:'r3',type:'line',   p1:'faas',  line:'voor'},
   {id:'r4',type:'line',   p1:'bob',   line:'achter'},
@@ -509,6 +509,12 @@ function defaultRules(){return [
 function defaultState(){return {players:defaultPlayers(), keeperId:'mauk', rules:defaultRules(), schedule:null, genHash:null};}
 
 /* ============ Planning ============ */
+// Kwarten waarin een speler volgens een 'noq'-regel niet speelt.
+// Oudere regels (en gedeelde links van voor deze versie) hebben een enkel veld q.
+function noqQs(r){
+  if(Array.isArray(r.qs)&&r.qs.length)return r.qs.map(Number);
+  return r.q!=null?[Number(r.q)]:[];
+}
 function quarterOf(b,perQ){return Math.floor(b/perQ);}        // 0..3
 function halfOf(b,perQ){return quarterOf(b,perQ)<2?1:2;}      // 1|2
 
@@ -523,7 +529,7 @@ function eligibleVec(p,perQ,rules){
     for(const r of rules){
       if(r.p1!==p.id) continue;
       if(r.type==='half' && r.half!==halfOf(b,perQ)) ok=false;
-      if(r.type==='noq'  && Number(r.q)===quarterOf(b,perQ)+1) ok=false;
+      if(r.type==='noq'  && noqQs(r).includes(quarterOf(b,perQ)+1)) ok=false;
     }
     v.push(ok);
   }
@@ -916,12 +922,26 @@ let activeTab='timer';
 let expandedPlayer=null;
 let selChip=null; // {pid}
 
+// De oude regel 'speelt alleen een helft' is vervangen door 'niet in bepaalde kwarten':
+// eerste helft = niet in Q3 + Q4, tweede helft = niet in Q1 + Q2.
+// Oude regels (uit opslag, back-ups, deel-links of van een co-coach met een oudere versie)
+// worden hier automatisch omgezet, zodat ze zichtbaar en bewerkbaar blijven.
+function migrateRules(rules){
+  if(!Array.isArray(rules))return rules;
+  return rules.map(r=>{
+    if(r&&r.type==='half'){
+      const qs=Number(r.half)===1?[3,4]:[1,2];
+      return {id:r.id||('r'+Date.now()+Math.random().toString(36).slice(2,6)),type:'noq',p1:r.p1,qs};
+    }
+    return r;
+  });
+}
 function loadState(){
   try{
     const raw=localStorage.getItem(LS_KEY);
     if(raw){
       const s=JSON.parse(raw);
-      if(s&&Array.isArray(s.players)&&Array.isArray(s.rules))return s;
+      if(s&&Array.isArray(s.players)&&Array.isArray(s.rules)){s.rules=migrateRules(s.rules);return s;}
     }
   }catch(e){}
   return defaultState();
@@ -980,6 +1000,7 @@ function cloudListen(){
       const incoming=JSON.parse(d.state);
       if(!incoming||!Array.isArray(incoming.players))return;
       CLOUD.applying=true;
+      incoming.rules=migrateRules(incoming.rules);
       state=incoming;
       try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e){}
       CLOUD.applying=false;
@@ -1101,7 +1122,7 @@ async function importShared(txt){
       body:present+' spelers aanwezig, '+nRules+' regel'+(nRules===1?'':'s')+(inc.schedule?', inclusief wisselschema':'')+'. De huidige stand op dit toestel wordt vervangen.',
       okLabel:'Overnemen',cancelLabel:'Annuleren',
       onOk:()=>{
-        state={players:inc.players,keeperId:inc.keeperId||'mauk',rules:Array.isArray(inc.rules)?inc.rules:[],schedule:inc.schedule||null,genHash:inc.genHash||null};
+        state={players:inc.players,keeperId:inc.keeperId||'mauk',rules:migrateRules(Array.isArray(inc.rules)?inc.rules:[]),schedule:inc.schedule||null,genHash:inc.genHash||null};
         save();selChip=null;activeTab='spelers';render();document.getElementById('view').scrollTop=0;
         toast('Gedeelde stand overgenomen');
       }
@@ -1284,7 +1305,7 @@ function ruleSentence(r){
     case 'line':   return `${n(r.p1)} speelt altijd in de ${LINES[r.line]}`;
     case 'pos':    return `${n(r.p1)} speelt altijd ${POSMAP[r.pos].name.toLowerCase()}`;
     case 'condpos':return `${n(r.p1)} speelt ${POSMAP[r.pos].name.toLowerCase()} als ${n(r.p2)} niet meespeelt`;
-    case 'noq':    return `${n(r.p1)} speelt niet in Q${r.q}`;
+    case 'noq':    {const qs=noqQs(r);return `${n(r.p1)} speelt niet in ${qs.map(q=>'Q'+q).join(' + ')}`;}
     case 'minutes':return `${n(r.p1)} speelt ${r.mm==='max'?'maximaal':'minimaal'} ${r.min} minuten`;
     case 'start':  return `${n(r.p1)} begint ${r.start==='base'?'in de basis':'op de bank'}`;
     case 'endstrong': return `${n(r.p1)} speelt zeker ${r.amt==='min10'?'de laatste ~10 minuten':'het hele laatste kwart'}`;
@@ -1392,7 +1413,7 @@ function playerRow(p){
 }
 
 /* ============ Tab: Regels ============ */
-let newRule={type:'half'};
+let newRule={type:'noq'};
 function renderRegels(){
   const popts=(sel)=>state.players.filter(p=>!p.guest||p.present).map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
   const posopts=(sel)=>POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.name}</option>`).join('');
@@ -1403,12 +1424,11 @@ function renderRegels(){
   // Vervangkeeper-regel alleen tonen als er GEEN aanwezige keeper is
   // (vaste keeper uitgevinkt én geen aanwezige gastkeeper)
   const keeperAanwezig=state.players.some(p=>p.present&&p.prefs&&p.prefs[0]==='keeper');
-  if(newRule.type==='gk' && keeperAanwezig)newRule.type='half'; // val terug op geldig type
+  if(newRule.type==='gk' && keeperAanwezig)newRule.type='noq'; // val terug op geldig type
   const t=newRule.type;
   html+=`<div class="card"><h2>Regel toevoegen</h2>
     <label class="hint">Soort regel</label>
     <select class="sel" id="nrType" style="margin-bottom:10px">
-      <option value="half" ${t==='half'?'selected':''}>Speelt alleen één helft</option>
       <option value="apart" ${t==='apart'?'selected':''}>Twee spelers liever niet samen</option>
       <option value="line" ${(t==='line'||t==='noline')?'selected':''}>Speelt altijd of nooit in een linie</option>
       <option value="pos" ${t==='pos'?'selected':''}>Speelt altijd op vaste positie</option>
@@ -1428,12 +1448,12 @@ function renderRegels(){
     </select></div>`;
   if(t==='gk')html+=`<div class="frow"><label class="hint">Keept in welke kwarten?</label>
     <div class="qpick" style="display:flex;gap:6px">${[1,2,3,4].map(q=>`<label class="qp" style="flex:1"><input type="checkbox" class="nrGKq" value="${q}" ${(newRule.qs||[]).includes(q)?'checked':''}> Q${q}</label>`).join('')}</div></div>`;
-  if(t==='half')html+=`<div class="frow"><label class="hint">Helft</label><select class="sel" id="nrHalf"><option value="1">Eerste helft</option><option value="2">Tweede helft</option></select></div>`;
   if(t==='apart')html+=`<div class="frow"><label class="hint">Niet samen met</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
   if(t==='line'||t==='noline')html+=`<div class="frow"><label class="hint">Altijd of nooit?</label><select class="sel" id="nrLineDir"><option value="altijd" ${t==='line'?'selected':''}>Altijd in deze linie</option><option value="nooit" ${t==='noline'?'selected':''}>Nooit in deze linie</option></select></div><div class="frow"><label class="hint">Linie</label><select class="sel" id="nrLine"><option value="voor" ${newRule.line==='voor'?'selected':''}>Voorste linie</option><option value="midden" ${newRule.line==='midden'?'selected':''}>Middenlinie</option><option value="achter" ${newRule.line==='achter'?'selected':''}>Achterste linie</option></select></div>`;
   if(t==='pos'||t==='condpos')html+=`<div class="frow"><label class="hint">Positie</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
   if(t==='condpos')html+=`<div class="frow"><label class="hint">…als deze speler niet meespeelt</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
-  if(t==='noq')html+=`<div class="frow"><label class="hint">Kwart</label><select class="sel" id="nrQ"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select></div>`;
+  if(t==='noq')html+=`<div class="frow"><label class="hint">Niet in welke kwarten?</label>
+    <div class="qpick" style="display:flex;gap:6px">${[1,2,3,4].map(q=>`<label class="qp" style="flex:1"><input type="checkbox" class="nrNoQq" value="${q}" ${(newRule.qs||[]).includes(q)?'checked':''}> Q${q}</label>`).join('')}</div></div>`;
   if(t==='minutes')html+=`<div class="frow"><label class="hint">Grens</label><select class="sel" id="nrMM"><option value="max">Maximaal (ontzien)</option><option value="min">Minimaal (garanderen)</option></select></div><div class="frow"><label class="hint">Aantal minuten</label><select class="sel" id="nrMin">${[10,15,20,25,30,35,40,45,50,55].map(m=>`<option value="${m}">${m} minuten</option>`).join('')}</select></div>`;
   if(t==='start')html+=`<div class="frow"><label class="hint">Begint</label><select class="sel" id="nrStart"><option value="base">In de basis (start Q1)</option><option value="bench">Op de bank (start Q1)</option></select></div>`;
   
@@ -1481,13 +1501,23 @@ function detectRuleConflicts(){
     const maxs=rs.filter(r=>r.type==='minutes'&&r.mm==='max').map(r=>r.min);
     if(mins.length&&maxs.length&&Math.max(...mins)>Math.min(...maxs))
       out.push(`${nm(pid)} heeft een minimum (${Math.max(...mins)} min) dat hoger ligt dan zijn maximum (${Math.min(...maxs)} min).`);
-    // alleen-één-helft + max te laag om de helft te vullen
-    const halfR=rs.find(r=>r.type==='half');
-    if(halfR&&maxs.length&&Math.min(...maxs)<17) out.push(`${nm(pid)} speelt maar één helft én heeft een laag maximum — mogelijk weinig speeltijd.`);
+    const halfR=rs.find(r=>r.type==='half'); // alleen nog voor regels van een oudere versie
+    // uitgesloten kwarten die samen (bijna) de hele wedstrijd beslaan
+    const noqAlle=[...new Set(rs.filter(r=>r.type==='noq').flatMap(noqQs))];
+    // twee kwarten uitgesloten (bijv. 'alleen de eerste helft') plus een laag maximum
+    if(noqAlle.length>=2&&maxs.length&&Math.min(...maxs)<17)
+      out.push(`${nm(pid)} speelt maar twee kwarten én heeft een laag maximum — mogelijk weinig speeltijd.`);
+    if(noqAlle.length>=3)
+      out.push(`${nm(pid)} is uitgesloten in ${noqAlle.sort().map(q=>'Q'+q).join(', ')} — hij speelt dan nog maar één kwart.`);
+    if(halfR&&noqAlle.length){
+      const eigen=halfR.half===1?[1,2]:[3,4];
+      if(eigen.every(q=>noqAlle.includes(q)))
+        out.push(`${nm(pid)} speelt alleen de ${halfR.half===1?'eerste':'tweede'} helft, maar is in beide kwarten daarvan uitgesloten — hij komt zo niet in het veld.`);
+    }
     // 'speelt zeker het einde' botst met regels die het einde juist uitsluiten
     const endR=rs.find(r=>r.type==='endstrong');
     if(endR){
-      if(rs.some(r=>r.type==='noq'&&Number(r.q)===4)) out.push(`${nm(pid)} moet zeker het einde spelen, maar mag ook niet in Q4 — die regels botsen.`);
+      if(rs.some(r=>r.type==='noq'&&noqQs(r).includes(4))) out.push(`${nm(pid)} moet zeker het einde spelen, maar mag ook niet in Q4 — die regels botsen.`);
       if(halfR&&halfR.half===1) out.push(`${nm(pid)} moet zeker het einde spelen, maar speelt alleen de eerste helft — die regels botsen.`);
       if(rs.some(r=>r.type==='start'&&r.start==='bench')&&endR.amt!=='min10'){/* start-bank en eind-spelen kunnen prima samen */}
     }
@@ -1926,7 +1956,6 @@ function bind(v){
       r={id:'r'+Date.now(),type:'gk',p1:g('#nrP1'),qs};
     }
     else {r={id:'r'+Date.now(),type:_ty,p1:g('#nrP1')};}
-    if(r.type==='half')r.half=Number(g('#nrHalf'));
     if(r.type==='apart'||r.type==='condpos')r.p2=g('#nrP2');
     if(r.type==='line'){
       r.line=g('#nrLine');
@@ -1934,7 +1963,12 @@ function bind(v){
       if(g('#nrLineDir')==='nooit')r.type='noline';
     }
     if(r.type==='pos'||r.type==='condpos')r.pos=g('#nrPos');
-    if(r.type==='noq')r.q=Number(g('#nrQ'));
+    if(r.type==='noq'){
+      const qs=[...v.querySelectorAll('.nrNoQq:checked')].map(c=>Number(c.value));
+      if(!qs.length){toast('Kies minstens één kwart');return;}
+      if(qs.length===4){toast('Alle vier de kwarten uitsluiten kan niet — zet de speler dan op afwezig');return;}
+      r.qs=qs;
+    }
     if(r.type==='minutes'){r.mm=g('#nrMM');r.min=Number(g('#nrMin'));}
     if(r.type==='start')r.start=g('#nrStart');
     if(r.type==='endstrong')r.amt=g('#nrEndAmt')||'q4';
@@ -1967,7 +2001,7 @@ function chipTap(pid){
   for(const r of state.rules){
     for(const id of [pid,selChip]){
       if(r.type==='half'&&r.p1===id&&r.half!==half)found.push(`${pName(id)} hoort volgens de regels alleen de ${r.half===1?'eerste':'tweede'} helft te spelen.`);
-      if(r.type==='noq'&&r.p1===id&&Number(r.q)===q+1)found.push(`Een regel zegt dat ${pName(id)} niet in Q${q+1} speelt.`);
+      if(r.type==='noq'&&r.p1===id&&noqQs(r).includes(q+1))found.push(`Een regel zegt dat ${pName(id)} niet in Q${q+1} speelt.`);
       if(r.type==='pos'&&r.p1===id){const np=Object.keys(asg).find(k=>asg[k]===id);if(np&&np!==r.pos)found.push(`${pName(id)} staat normaal vast op ${POSMAP[r.pos]?POSMAP[r.pos].name:r.pos}.`);}
     }
   }
