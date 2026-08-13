@@ -230,6 +230,9 @@ select,option{font-size:var(--fs-base)}
 .sel.lockedalt,.sel:disabled{opacity:.4;cursor:not-allowed}
 .num.dupe{border-color:rgba(255,140,90,.85);background:rgba(255,120,70,.16)}
 /* ---------- Regels ---------- */
+.frow{display:grid;grid-template-columns:minmax(72px,max-content) 1fr;align-items:center;column-gap:10px;margin-bottom:7px}
+.frow>.hint{margin:0;line-height:1.25}
+.frow>.sel{margin-top:0;margin-bottom:0;min-width:0}
 .rule{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:var(--r-sm);padding:5px 6px 5px 11px;margin-bottom:5px;font-size:var(--fs-base);line-height:1.3}
 .rule .del{margin-left:auto;flex-shrink:0;width:32px;height:30px;border-radius:var(--r-sm);border:none;background:rgba(214,81,47,.18);color:#ffb39e;font-size:var(--fs-base);font-weight:700;padding:0;display:flex;align-items:center;justify-content:center}
 /* ---------- Veld ---------- */
@@ -1418,28 +1421,26 @@ function renderRegels(){
       ${!keeperAanwezig?`<option value="gk" ${t==='gk'?'selected':''}>Keeper voor bepaalde kwarten (vervanger)</option>`:''}
       <option value="q3likeq1" ${t==='q3likeq1'?'selected':''}>Start Q3 gelijk aan start Q1</option>
     </select>
-    ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.</p>':`<label class="hint">Speler</label>
-    <select class="sel" id="nrP1" style="margin-bottom:10px">${popts(newRule.p1)}</select>`}`;
-  if(t==='endstrong')html+=`<label class="hint">Hoeveel van het einde?</label>
-    <select class="sel" id="nrEndAmt" style="margin-bottom:10px">
+    ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.</p>':`<div class="frow"><label class="hint">Speler</label><select class="sel" id="nrP1">${popts(newRule.p1)}</select></div>`}`;
+  if(t==='endstrong')html+=`<div class="frow"><label class="hint">Hoeveel van het einde?</label><select class="sel" id="nrEndAmt">
       <option value="q4">Het hele laatste kwart (Q4)</option>
       <option value="min10">De laatste ~10 minuten</option>
-    </select>`;
-  if(t==='gk')html+=`<label class="hint">Keept in welke kwarten?</label>
-    <div class="qpick" style="display:flex;gap:8px;margin-bottom:10px">${[1,2,3,4].map(q=>`<label class="qp" style="flex:1"><input type="checkbox" class="nrGKq" value="${q}" ${(newRule.qs||[]).includes(q)?'checked':''}> Q${q}</label>`).join('')}</div>`;
-  if(t==='half')html+=`<label class="hint">Helft</label><select class="sel" id="nrHalf" style="margin-bottom:10px"><option value="1">Eerste helft</option><option value="2">Tweede helft</option></select>`;
-  if(t==='apart')html+=`<label class="hint">Niet samen met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select>`;
-  if(t==='line'||t==='noline')html+=`<label class="hint">Altijd of nooit?</label><select class="sel" id="nrLineDir" style="margin-bottom:10px"><option value="altijd" ${t==='line'?'selected':''}>Altijd in deze linie</option><option value="nooit" ${t==='noline'?'selected':''}>Nooit in deze linie</option></select><label class="hint">Linie</label><select class="sel" id="nrLine" style="margin-bottom:10px"><option value="voor" ${newRule.line==='voor'?'selected':''}>Voorste linie</option><option value="midden" ${newRule.line==='midden'?'selected':''}>Middenlinie</option><option value="achter" ${newRule.line==='achter'?'selected':''}>Achterste linie</option></select>`;
-  if(t==='pos'||t==='condpos')html+=`<label class="hint">Positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
-  if(t==='condpos')html+=`<label class="hint">…als deze speler niet meespeelt</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select>`;
-  if(t==='noq')html+=`<label class="hint">Kwart</label><select class="sel" id="nrQ" style="margin-bottom:10px"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select>`;
-  if(t==='minutes')html+=`<label class="hint">Grens</label><select class="sel" id="nrMM" style="margin-bottom:10px"><option value="max">Maximaal (ontzien)</option><option value="min">Minimaal (garanderen)</option></select><label class="hint">Aantal minuten</label><select class="sel" id="nrMin" style="margin-bottom:10px">${[10,15,20,25,30,35,40,45,50,55].map(m=>`<option value="${m}">${m} minuten</option>`).join('')}</select>`;
-  if(t==='start')html+=`<label class="hint">Begint</label><select class="sel" id="nrStart" style="margin-bottom:10px"><option value="base">In de basis (start Q1)</option><option value="bench">Op de bank (start Q1)</option></select>`;
+    </select></div>`;
+  if(t==='gk')html+=`<div class="frow"><label class="hint">Keept in welke kwarten?</label>
+    <div class="qpick" style="display:flex;gap:6px">${[1,2,3,4].map(q=>`<label class="qp" style="flex:1"><input type="checkbox" class="nrGKq" value="${q}" ${(newRule.qs||[]).includes(q)?'checked':''}> Q${q}</label>`).join('')}</div></div>`;
+  if(t==='half')html+=`<div class="frow"><label class="hint">Helft</label><select class="sel" id="nrHalf"><option value="1">Eerste helft</option><option value="2">Tweede helft</option></select></div>`;
+  if(t==='apart')html+=`<div class="frow"><label class="hint">Niet samen met</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
+  if(t==='line'||t==='noline')html+=`<div class="frow"><label class="hint">Altijd of nooit?</label><select class="sel" id="nrLineDir"><option value="altijd" ${t==='line'?'selected':''}>Altijd in deze linie</option><option value="nooit" ${t==='noline'?'selected':''}>Nooit in deze linie</option></select></div><div class="frow"><label class="hint">Linie</label><select class="sel" id="nrLine"><option value="voor" ${newRule.line==='voor'?'selected':''}>Voorste linie</option><option value="midden" ${newRule.line==='midden'?'selected':''}>Middenlinie</option><option value="achter" ${newRule.line==='achter'?'selected':''}>Achterste linie</option></select></div>`;
+  if(t==='pos'||t==='condpos')html+=`<div class="frow"><label class="hint">Positie</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
+  if(t==='condpos')html+=`<div class="frow"><label class="hint">…als deze speler niet meespeelt</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
+  if(t==='noq')html+=`<div class="frow"><label class="hint">Kwart</label><select class="sel" id="nrQ"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select></div>`;
+  if(t==='minutes')html+=`<div class="frow"><label class="hint">Grens</label><select class="sel" id="nrMM"><option value="max">Maximaal (ontzien)</option><option value="min">Minimaal (garanderen)</option></select></div><div class="frow"><label class="hint">Aantal minuten</label><select class="sel" id="nrMin">${[10,15,20,25,30,35,40,45,50,55].map(m=>`<option value="${m}">${m} minuten</option>`).join('')}</select></div>`;
+  if(t==='start')html+=`<div class="frow"><label class="hint">Begint</label><select class="sel" id="nrStart"><option value="base">In de basis (start Q1)</option><option value="bench">Op de bank (start Q1)</option></select></div>`;
   
-  if(t==='rotate')html+=`<label class="hint">Wisselt af met</label><select class="sel" id="nrP2" style="margin-bottom:10px">${popts(newRule.p2)}</select><label class="hint">Op positie</label><select class="sel" id="nrPos" style="margin-bottom:10px">${posopts(newRule.pos)}</select>`;
+  if(t==='rotate')html+=`<div class="frow"><label class="hint">Wisselt af met</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div><div class="frow"><label class="hint">Op positie</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 41 &middot; 12 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 42 &middot; 13 augustus 2026</div>';
   return html;
 }
 
@@ -2100,7 +2101,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=82;
+const APP_VERSION=83;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
