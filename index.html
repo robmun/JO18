@@ -115,6 +115,19 @@ main{
   padding:12px 5px calc(150px + env(safe-area-inset-bottom));
   max-width:560px;margin:0 auto;
 }
+/* ══ Tablet in liggende stand: twee kolommen naast elkaar ══
+   pointer:coarse houdt desktopbrowsers erbuiten, min-height:600px houdt
+   telefoons in liggende stand erbuiten (die zijn hoogstens ~430px hoog). */
+@media (orientation:landscape) and (min-width:820px) and (min-height:600px) and (pointer:coarse){
+  :root{ --fs-xs:12px; --fs-sm:13.5px; --fs-md:14.5px; --fs-base:15.5px; --fs-lg:17.5px; --fs-xl:21px; --fs-h:17px; }
+  main{max-width:1200px;padding-left:14px;padding-right:14px}
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;align-items:start}
+  .twocol>div{min-width:0}
+  /* Het veld blijft in beeld terwijl je de wisselteksten ernaast doorleest.
+     Het wordt zo breed als past zonder hoger te worden dan het scherm. */
+  .twocol .col-field{position:sticky;top:0}
+  .twocol .col-field .fieldwrap{max-height:calc(100dvh - 260px);width:auto;margin:0 auto}
+}
 .card{
   background:var(--glass);
   border:1px solid var(--stroke);
@@ -1319,6 +1332,9 @@ function ruleSentence(r){
 
 /* ============ Tabs ============ */
 const isQTab=t=>['q0','q1','q2','q3'].includes(t);
+// Brede stand: tablet in liggende stand (zelfde voorwaarden als de media-query).
+const WIDE_MQ='(orientation:landscape) and (min-width:820px) and (min-height:600px) and (pointer:coarse)';
+const isWide=()=>window.matchMedia&&window.matchMedia(WIDE_MQ).matches;
 let pendingQTab=null; // kwart dat de timer doorgaf terwijl de coach elders keek
 const TABS=[
   {id:'timer',label:'Timer'},
@@ -1360,17 +1376,31 @@ function renderSpelers(){
   const regular=state.players.filter(p=>!p.guest).slice().sort((a,b)=>a.name.localeCompare(b.name,'nl',{sensitivity:'base'}));
   const presentCount=state.players.filter(p=>p.present).length;
   let html='';
-  html+=`<div class="card"><h2>Selectie <span class="sub">${presentCount} aanwezig</span></h2>`;
-  html+=regular.map(p=>playerRow(p)).join('');
-  html+=`</div>`;
-  html+=`<div class="card"><h2>Gastspelers <span class="sub">max 2</span></h2>`;
-  html+=guests.length?guests.map(p=>playerRow(p)).join(''):`<p class="empty">Nog geen gastspelers.</p>`;
-  if(guests.length<2)html+=`<button class="btn ghost full" id="addGuest" style="margin-top:12px">+ Gastspeler toevoegen</button>`;
-  html+=`</div>`;
+  const gastKaart=`<div class="card"><h2>Gastspelers <span class="sub">max 2</span></h2>`
+    +(guests.length?guests.map(p=>playerRow(p)).join(''):`<p class="empty">Nog geen gastspelers.</p>`)
+    +(guests.length<2?`<button class="btn ghost full" id="addGuest" style="margin-top:12px">+ Gastspeler toevoegen</button>`:'')
+    +`</div>`;
+  if(isWide()){
+    // Liggende tablet: selectie over twee kolommen, gastspelers onder de rechter helft.
+    // De gastspelerskaart telt voor ongeveer twee rijen, zodat beide kolommen
+    // even lang uitkomen (16 spelers wordt zo 9 links en 7 rechts).
+    const links=Math.min(regular.length,Math.ceil((regular.length+2)/2));
+    html+=`<div class="twocol">
+      <div><div class="card"><h2>Selectie <span class="sub">${presentCount} aanwezig</span></h2>${regular.slice(0,links).map(p=>playerRow(p)).join('')}</div></div>
+      <div><div class="card"><h2>Selectie <span class="sub">vervolg</span></h2>${regular.slice(links).map(p=>playerRow(p)).join('')||'<p class="empty">—</p>'}</div>${gastKaart}</div>
+    </div>`;
+  }else{
+    html+=`<div class="card"><h2>Selectie <span class="sub">${presentCount} aanwezig</span></h2>`;
+    html+=regular.map(p=>playerRow(p)).join('');
+    html+=`</div>`;
+    html+=gastKaart;
+  }
+  if(isWide())html+=`<div class="twocol"><div>`;
   html+=`<div class="card"><h2>Delen met co-coach</h2>
     <button class="btn ghost full" id="shareState">&#128228; Deel actuele stand</button>
     <button class="btn ghost full" id="importShare" style="margin-top:8px">&#128229; Gedeelde link overnemen&#8230;</button>
     <p class="hint" style="margin-top:10px">Stuur de link in de coachgroep. De ontvanger tikt op de link, of kopieert hem en kiest hier &quot;Gedeelde link overnemen&quot;. Aanwezigheid, regels en het schema gaan allemaal mee.</p></div>`;
+  if(isWide())html+=`</div><div>`;
   html+=`<div class="card"><h2>Samenwerken <span class="sub">live &middot; nieuw</span></h2>
     <p class="hint" style="margin:0 0 10px">E&#233;n gedeelde versie voor coach en manager, met live-sync. Je mede-coach hoeft alleen dezelfde teamcode in te vullen. Standaard staat dit uit; je huidige werkwijze verandert niet tot je verbindt.</p>
     <div id="cloudStatus" class="cloudstat">Uit — alleen deze telefoon</div>
@@ -1384,6 +1414,7 @@ function renderSpelers(){
     <button class="btn ghost full" id="backupExport">&#128190; Opslaan als back-upbestand</button>
     <button class="btn ghost full" id="backupImport" style="margin-top:8px">&#128194; Herstel uit back-up&#8230;</button>
     <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p></div>`;
+  if(isWide())html+=`</div></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Keeper instellen? Geef &#233;&#233;n speler &#39;Keeper&#39; als eerste voorkeur via &#9662;. Daar zet je ook de aanvoerder aan &mdash; die krijgt een goud randje in de opstelling. Alles wordt automatisch bewaard op dit toestel.</p>`;
   return html;
 }
@@ -1423,7 +1454,9 @@ let newRule={type:'noq'};
 function renderRegels(){
   const popts=(sel)=>state.players.filter(p=>!p.guest||p.present).map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
   const posopts=(sel)=>POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.name}</option>`).join('');
-  let html=`<div class="card"><h2>Coachregels <span class="sub">${state.rules.length}</span></h2>`;
+  // Liggende tablet: vastgelegde regels links, nieuwe regel rechts
+  let html=isWide()?`<div class="twocol"><div>`:'';
+  html+=`<div class="card"><h2>Coachregels <span class="sub">${state.rules.length}</span></h2>`;
   html+=state.rules.length?state.rules.map(r=>`<div class="rule"><span>${esc(ruleSentence(r))}</span><button class="del" data-delrule="${r.id}" aria-label="Regel verwijderen">&#10005;</button></div>`).join('')
     :`<p class="empty">Geen regels — de opstelling volgt dan alleen de voorkeursposities.</p>`;
   html+=`</div>`;
@@ -1432,6 +1465,7 @@ function renderRegels(){
   const keeperAanwezig=state.players.some(p=>p.present&&p.prefs&&p.prefs[0]==='keeper');
   if(newRule.type==='gk' && keeperAanwezig)newRule.type='noq'; // val terug op geldig type
   const t=newRule.type;
+  if(isWide())html+=`</div><div>`;
   html+=`<div class="card"><h2>Regel toevoegen</h2>
     <label class="hint">Soort regel</label>
     <select class="sel" id="nrType" style="margin-bottom:10px">
@@ -1466,7 +1500,8 @@ function renderRegels(){
   if(t==='rotate')html+=`<div class="frow"><label class="hint">Wisselt af met</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div><div class="frow"><label class="hint">Op positie</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 43 &middot; 14 augustus 2026</div>';
+  if(isWide())html+=`</div></div>`;
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 44 &middot; 16 augustus 2026</div>';
   return html;
 }
 
@@ -1747,24 +1782,26 @@ function renderQuarter(q){
   const benchIds=benchOfBlock(sch,b0);
   const capt=captainId();
   // Veld: eigen helft onderin, bank als lijstje op de helft van de tegenstander
-  html+=`<div class="card tight"><h2>Start Q${q+1} <span class="sub">${q<2?'eerste':'tweede'} helft</span></h2><div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>`;
+  let veld=`<div class="card tight"><h2>Start Q${q+1} <span class="sub">${q<2?'eerste':'tweede'} helft</span></h2><div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>`;
   if(benchIds.length){
     const half=benchIds.length>3?Math.ceil(benchIds.length/2):benchIds.length;
     const cols=[benchIds.slice(0,half),benchIds.slice(half)].filter(c=>c.length);
-    html+=`<div class="benchlist">`+cols.map(col=>`<div class="benchcol">`+col.map(id=>`<div class="brow ${selChip===id?'selected':''}" data-chip="${id}"><div class="bball${id===capt?' capt':''}">${pNum(id)}${id===capt?'<span class="cbadge">C</span>':''}</div><span>${esc(pName(id))}</span></div>`).join('')+`</div>`).join('')+`</div>`;
+    veld+=`<div class="benchlist">`+cols.map(col=>`<div class="benchcol">`+col.map(id=>`<div class="brow ${selChip===id?'selected':''}" data-chip="${id}"><div class="bball${id===capt?' capt':''}">${pNum(id)}${id===capt?'<span class="cbadge">C</span>':''}</div><span>${esc(pName(id))}</span></div>`).join('')+`</div>`).join('')+`</div>`;
   }
   for(const pos of POSITIONS){
     const pid=asg0[pos.id];
     if(pid){
       const isC=pid===capt;
-      html+=`<div class="chip ${selChip===pid?'selected':''}" data-chip="${pid}" style="left:${pos.x}%;top:${pos.y}%">
+      veld+=`<div class="chip ${selChip===pid?'selected':''}" data-chip="${pid}" style="left:${pos.x}%;top:${pos.y}%">
         <div class="ball${isC?' capt':''}"><span class="bk${pos.kort.length>=4?' long':''}">${pos.kort}</span>${isC?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(pName(pid))}</div></div>`;
     }else{
-      html+=`<div class="chip" style="left:${pos.x}%;top:${pos.y}%;opacity:.45"><div class="ball" style="border-style:dashed;background:none">·</div><div class="pos">${pos.kort}</div></div>`;
+      veld+=`<div class="chip" style="left:${pos.x}%;top:${pos.y}%;opacity:.45"><div class="ball" style="border-style:dashed;background:none">·</div><div class="pos">${pos.kort}</div></div>`;
     }
   }
-  if(keeper)html+=`<div class="chip kpc" style="left:50%;top:93%"><div class="ball keeperball${keeper.id===capt?' capt':''}">${KEEPER_HELM}${keeper.id===capt?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(keeper.name)}</div></div>`;
-  html+=`</div>${(CLOUD.on&&CLOUD.role==='viewer')?'':`<p class="hint" style="margin-top:10px">Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor de start van dit kwart.</p>`}</div>`;
+  if(keeper)veld+=`<div class="chip kpc" style="left:50%;top:93%"><div class="ball keeperball${keeper.id===capt?' capt':''}">${KEEPER_HELM}${keeper.id===capt?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(keeper.name)}</div></div>`;
+  veld+=`</div>${(CLOUD.on&&CLOUD.role==='viewer')?'':`<p class="hint" style="margin-top:10px">Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor de start van dit kwart.</p>`}</div>`;
+  // Alles wat naast het veld komt te staan in de brede stand
+  let tekst='';
   // Wissel bij start van kwart (t.o.v. vorige kwart)
   if(q>0){
     const d=wisselChains(sch.assignments[b0-1],asg0);
@@ -1773,27 +1810,29 @@ function renderQuarter(q){
     if(prevK&&curK&&prevK!==curK){
       kLine=`<div class="wline"><span class="arr in">&#8645;</span><span><b class="pl-in">${esc(pName(curK))}</b> op doel &middot; <b class="pl-out">${esc(pName(prevK))}</b> uit het doel</span></div>`;
     }
-    html+=`<div class="card"><h2>Bij start van Q${q+1}</h2>${kLine}${chainsEmpty(d)?(kLine?'':'<p class="empty">Geen wissels — zelfde elf als eind Q'+q+'.</p>'):wisselLines(d)}</div>`;
+    tekst+=`<div class="card"><h2>Bij start van Q${q+1}</h2>${kLine}${chainsEmpty(d)?(kLine?'':'<p class="empty">Geen wissels — zelfde elf als eind Q'+q+'.</p>'):wisselLines(d)}</div>`;
   }
   // Wisselmomenten binnen het kwart
-  html+=`<div class="card"><h2>Wissels in Q${q+1} <span class="sub">${perQ-1}&times; per kwart</span></h2>`;
+  tekst+=`<div class="card"><h2>Wissels in Q${q+1} <span class="sub">${perQ-1}&times; per kwart</span></h2>`;
   for(let m=1;m<perQ;m++){
     const d=wisselChains(sch.assignments[b0+m-1],sch.assignments[b0+m]);
     const t=m*blockLen;
     const benchAfter=benchOfBlock(sch,b0+m);
     const naMin=Math.round(t);
     const kop=(q===1||q===3)?`Na ${naMin} min in Q${q+1}, dus bij ${fmtMin(naMin+17.5)} min`:`Na ${naMin} min`;
-    html+=`<div class="wmoment"><div class="wtime">${kop}</div>`;
-    html+=chainsEmpty(d)?'<p class="empty">Geen wissels op dit moment.</p>':wisselLines(d);
-    html+=`<div class="wbench"><b>Wissels daarna:</b> ${benchAfter.map(pName).map(esc).join(', ')||'—'}</div></div>`;
+    tekst+=`<div class="wmoment"><div class="wtime">${kop}</div>`;
+    tekst+=chainsEmpty(d)?'<p class="empty">Geen wissels op dit moment.</p>':wisselLines(d);
+    tekst+=`<div class="wbench"><b>Wissels daarna:</b> ${benchAfter.map(pName).map(esc).join(', ')||'—'}</div></div>`;
   }
-  html+=`</div>`;
+  tekst+=`</div>`;
   if(!(CLOUD.on&&CLOUD.role==='viewer')){
-    if(_undoLabel)html+=`<button class="btn ghost full" id="undoBtn" style="margin-bottom:8px">&#8634; Ongedaan maken (${esc(_undoLabel)})</button>`;
-    html+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
-    html+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
-    html+=`<button class="btn ghost full" id="injuryBtn" style="margin-bottom:8px">&#127973; Speler geblesseerd &mdash; herplan met gespeelde minuten</button>`;
+    if(_undoLabel)tekst+=`<button class="btn ghost full" id="undoBtn" style="margin-bottom:8px">&#8634; Ongedaan maken (${esc(_undoLabel)})</button>`;
+    tekst+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
+    tekst+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
+    tekst+=`<button class="btn ghost full" id="injuryBtn" style="margin-bottom:8px">&#127973; Speler geblesseerd &mdash; herplan met gespeelde minuten</button>`;
   }
+  // Liggende tablet: veld links, wisselteksten rechts. Anders gewoon onder elkaar.
+  html+=isWide()?`<div class="twocol"><div class="col-field">${veld}</div><div>${tekst}</div></div>`:veld+tekst;
   return html;
 }
 function wisselLines(d){
@@ -2151,7 +2190,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=84;
+const APP_VERSION=85;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -2309,6 +2348,14 @@ document.addEventListener('touchend',e=>{
   if(i<0||i>=order.length)return;
   activeTab=order[i];selChip=null;render();document.getElementById('view').scrollTop=0;
 },{passive:true});
+
+// Draait de tablet van staand naar liggend (of terug), dan wisselt de indeling mee.
+try{
+  const _mq=window.matchMedia(WIDE_MQ);
+  const _onWide=()=>{selChip=null;render();};
+  if(_mq.addEventListener)_mq.addEventListener('change',_onWide);
+  else if(_mq.addListener)_mq.addListener(_onWide);
+}catch(e){}
 
 window.addEventListener('message',e=>{
   if(!e.data)return;
