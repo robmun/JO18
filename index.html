@@ -1563,7 +1563,9 @@ function renderRegels(){
       <option value="q3likeq1" ${t==='q3likeq1'?'selected':''}>Start Q3 gelijk aan start Q1</option>
       <option value="form" ${t==='form'?'selected':''}>Speelvorm per kwart</option>
     </select>
-    ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.</p>':`<div class="frow"><label class="hint">Speler</label><select class="sel" id="nrP1">${popts(newRule.p1)}</select></div>`}`;
+    ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.</p>'
+      :t==='form'?''   // een speelvorm geldt voor het hele team, niet voor één speler
+      :`<div class="frow"><label class="hint">Speler</label><select class="sel" id="nrP1">${popts(newRule.p1)}</select></div>`}`;
   if(t==='endstrong')html+=`<div class="frow"><label class="hint">Hoeveel van het einde?</label><select class="sel" id="nrEndAmt">
       <option value="q4">Het hele laatste kwart (Q4)</option>
       <option value="min10">De laatste ~10 minuten</option>
@@ -1587,7 +1589,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 47 &middot; 17 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 48 &middot; 17 augustus 2026</div>';
   return html;
 }
 
@@ -2304,7 +2306,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=88;
+const APP_VERSION=89;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
