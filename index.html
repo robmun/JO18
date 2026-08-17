@@ -1589,7 +1589,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 48 &middot; 17 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 49 &middot; 17 augustus 2026</div>';
   return html;
 }
 
@@ -1889,7 +1889,7 @@ function renderQuarter(q){
   const benchIds=benchOfBlock(sch,b0);
   const capt=captainId();
   // Veld: eigen helft onderin, bank als lijstje op de helft van de tegenstander
-  let veld=`<div class="card tight"><h2>Start Q${q+1} &middot; ${formOfQ(q)} <span class="sub">${q<2?'eerste':'tweede'} helft</span></h2><div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>`;
+  let veld=`<div class="card tight"><h2>Start Q${q+1}, speelvorm ${formOfQ(q)} <span class="sub">${q<2?'eerste':'tweede'} helft</span></h2><div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>`;
   if(benchIds.length){
     const half=benchIds.length>3?Math.ceil(benchIds.length/2):benchIds.length;
     const cols=[benchIds.slice(0,half),benchIds.slice(half)].filter(c=>c.length);
@@ -2306,7 +2306,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=89;
+const APP_VERSION=90;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
