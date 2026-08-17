@@ -487,19 +487,76 @@ body.viewer #app{padding-top:34px}
 //==CORE==
 /* ============ Basisdata ============ */
 const KEEPER_HELM='<svg viewBox="0 0 44 46" width="78%" height="78%" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3c9 0 14.5 6 15 14 .2 3.2-.2 6-1 8.7-.7 2.4-1.5 4.6-1.8 7-.4 3-1.3 5.2-3.4 6.4-2 1.1-4.5 1.4-8.8 1.4s-6.8-.3-8.8-1.4c-2.1-1.2-3-3.4-3.4-6.4-.3-2.4-1.1-4.6-1.8-7-.8-2.7-1.2-5.5-1-8.7C7.5 9 13 3 22 3Z"/><path d="M12.5 9c5.5-2.4 13.5-2.4 19 0"/><ellipse cx="15.5" cy="13" rx="2.4" ry="1.4"/><ellipse cx="28.5" cy="13" rx="2.4" ry="1.4"/><path d="M8.5 20.5c8.5-2.6 18.5-2.6 27 0"/><path d="M10 28c7.5-2 16.5-2 24 0"/><path d="M22 17v19"/><path d="M15 17.5v18"/><path d="M29 17.5v18"/></svg>';
+// Alle posities die in enige speelvorm voorkomen. 'eq' zijn verwante posities: een speler
+// met voorkeur 'sp' past ook op 'sl'/'sr'/'mv', zodat je je voorkeuren niet hoeft aan te
+// passen als je een kwart in een andere speelvorm speelt.
 const POSITIONS=[
-  {id:'lv',  name:'Links voor',   kort:'LV',  line:'voor',   x:13,y:46},
-  {id:'sp',  name:'Spits',        kort:'SP',  line:'voor',   x:50,y:43.5},
-  {id:'rv',  name:'Rechts voor',  kort:'RV',  line:'voor',   x:87,y:46},
-  {id:'lm',  name:'Links midden', kort:'LMi', line:'midden', x:17,y:61.5},
-  {id:'mm',  name:'Midden midden',kort:'MM',  line:'midden', x:50,y:59},
-  {id:'rm',  name:'Rechts midden',kort:'RM',  line:'midden', x:83,y:61.5},
-  {id:'vs',  name:'Voorstopper',  kort:'VS',  line:'achter', x:59,y:76},
-  {id:'la',  name:'Links achter', kort:'LA',  line:'achter', x:11,y:79},
-  {id:'lman',name:'Laatste man',  kort:'LMa', line:'achter', x:41,y:76},
-  {id:'ra',  name:'Rechts achter',kort:'RA',  line:'achter', x:89,y:79},
+  {id:'lv',  name:'Links voor',   kort:'LV',  line:'voor',   eq:['sl']},
+  {id:'sp',  name:'Spits',        kort:'SP',  line:'voor',   eq:['mv','sl','sr']},
+  {id:'rv',  name:'Rechts voor',  kort:'RV',  line:'voor',   eq:['sr']},
+  {id:'mv',  name:'Midden voor',  kort:'MV',  line:'voor',   eq:['sp']},
+  {id:'sl',  name:'Spits links',  kort:'SL',  line:'voor',   eq:['sp','lv']},
+  {id:'sr',  name:'Spits rechts', kort:'SR',  line:'voor',   eq:['sp','rv']},
+  {id:'lm',  name:'Links midden', kort:'LMi', line:'midden', eq:['ml']},
+  {id:'mm',  name:'Midden midden',kort:'MM',  line:'midden', eq:['ml','mr']},
+  {id:'rm',  name:'Rechts midden',kort:'RM',  line:'midden', eq:['mr']},
+  {id:'ml',  name:'Midden links', kort:'ML',  line:'midden', eq:['mm','lm']},
+  {id:'mr',  name:'Midden rechts',kort:'MR',  line:'midden', eq:['mm','rm']},
+  {id:'vs',  name:'Voorstopper',  kort:'VS',  line:'achter', eq:['lman','rca','lca']},
+  {id:'la',  name:'Links achter', kort:'LA',  line:'achter', eq:['lca']},
+  {id:'lman',name:'Laatste man',  kort:'LMa', line:'achter', eq:['vs','lca','rca']},
+  {id:'ra',  name:'Rechts achter',kort:'RA',  line:'achter', eq:['rca']},
+  {id:'lca', name:'Links centraal achter', kort:'LCA', line:'achter', eq:['lman','vs','la']},
+  {id:'rca', name:'Rechts centraal achter',kort:'RCA', line:'achter', eq:['vs','lman','ra']},
 ];
 const POSMAP=Object.fromEntries(POSITIONS.map(p=>[p.id,p]));
+
+// Speelvormen: hockeynotatie van achter naar voren. Per positie de plek op het veld
+// (x = 0-100 breedte, y = 0-100 hoogte van de veldtekening; de keeper staat vast op 93).
+const FORMATIONS={
+  '4-3-3':{naam:'4-3-3',pos:[
+    ['la',11,79],['lman',41,76],['vs',59,76],['ra',89,79],
+    ['lm',17,61.5],['mm',50,59],['rm',83,61.5],
+    ['lv',13,46],['sp',50,43.5],['rv',87,46]]},
+  '3-4-3':{naam:'3-4-3',pos:[
+    ['la',12,79],['vs',50,76],['ra',88,79],
+    ['lm',10,62],['ml',37,59],['mr',63,59],['rm',90,62],
+    ['lv',13,46],['sp',50,43.5],['rv',87,46]]},
+  '4-4-2':{naam:'4-4-2',pos:[
+    ['la',11,79],['lman',41,76],['vs',59,76],['ra',89,79],
+    ['lm',10,62],['ml',37,59],['mr',63,59],['rm',90,62],
+    ['sl',36,44.5],['sr',64,44.5]]},
+  '5-3-2':{naam:'5-3-2',pos:[
+    ['la',9,79.5],['lca',29.5,76],['lman',50,79.5],['rca',70.5,76],['ra',91,79.5],
+    ['lm',17,61.5],['mm',50,59],['rm',83,61.5],
+    ['sl',36,44.5],['sr',64,44.5]]},
+  '3-3-3-1':{naam:'3-3-3-1',pos:[
+    ['la',12,82],['vs',50,79],['ra',88,82],
+    ['lm',15,70],['mm',50,67.5],['rm',85,70],
+    ['lv',13,57.5],['mv',50,55.5],['rv',87,57.5],
+    ['sp',50,44]]},
+  '1-3-3-3':{naam:'1-3-3-3',pos:[
+    ['lman',50,82],
+    ['la',12,70],['vs',50,67.5],['ra',88,70],
+    ['lm',15,57.5],['mm',50,55.5],['rm',85,57.5],
+    ['lv',13,44],['sp',50,43],['rv',87,44]]},
+  '3-2-3-2':{naam:'3-2-3-2',pos:[
+    ['la',12,82],['vs',50,79],['ra',88,82],
+    ['ml',34,68],['mr',66,68],
+    ['lv',13,57.5],['mv',50,55.5],['rv',87,57.5],
+    ['sl',36,44],['sr',64,44]]},
+};
+const DEFAULT_FORM='4-3-3';
+// Welke speelvorm geldt in kwart q (0-3)? Zonder regel is dat altijd 4-3-3.
+function formOfQ(q,rules){
+  const rs=rules||(typeof state!=='undefined'?state.rules:[])||[];
+  const r=rs.find(x=>x.type==='form'&&(x.qs||[]).includes(q+1)&&FORMATIONS[x.form]);
+  return r?r.form:DEFAULT_FORM;
+}
+function positionsOf(form){
+  return (FORMATIONS[form]||FORMATIONS[DEFAULT_FORM]).pos.map(([id,x,y])=>({...POSMAP[id],x,y}));
+}
+function positionsOfQ(q,rules){return positionsOf(formOfQ(q,rules));}
 const LINES={voor:'voorste linie',midden:'middenlinie',achter:'achterste linie'};
 
 function defaultPlayers(){return [
@@ -778,6 +835,7 @@ function assignAll(blockSets,perQ,rules,byId){
   for(let b=0;b<B;b++){
     const ids=[...blockSets[b]];
     const on=new Set(ids);
+    const POS=positionsOfQ(Math.floor(b/perQ),rules);   // speelvorm van dit kwart
     const locks={},lineLocks={},noLines={};
     for(const r of rules){
       if(r.type==='pos'    && on.has(r.p1)) locks[r.p1]=r.pos;
@@ -787,6 +845,12 @@ function assignAll(blockSets,perQ,rules,byId){
       if(r.type==='rotate' && on.has(r.p1)) locks[r.p1]=r.pos;
       if(r.type==='rotate' && on.has(r.p2)) locks[r.p2]=r.pos;
     }
+    // Vaste positie die in deze speelvorm niet bestaat: pak de dichtstbijzijnde verwante plek.
+    for(const pid in locks){
+      if(POS.some(p=>p.id===locks[pid]))continue;
+      const alt=POS.find(p=>(p.eq||[]).includes(locks[pid]));
+      if(alt)locks[pid]=alt.id; else delete locks[pid];
+    }
     const short=ids.length<10;
     const score=(pid,pos)=>{
       const p=byId[pid];let s=0;
@@ -795,9 +859,16 @@ function assignAll(blockSets,perQ,rules,byId){
       if(locks[pid]) s+=(pos.id===locks[pid])?10000:-10000;
       if(lineLocks[pid]&&pos.line!==lineLocks[pid]) s-=10000;
       if(noLines[pid]&&noLines[pid].has(pos.line)) s-=10000;
-      const i=(p.prefs||[]).indexOf(pos.id);
+      const prefs=p.prefs||[];
+      const i=prefs.indexOf(pos.id);
       if(i===0)s+=100;else if(i===1)s+=80;else if(i===2)s+=60;
-      else if((p.prefs||[]).some(x=>POSMAP[x]&&POSMAP[x].line===pos.line))s+=30;
+      else{
+        // verwante positie: voorkeur 'spits' past ook op 'spits links'
+        const eq=pos.eq||[];
+        const j=prefs.findIndex(x=>x&&eq.includes(x));
+        if(j===0)s+=85;else if(j===1)s+=68;else if(j===2)s+=51;
+        else if(prefs.some(x=>POSMAP[x]&&POSMAP[x].line===pos.line))s+=30;
+      }
       if(prev){
         if(prev[pos.id]===pid)s+=35;
         else{const pe=Object.entries(prev).find(e=>e[1]===pid);if(pe&&POSMAP[pe[0]].line===pos.line)s+=12;}
@@ -806,7 +877,7 @@ function assignAll(blockSets,perQ,rules,byId){
       return s;
     };
     const pairs=[];
-    for(const pid of ids)for(const pos of POSITIONS)pairs.push([score(pid,pos),pid,pos.id]);
+    for(const pid of ids)for(const pos of POS)pairs.push([score(pid,pos),pid,pos.id]);
     pairs.sort((a,c)=>c[0]-a[0]);
     const asg={},used=new Set();
     for(const [,pid,posId] of pairs){
@@ -820,8 +891,9 @@ function assignAll(blockSets,perQ,rules,byId){
       improved=false;
       for(let i=0;i<posIds.length;i++)for(let j=i+1;j<posIds.length;j++){
         const a=posIds[i],c=posIds[j],pa=asg[a],pc=asg[c];
-        const cur=score(pa,POSMAP[a])+score(pc,POSMAP[c]);
-        const alt=score(pa,POSMAP[c])+score(pc,POSMAP[a]);
+        const PA=POS.find(p=>p.id===a),PC=POS.find(p=>p.id===c);
+        const cur=score(pa,PA)+score(pc,PC);
+        const alt=score(pa,PC)+score(pc,PA);
         if(alt>cur+1e-9){asg[a]=pc;asg[c]=pa;improved=true;}
       }
     }
@@ -1334,6 +1406,7 @@ function ruleSentence(r){
     case 'rotate': return `${n(r.p1)} en ${n(r.p2)} wisselen elkaar af op ${POSMAP[r.pos]?POSMAP[r.pos].name.toLowerCase():r.pos}`;
     case 'q3likeq1': return `Start Q3 gelijk aan start Q1`;
     case 'gk': return `${n(r.p1)} keept ${(r.qs||[]).length===4?'de hele wedstrijd':(r.qs||[]).map(q=>'Q'+q).join(' + ')}`;
+    case 'form': return `Speelvorm ${r.form} in ${(r.qs||[]).length===4?'de hele wedstrijd':(r.qs||[]).map(q=>'Q'+q).join(' + ')}`;
   }
   return '';
 }
@@ -1488,6 +1561,7 @@ function renderRegels(){
       <option value="rotate" ${t==='rotate'?'selected':''}>Twee spelers wisselen elkaar af op één positie</option>
       ${!keeperAanwezig?`<option value="gk" ${t==='gk'?'selected':''}>Keeper voor bepaalde kwarten (vervanger)</option>`:''}
       <option value="q3likeq1" ${t==='q3likeq1'?'selected':''}>Start Q3 gelijk aan start Q1</option>
+      <option value="form" ${t==='form'?'selected':''}>Speelvorm per kwart</option>
     </select>
     ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.</p>':`<div class="frow"><label class="hint">Speler</label><select class="sel" id="nrP1">${popts(newRule.p1)}</select></div>`}`;
   if(t==='endstrong')html+=`<div class="frow"><label class="hint">Hoeveel van het einde?</label><select class="sel" id="nrEndAmt">
@@ -1500,6 +1574,10 @@ function renderRegels(){
   if(t==='line'||t==='noline')html+=`<div class="frow"><label class="hint">Altijd of nooit?</label><select class="sel" id="nrLineDir"><option value="altijd" ${t==='line'?'selected':''}>Altijd in deze linie</option><option value="nooit" ${t==='noline'?'selected':''}>Nooit in deze linie</option></select></div><div class="frow"><label class="hint">Linie</label><select class="sel" id="nrLine"><option value="voor" ${newRule.line==='voor'?'selected':''}>Voorste linie</option><option value="midden" ${newRule.line==='midden'?'selected':''}>Middenlinie</option><option value="achter" ${newRule.line==='achter'?'selected':''}>Achterste linie</option></select></div>`;
   if(t==='pos'||t==='condpos')html+=`<div class="frow"><label class="hint">Positie</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
   if(t==='condpos')html+=`<div class="frow"><label class="hint">…als deze speler niet meespeelt</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
+  if(t==='form')html+=`<div class="frow"><label class="hint">Speelvorm</label><select class="sel" id="nrForm">${Object.keys(FORMATIONS).map(f=>`<option value="${f}" ${newRule.form===f?'selected':''}>${f}</option>`).join('')}</select></div>
+    <div class="frow"><label class="hint">In welke kwarten?</label>
+    <div class="qpick" style="display:flex;gap:6px">${[1,2,3,4].map(q=>`<label class="qp" style="flex:1"><input type="checkbox" class="nrFormq" value="${q}" ${(newRule.qs||[]).includes(q)?'checked':''}> Q${q}</label>`).join('')}</div></div>
+    <p class="hint" style="margin:2px 0 6px">Zonder deze regel speelt elk kwart ${DEFAULT_FORM}. Kwarten die je hier niet aanvinkt blijven ${DEFAULT_FORM}.</p>`;
   if(t==='noq')html+=`<div class="frow"><label class="hint">Niet in welke kwarten?</label>
     <div class="qpick" style="display:flex;gap:6px">${[1,2,3,4].map(q=>`<label class="qp" style="flex:1"><input type="checkbox" class="nrNoQq" value="${q}" ${(newRule.qs||[]).includes(q)?'checked':''}> Q${q}</label>`).join('')}</div></div>`;
   if(t==='minutes')html+=`<div class="frow"><label class="hint">Grens</label><select class="sel" id="nrMM"><option value="max">Maximaal (ontzien)</option><option value="min">Minimaal (garanderen)</option></select></div><div class="frow"><label class="hint">Aantal minuten</label><select class="sel" id="nrMin">${[10,15,20,25,30,35,40,45,50,55].map(m=>`<option value="${m}">${m} minuten</option>`).join('')}</select></div>`;
@@ -1509,7 +1587,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 46 &middot; 17 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 47 &middot; 17 augustus 2026</div>';
   return html;
 }
 
@@ -1520,6 +1598,25 @@ function ensureSchedule(){
 }
 // Spoor regels op die elkaar (mogelijk) tegenspreken, zodat de coach weet waarom
 // een schema soms niet doet wat hij verwacht.
+// Waarschuwingen die met de speelvorm te maken hebben (gelden voor het hele schema).
+function formConflicts(){
+  const out=[];
+  const rs=state.rules||[];
+  const vorm=q=>formOfQ(q,rs);
+  const heeft=(q,pid)=>positionsOfQ(q,rs).some(p=>p.id===pid);
+  const nm=id=>{const p=byId(id);return p?p.name:'?';};
+  // vaste positie die in een gekozen speelvorm niet bestaat
+  rs.filter(r=>(r.type==='pos'||r.type==='condpos'||r.type==='rotate')&&r.pos).forEach(r=>{
+    const mist=[0,1,2,3].filter(q=>!heeft(q,r.pos));
+    if(mist.length&&mist.length<4){
+      out.push(`${nm(r.p1)} heeft ${POSMAP[r.pos]?POSMAP[r.pos].name.toLowerCase():r.pos} als vaste plek, maar die bestaat niet in de speelvorm van ${mist.map(q=>'Q'+(q+1)).join(', ')} — daar krijgt hij de meest verwante plek.`);
+    }
+  });
+  // Q3-spiegel met een andere speelvorm in Q3 dan in Q1
+  if(rs.some(r=>r.type==='q3likeq1') && vorm(0)!==vorm(2))
+    out.push(`Start Q3 kan niet gelijk zijn aan start Q1: Q1 speelt ${vorm(0)} en Q3 speelt ${vorm(2)}. Dezelfde spelers beginnen wel, maar op andere posities.`);
+  return out;
+}
 function detectRuleConflicts(){
   const R=state.rules||[];
   const nm=id=>pName(id);
@@ -1623,7 +1720,7 @@ function regenerate(){
   snapshot('genereren');
   state.schedule=buildSchedule(state);
   state.genHash=inputHash(state);
-  const conflicts=detectRuleConflicts();
+  const conflicts=detectRuleConflicts().concat(formConflicts());
   save();render();
   sendSwapTimesToTimer();
   if(conflicts.length){
@@ -1718,7 +1815,7 @@ function replanFromQuarter(fromQ){
   } // bij andere blokindeling nemen we het verse schema in zijn geheel (kan niet netjes plakken)
   state.schedule=fresh;
   state.genHash=inputHash(state);
-  const conflicts=detectRuleConflicts();
+  const conflicts=detectRuleConflicts().concat(formConflicts());
   save();render();sendSwapTimesToTimer();
   if(conflicts.length){swapWarnings=conflicts;toast('Herplan klaar — let op botsende regels');}
   else toast('Vanaf Q'+(fromQ+1)+' opnieuw gepland met de huidige spelers');
@@ -1790,13 +1887,13 @@ function renderQuarter(q){
   const benchIds=benchOfBlock(sch,b0);
   const capt=captainId();
   // Veld: eigen helft onderin, bank als lijstje op de helft van de tegenstander
-  let veld=`<div class="card tight"><h2>Start Q${q+1} <span class="sub">${q<2?'eerste':'tweede'} helft</span></h2><div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>`;
+  let veld=`<div class="card tight"><h2>Start Q${q+1} &middot; ${formOfQ(q)} <span class="sub">${q<2?'eerste':'tweede'} helft</span></h2><div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>`;
   if(benchIds.length){
     const half=benchIds.length>3?Math.ceil(benchIds.length/2):benchIds.length;
     const cols=[benchIds.slice(0,half),benchIds.slice(half)].filter(c=>c.length);
     veld+=`<div class="benchlist">`+cols.map(col=>`<div class="benchcol">`+col.map(id=>`<div class="brow ${selChip===id?'selected':''}" data-chip="${id}"><div class="bball${id===capt?' capt':''}">${pNum(id)}${id===capt?'<span class="cbadge">C</span>':''}</div><span>${esc(pName(id))}</span></div>`).join('')+`</div>`).join('')+`</div>`;
   }
-  for(const pos of POSITIONS){
+  for(const pos of positionsOfQ(q)){
     const pid=asg0[pos.id];
     if(pid){
       const isC=pid===capt;
@@ -2011,7 +2108,8 @@ function bind(v){
     const g=id=>{const el=v.querySelector(id);return el?el.value:undefined;};
     const _ty=g('#nrType');
     let r;
-    if(_ty==='q3likeq1'){r={id:'r'+Date.now(),type:_ty};}
+    if(_ty==='form'){r={id:'r'+Date.now(),type:'form'};}
+    else if(_ty==='q3likeq1'){r={id:'r'+Date.now(),type:_ty};}
     else if(_ty==='gk'){
       const qs=[...v.querySelectorAll('.nrGKq:checked')].map(c=>Number(c.value));
       if(!g('#nrP1')){toast('Kies een speler');return;}
@@ -2026,6 +2124,13 @@ function bind(v){
       if(g('#nrLineDir')==='nooit')r.type='noline';
     }
     if(r.type==='pos'||r.type==='condpos')r.pos=g('#nrPos');
+    if(r.type==='form'){
+      const qs=[...v.querySelectorAll('.nrFormq:checked')].map(c=>Number(c.value));
+      if(!qs.length){toast('Kies minstens één kwart');return;}
+      const bezet=state.rules.filter(x=>x.type==='form').flatMap(x=>x.qs||[]).filter(q=>qs.includes(q));
+      if(bezet.length){toast('Voor '+bezet.map(q=>'Q'+q).join(', ')+' is al een speelvorm gekozen');return;}
+      r.form=g('#nrForm')||DEFAULT_FORM; r.qs=qs;
+    }
     if(r.type==='noq'){
       const qs=[...v.querySelectorAll('.nrNoQq:checked')].map(c=>Number(c.value));
       if(!qs.length){toast('Kies minstens één kwart');return;}
@@ -2073,7 +2178,8 @@ function chipTap(pid){
 }
 
 /* ============ Print ============ */
-function printFieldSVG(asg,keeperId){
+function printFieldSVG(asg,keeperId,POSLIST){
+  POSLIST=POSLIST||positionsOf(DEFAULT_FORM);
   const my=y=>((y-35)/65)*78+8;   // eigen helft -> 0..100
   const capt=captainId();
   // aanvoerder in zwart-wit: extra ring om het bolletje plus een klein A-schildje
@@ -2085,7 +2191,7 @@ function printFieldSVG(asg,keeperId){
   <line x1="1" y1="1.4" x2="99" y2="1.4" stroke="#000" stroke-width="1"/>
   <path d="M27,103 Q50,73 73,103" fill="none" stroke="#000" stroke-width=".4"/>
   <rect x="44" y="100.8" width="12" height="2.2" fill="none" stroke="#000" stroke-width=".5"/>`;
-  for(const pos of POSITIONS){
+  for(const pos of POSLIST){
     const pid=asg[pos.id];if(!pid)continue;
     const x=pos.x,y=my(pos.y);
     s+=`<circle cx="${x}" cy="${y}" r="4.4" fill="#fff" stroke="#000" stroke-width="1"/><text x="${x}" y="${y+1.5}" text-anchor="middle" font-size="4.2" font-weight="700" fill="#000">${pNum(pid)}</text>
@@ -2128,7 +2234,7 @@ function renderPrint(){
     }
     const pk=q>0?keeperOfQ(sch,q-1):null, ck=keeperOfQ(sch,q);
     const kw=(pk&&ck&&pk!==ck)?`<div class="pw"><b>Keeper:</b> ${esc(pName(ck))} (was ${esc(pName(pk))})</div>`:'';
-    cells+=`<div class="pcell"><div class="ph">Q${q+1} <span>${q<2?'eerste':'tweede'} helft</span></div>${printFieldSVG(asg0,ck)}${kw}<div class="pw"><b>Wissels bij start:</b> ${bench}</div>${w}</div>`;
+    cells+=`<div class="pcell"><div class="ph">Q${q+1} <span>${q<2?'eerste':'tweede'} helft &middot; ${formOfQ(q)}</span></div>${printFieldSVG(asg0,ck,positionsOfQ(q))}${kw}<div class="pw"><b>Wissels bij start:</b> ${bench}</div>${w}</div>`;
   }
   area.innerHTML=`<div class="phead"><b>Wisselschema HC Gooische</b> &nbsp;·&nbsp; ${ds}</div><div class="pgrid${perQ>=4?' dense':''}">${cells}</div>`;
 }
@@ -2198,7 +2304,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=87;
+const APP_VERSION=88;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -2279,7 +2385,7 @@ async function shareQuarterImage(q){
   let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="Helvetica,Arial,sans-serif">
   <rect width="${W}" height="${H}" fill="#0e2247"/>
   <text x="${W/2}" y="72" text-anchor="middle" font-size="44" font-weight="bold" fill="#ffffff">Q${q+1} · ${q<2?'eerste':'tweede'} helft</text>
-  <text x="${W/2}" y="118" text-anchor="middle" font-size="27" fill="#aec3ec">HC Gooische · opstelling &amp; wissels</text>
+  <text x="${W/2}" y="118" text-anchor="middle" font-size="27" fill="#aec3ec">speelvorm ${formOfQ(q)} · HC Gooische</text>
   <text x="${W/2}" y="158" text-anchor="middle" font-size="24" fill="#7f9bc6">${esc2(new Date().toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long'}))}</text>
   <rect x="${pitchX}" y="${pitchY}" width="${pitchW}" height="${pitchH}" rx="18" fill="#2f8f4e"/>
   <rect x="${pitchX+14}" y="${pitchY+14}" width="${pitchW-28}" height="${pitchH-28}" rx="10" fill="none" stroke="#ffffff" stroke-opacity=".85" stroke-width="3"/>
@@ -2289,7 +2395,7 @@ async function shareQuarterImage(q){
   const capt=captainId();
   const captMarkImg=(cx,cy)=>`<circle cx="${cx+30}" cy="${cy-30}" r="13" fill="#f2c94c" stroke="#fff6dd" stroke-width="2.5"/>`
     +`<text x="${cx+30}" y="${cy-24}" text-anchor="middle" font-size="16" font-weight="bold" fill="#2b1c00">C</text>`;
-  for(const pos of POSITIONS){
+  for(const pos of positionsOfQ(q)){
     const pid=asg0[pos.id]; if(!pid)continue;
     const cx=pitchX+pitchW*pos.x/100, cy=pitchY+pitchH*((pos.y-38)/62);
     const isK=pos.id==='keeper';
