@@ -398,25 +398,25 @@ body.timermode .appbar{display:none}
 #printArea{display:none}
 @media print{
   @page{size:A4 portrait;margin:4mm}
-  html,body{width:202mm;height:270mm}
+  html,body{width:202mm;height:283mm}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body{background:#fff !important;color:#000;padding:0;margin:0;display:block;overflow:visible;height:auto}
   .appbar,.tabbar,main,#toast,#a2hs,#timerHost,#modalHost{display:none !important}
   body::before,body::after{display:none !important;content:none !important;background:none !important}
-  #printArea{display:block;color:#000;font-family:Helvetica,Arial,sans-serif;height:270mm;overflow:hidden;page-break-after:avoid;page-break-inside:avoid}
+  #printArea{display:block;color:#000;font-family:Helvetica,Arial,sans-serif;height:283mm;overflow:hidden;page-break-after:avoid;page-break-inside:avoid}
   .phead{font-size:10pt;margin:0 0 1.5mm;text-align:center}
-  .pgrid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:129mm 129mm;gap:2.5mm;height:260.5mm}
-  .pcell{border:1px solid #000;border-radius:1.5mm;padding:2mm 2.6mm;overflow:hidden;display:flex;flex-direction:column;height:129mm;box-sizing:border-box}
-  .ph{font-size:10.5pt;font-weight:bold;margin-bottom:1.2mm;flex:0 0 auto}
+  .pgrid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:137.5mm 137.5mm;gap:2.5mm;height:277.5mm}
+  .pcell{border:1px solid #000;border-radius:1.5mm;padding:2mm 2.6mm;overflow:hidden;display:flex;flex-direction:column;height:137.5mm;box-sizing:border-box}
+  .ph{font-size:11pt;font-weight:bold;margin-bottom:1.2mm;flex:0 0 auto}
   .ph span{font-weight:normal;font-size:8pt;color:#000}
-  .pf{width:auto;max-width:52mm;max-height:62mm;height:auto;display:block;margin:0 auto 1.2mm;flex:0 0 auto}
-  .pw{font-size:8.2pt;line-height:1.32;margin-top:0.8mm;flex:0 0 auto}
+  .pf{width:auto;max-width:58mm;max-height:66mm;height:auto;display:block;margin:0 auto 1.2mm;flex:0 0 auto}
+  .pw{font-size:9pt;line-height:1.34;margin-top:0.8mm;flex:0 0 auto}
   /* 3 wisselmomenten per kwart: veld iets kleiner en tekst compacter, zodat het een A4 blijft */
-  .pgrid.dense .pf{max-height:50mm}
-  .pgrid.dense .pw{font-size:7.3pt;line-height:1.22;margin-top:0.5mm}
+  .pgrid.dense .pf{max-height:52mm}
+  .pgrid.dense .pw{font-size:8.3pt;line-height:1.26;margin-top:0.6mm}
   /* 4 wisselmomenten per kwart: nog een tandje compacter */
   .pgrid.dense5 .pf{max-height:44mm}
-  .pgrid.dense5 .pw{font-size:6.6pt;line-height:1.18;margin-top:0.4mm}
+  .pgrid.dense5 .pw{font-size:7.7pt;line-height:1.22;margin-top:0.5mm}
   .pw b{font-weight:bold}
 }
 /* Tabwissel: subtiele schuif in de richting van de veeg + fade */
@@ -1609,7 +1609,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 51 &middot; 17 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 52 &middot; 17 augustus 2026</div>';
   return html;
 }
 
@@ -2331,7 +2331,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=92;
+const APP_VERSION=93;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
