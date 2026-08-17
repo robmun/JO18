@@ -198,18 +198,18 @@ main{
 .prow{display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.08)}
 .pcard.open .prow{border-bottom:1px solid rgba(255,255,255,.14)}
 .prow:last-child{border-bottom:none}
-.sw{position:relative;width:86px;height:30px;flex-shrink:0}
+.sw{position:relative;width:76px;height:28px;flex-shrink:0}
 .sw input{opacity:0;width:100%;height:100%;position:absolute;z-index:2}
 .sw i{position:absolute;inset:0;border-radius:var(--r-pill);background:rgba(255,255,255,.16);transition:.18s;border:1px solid rgba(255,255,255,.14)}
-.sw i:before{content:"";position:absolute;width:24px;height:24px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.18s;box-shadow:var(--shadow-sm)}
+.sw i:before{content:"";position:absolute;width:22px;height:22px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.18s;box-shadow:var(--shadow-sm)}
 .sw input:checked + i{background:linear-gradient(135deg,#56c777,#2f9e5e)}
-.sw input:checked + i:before{left:calc(100% - 26px)}
+.sw input:checked + i:before{left:calc(100% - 24px)}
 /* Woordje in het schuifje, aan de kant waar de knop niet staat */
-.sw i:after{position:absolute;top:0;line-height:30px;font-size:9.5px;font-weight:700;
-  letter-spacing:.1px;white-space:nowrap;pointer-events:none;transition:.18s;
-  content:attr(data-off);right:9px;color:rgba(255,255,255,.60)}
-.sw input:checked + i:after{content:attr(data-on);right:auto;left:10px;color:#fff}
-.sw.wide{width:96px}
+.sw i:after{position:absolute;top:0;line-height:28px;font-size:8.5px;font-weight:700;
+  letter-spacing:0;white-space:nowrap;pointer-events:none;transition:.18s;
+  content:attr(data-off);right:8px;color:rgba(255,255,255,.62)}
+.sw input:checked + i:after{content:attr(data-on);right:auto;left:8px;color:#fff}
+.sw.wide{width:86px}
 /* .editpane label heeft flex:1; het schuifje mag niet meerekken */
 .captrow .sw{flex:0 0 auto}
 .num{
@@ -1509,7 +1509,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 45 &middot; 17 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 46 &middot; 17 augustus 2026</div>';
   return html;
 }
 
@@ -2198,7 +2198,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=86;
+const APP_VERSION=87;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
