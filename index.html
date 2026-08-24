@@ -1668,6 +1668,10 @@ let pendingQTab=null; // kwart dat de timer doorgaf terwijl de coach elders keek
 // Stand van de wedstrijdklok, doorgegeven door de timer. Hiermee loopt de
 // veldweergave mee met de wedstrijd: na een wisselmoment zie je de nieuwe opstelling.
 let klok={q:null,sec:0,loopt:false};
+// Welk kwart en blok er werkelijk getekend is. Hiermee kan de app zichzelf herstellen
+// als hij het moment van een blokwissel gemist heeft (bijvoorbeeld omdat de timer
+// verborgen stond en zijn tijdmeldingen even stillagen).
+let _getoond={q:null,blok:null};
 // Welk blok van kwart q is nu bezig? null = geen klok voor dit kwart, dan tonen we de start.
 // Wedstrijdtijd zoals de timer hem toont: Q2 en Q4 tellen door vanaf 17:30.
 function klokTekst(){
@@ -1691,6 +1695,16 @@ function klokBalkHTML(){
     <div class="kb-tijd" id="kbTijd">${k.tijd}</div>
     <div class="kb-sub"><span id="kbKwart">${k.kwart}</span> &middot; <span id="kbLoopt">${k.loopt?'loopt':'gepauzeerd'}</span></div>
   </div>`;
+}
+// Klopt de getoonde opstelling nog met de klok? Zo niet: opnieuw tekenen.
+function beeldBijwerken(){
+  if(!isQTab(activeTab)||!state.schedule)return;
+  const q=Number(activeTab.slice(1));
+  const lb=levendBlok(q), moet=lb==null?0:lb;
+  if(_getoond.q===q && _getoond.blok===moet)return;
+  const v=document.getElementById('view'), y=v?v.scrollTop:0;
+  render();
+  if(v)document.getElementById('view').scrollTop=y;
 }
 function klokBalkBijwerken(){
   const k=klokTekst(); if(!k)return;
@@ -1911,7 +1925,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 61 &middot; 24 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 62 &middot; 24 augustus 2026</div>';
   return html;
 }
 
@@ -2318,6 +2332,7 @@ function renderQuarter(q){
   const sch=state.schedule, perQ=sch.perQ, blockLen=17.5/perQ;
   // Loopt de klok in dit kwart, dan tonen we het blok dat nú bezig is.
   const lb=levendBlok(q), toonBlok=lb==null?0:lb, b0=q*perQ+toonBlok;
+  _getoond={q:q,blok:toonBlok};        // wat er nú op het scherm staat
   const asg0=sch.assignments[b0];
   const keeper=byId((sch.keeperByQ&&sch.keeperByQ[q])||sch.keeperId);
   const benchIds=benchOfBlock(sch,b0);
@@ -2777,7 +2792,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=102;
+const APP_VERSION=103;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -2964,14 +2979,13 @@ window.addEventListener('message',e=>{
   }
   if(e.data.ghcKlok){ klokPush(e.data.ghcKlok); return; }
   if(e.data.ghcStand){
-    const st=e.data.ghcStand, vorigBlok=levendBlok(st.q-1);
+    const st=e.data.ghcStand;
     klok={q:st.q,sec:st.sec,loopt:st.loopt};
     klokBalkBijwerken();
-    // Alleen opnieuw tekenen als er echt een ander blok actief wordt — niet elke seconde.
-    if(isQTab(activeTab)&&Number(activeTab.slice(1))===st.q-1&&levendBlok(st.q-1)!==vorigBlok){
-      const y=document.getElementById('view').scrollTop; render();
-      document.getElementById('view').scrollTop=y;
-    }
+    // Niet elke seconde hertekenen, maar wel zodra het beeld niet meer klopt met de klok.
+    // We vergelijken met wat er echt getekend is, niet met de vorige klokstand — zo
+    // herstelt de app zichzelf ook als hij een blokwissel gemist heeft.
+    beeldBijwerken();
     return;
   }
   if(!e.data.ghcSwipe)return;
