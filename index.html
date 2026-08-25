@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="116">
+<meta name="app-version" content="117">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -695,6 +695,8 @@ function linesOf(p){
 }
 function magInLinie(p,linie){return linesOf(p).includes(linie);}
 
+// Versie van de opgeslagen gegevens; zie migrateState() verderop.
+const STATE_V=3;
 function defaultPlayers(){return [
   {id:'bob',     name:'Bob',     num:3,  prefs:['ra','la','lman'], present:true, guest:false, lines:['achter']},
   {id:'boudewijn',name:'Boudewijn',num:4,prefs:['mm','vs','rm'],  present:true, guest:false},
@@ -718,7 +720,7 @@ function defaultRules(){return [
   {id:'r2',type:'apart',  p1:'thijo', p2:'tom'},
   {id:'r5',type:'condpos',p1:'bob',   pos:'lman', p2:'hidde'},
 ];}
-function defaultState(){return {players:defaultPlayers(), keeperId:'mauk', rules:defaultRules(), schedule:null, genHash:null};}
+function defaultState(){return {v:STATE_V, players:defaultPlayers(), keeperId:'mauk', rules:defaultRules(), schedule:null, genHash:null};}
 
 /* ============ Planning ============ */
 // Kwarten waarin een speler volgens een 'noq'-regel niet speelt.
@@ -965,11 +967,21 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
   return {blocks,played,t,dev,elig};
 }
 
-function assignAll(blockSets,perQ,rules,byId){
+// vast: {vanaf, assignments} — blokken vóór 'vanaf' worden letterlijk overgenomen.
+// Zonder dit werden ook al gespeelde blokken opnieuw over de posities verdeeld: de
+// spelers bleven dezelfde, maar wie waar stond veranderde met terugwerkende kracht,
+// waardoor de wisseltekst van een gespeeld kwart achteraf niet meer klopte.
+function assignAll(blockSets,perQ,rules,byId,vast){
   const B=perQ*4, out=[];
   const q3like=rules.some(r=>r.type==='q3likeq1');
   let prev=null,q1a=null;
   for(let b=0;b<B;b++){
+    if(vast&&b<vast.vanaf&&vast.assignments&&vast.assignments[b]){
+      const kopie=Object.assign({},vast.assignments[b]);
+      out.push(kopie); prev=kopie;
+      if(b===0)q1a=kopie;
+      continue;
+    }
     const ids=[...blockSets[b]];
     const on=new Set(ids);
     const POS=positionsOfQ(Math.floor(b/perQ),rules);   // speelvorm van dit kwart
@@ -1081,7 +1093,8 @@ function buildSchedule(state,opts){
     }
     perQ=keuze.n; res=keuze.r;
   }
-  const assignments=assignAll(res.blocks,perQ,state.rules,byId);
+  const assignments=assignAll(res.blocks,perQ,state.rules,byId,
+    opts.fromBlock?{vanaf:opts.fromBlock,assignments:opts.vastAssignments}:null);
   // Regel 'q3likeq1' wordt in pickBlocks (zelfde spelers) en assignAll (zelfde posities)
   // afgedwongen, zodat minuten, wissels en keeper consistent blijven.
   // Keeper per kwart bepalen: vaste keeper voor alle kwarten, anders de gk-regel.
@@ -1194,6 +1207,22 @@ function migrateLines(players,rules){
   });
   return rules.filter(r=>!(r&&(r.type==='line'||r.type==='noline')));
 }
+// ── Versie van de opgeslagen gegevens ──
+// Tot nu toe leidden de migraties uit de vórm van de gegevens af of ze nodig waren.
+// Dat werkt tot twee migraties elkaar in de weg zitten. Met een nummer weet de app
+// precies welke stappen nog moeten draaien.
+//   1 = oorspronkelijk    2 = 'half'-regels omgezet naar 'noq'
+//   3 = linie-regels verhuisd naar de speler (p.lines)
+// (STATE_V staat bovenaan, want defaultState() gebruikt hem al bij het opstarten.)
+function migrateState(s){
+  if(!s||!Array.isArray(s.players)||!Array.isArray(s.rules))return s;
+  let v=Number(s.v||0);
+  if(v>=STATE_V){s.v=STATE_V;return s;}
+  if(v<2){ s.rules=migrateRules(s.rules); }
+  if(v<3){ s.rules=migrateLines(s.players,s.rules); }
+  s.v=STATE_V;
+  return s;
+}
 function migrateRules(rules){
   if(!Array.isArray(rules))return rules;
   return rules.map(r=>{
@@ -1210,9 +1239,7 @@ function loadState(){
     if(raw){
       const s=JSON.parse(raw);
       if(s&&Array.isArray(s.players)&&Array.isArray(s.rules)){
-        s.rules=migrateRules(s.rules);
-        s.rules=migrateLines(s.players,s.rules);
-        return s;
+        return migrateState(s);
       }
     }
   }catch(e){}
@@ -1376,8 +1403,7 @@ function cloudListen(){
       const incoming=JSON.parse(d.state);
       if(!incoming||!Array.isArray(incoming.players))return;
       CLOUD.applying=true;
-      incoming.rules=migrateRules(incoming.rules);
-      incoming.rules=migrateLines(incoming.players,incoming.rules);
+      migrateState(incoming);
       state=incoming;
       try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e){}
       CLOUD.applying=false;
@@ -1522,8 +1548,8 @@ async function importShared(txt){
       body:present+' spelers aanwezig, '+nRules+' regel'+(nRules===1?'':'s')+(inc.schedule?', inclusief wisselschema':'')+'. De huidige stand op dit toestel wordt vervangen.',
       okLabel:'Overnemen',cancelLabel:'Annuleren',
       onOk:()=>{
-        state={players:inc.players,keeperId:inc.keeperId||'mauk',rules:migrateRules(Array.isArray(inc.rules)?inc.rules:[]),schedule:inc.schedule||null,genHash:inc.genHash||null};
-        state.rules=migrateLines(state.players,state.rules);
+        state={v:Number(inc.v||0),players:inc.players,keeperId:inc.keeperId||'mauk',rules:Array.isArray(inc.rules)?inc.rules:[],schedule:inc.schedule||null,genHash:inc.genHash||null};
+        migrateState(state);
         save();selChip=null;activeTab='spelers';render();document.getElementById('view').scrollTop=0;
         toast('Gedeelde stand overgenomen');
       }
@@ -2019,7 +2045,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 75 &middot; 25 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 76 &middot; 25 augustus 2026</div>';
   return html;
 }
 
@@ -2310,7 +2336,8 @@ function herplanVanafNu(label,vanafVolgende){
     set.forEach(pid=>{ if(playedSoFar[pid]!=null)playedSoFar[pid]++; });
   }
   const oudAssign=JSON.parse(JSON.stringify(sch.assignments));
-  const fresh=buildSchedule(state,{forcePerQ:perQ,fromBlock:vanaf,fixedBlocks,playedSoFar});
+  const fresh=buildSchedule(state,{forcePerQ:perQ,fromBlock:vanaf,fixedBlocks,playedSoFar,
+    vastAssignments:sch.assignments});
   if(!fresh){toast('Herplannen lukt niet met deze spelers');return false;}
   state.schedule=fresh; state.genHash=inputHash(state);
   const blokLen=17.5/perQ;
@@ -2346,7 +2373,8 @@ function injuryReplan(playerId,momentBlock){
   snapshot('blessure '+(inj?inj.name:''));
   if(inj)inj.present=false;
   // herplan met vast perQ, vaste voorgeschiedenis en meegewogen speelminuten
-  const fresh=buildSchedule(state,{forcePerQ:perQ,fromBlock:momentBlock,fixedBlocks,playedSoFar});
+  const fresh=buildSchedule(state,{forcePerQ:perQ,fromBlock:momentBlock,fixedBlocks,playedSoFar,
+    vastAssignments:sch.assignments});
   state.schedule=fresh;
   state.genHash=inputHash(state);
   save();render();sendSwapTimesToTimer();
@@ -2636,7 +2664,9 @@ function wisselLines(d){
 
 /* ============ Renderen + events ============ */
 let _lastTab=null;
+let zelftestModus=false;
 function render(){
+  if(zelftestModus)return;   // de uitslag mag niet worden overschreven door een late hertekening
   if(CLOUD.on&&CLOUD.role==='viewer'&&['timer','spelers','regels'].includes(activeTab)){activeTab='q0';}
   wakeLockBijwerken();
   const _sc=document.getElementById('view');
@@ -3016,7 +3046,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=116;
+const APP_VERSION=117;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -3060,6 +3090,159 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 window.addEventListener('pageshow',()=>checkForUpdate());
 window.addEventListener('focus',()=>checkForUpdate());
 setInterval(()=>{if(document.visibilityState==='visible')checkForUpdate();},60000);
+
+
+/* ============ Zelftest ============
+   Open index.html?zelftest=1 en de app rekent de planner honderden keren door met
+   wisselende selecties en regels, en controleert of de uitkomst klopt. Bedoeld om
+   na een upload in tien seconden te zien of er iets stuk is — pickBlocks is te lang
+   om met het oog te overzien.
+   De test draait op wegwerpteams; de eigen gegevens worden niet aangeraakt. */
+function ztTeam(n,extra){
+  const namen='Aad Bas Cas Dax Eef Fem Gijs Hans Ids Jan Kees Lars Mees Nout Olaf Pim Quin Ruben'.split(' ');
+  const posities=['lv','sp','rv','lm','mm','rm','la','lman','vs','ra'];
+  const sp=[{id:'k',name:'Keep',num:1,prefs:['keeper','',''],present:true,guest:false}];
+  for(let i=0;i<n;i++)sp.push({id:'p'+i,name:namen[i%namen.length]+i,num:i+2,
+    prefs:[posities[i%posities.length],posities[(i+3)%posities.length],posities[(i+6)%posities.length]],present:true,guest:false});
+  return Object.assign({v:STATE_V,players:sp,keeperId:'k',rules:[],schedule:null,genHash:null},extra||{});
+}
+function ztControleer(st,sch,naam,fout){
+  if(!sch){fout(naam+': geen schema');return;}
+  const perQ=sch.perQ,B=perQ*4;
+  const keeperVanQ=q=>(sch.keeperByQ&&sch.keeperByQ[q])||sch.keeperId;
+  for(let b=0;b<B;b++){
+    const a=sch.assignments[b]||{};
+    const ids=Object.values(a), q=Math.floor(b/perQ);
+    const posLijst=positionsOfQ(q,st.rules);
+    if(ids.length!==new Set(ids).size)fout(naam+': speler staat twee keer op het veld in blok '+b);
+    if(Object.keys(a).length!==posLijst.length)fout(naam+': blok '+b+' heeft '+Object.keys(a).length+' plekken in plaats van '+posLijst.length);
+    if(ids.includes(keeperVanQ(q)))fout(naam+': de keeper staat als veldspeler in blok '+b);
+    for(const pos in a){
+      const p=st.players.find(x=>x.id===a[pos]);
+      if(!p){fout(naam+': onbekende speler in blok '+b);continue;}
+      if(!p.present)fout(naam+': afwezige speler '+p.name+' staat opgesteld');
+      const lijn=POSMAP[pos]&&POSMAP[pos].line;
+      if(lijn&&!linesOf(p).includes(lijn))fout(naam+': '+p.name+' staat in de '+lijn+' maar mag dat niet');
+    }
+  }
+  // Eerlijkheid meten heeft alleen zin zonder regels die iemands speeltijd inperken:
+  // een speler die Q2 en Q4 mist hoort juist minder te spelen.
+  const beperkend=(st.rules||[]).some(r=>['noq','minutes','gk','rotate','endstrong'].includes(r.type));
+  const m=Object.values(sch.minutes||{});
+  if(!beperkend&&m.length){
+    const spreiding=Math.max(...m)-Math.min(...m), blokMin=17.5/perQ;
+    if(spreiding>blokMin+0.01)fout(naam+': speeltijd loopt '+spreiding.toFixed(1)+' min uiteen (max '+blokMin.toFixed(1)+')');
+  }
+}
+function zelftest(){
+  const fouten=[],gedaan=[];
+  const fout=t=>fouten.push(t);
+  const test=(naam,fn)=>{const n0=fouten.length;try{fn();}catch(e){fout(naam+': fout tijdens uitvoeren — '+(e&&e.message||e));}
+    gedaan.push({naam,ok:fouten.length===n0});};
+
+  test('Selecties van 11 tot 18 spelers',()=>{
+    for(let n=10;n<=17;n++){const st=ztTeam(n);
+      const sch=buildSchedule(st); ztControleer(st,sch,n+1+' spelers',fout);}
+  });
+  test('Alle zeven speelvormen',()=>{
+    for(const vorm of Object.keys(FORMATIONS)){
+      const st=ztTeam(15,{rules:[{id:'f',type:'form',form:vorm,qs:[1,2,3,4]}]});
+      ztControleer(st,buildSchedule(st),'speelvorm '+vorm,fout);}
+  });
+  test('1 tot 4 wissels per kwart',()=>{
+    for(let k=1;k<=4;k++){const st=ztTeam(15,{rules:[{id:'s',type:'subs',n:k}]});
+      const sch=buildSchedule(st);
+      ztControleer(st,sch,k+' wissels',fout);
+      if(sch&&sch.perQ!==k+1)fout(k+' wissels: perQ is '+sch.perQ+' in plaats van '+(k+1));}
+  });
+  test('Regel: vaste positie',()=>{
+    const st=ztTeam(15,{rules:[{id:'p',type:'pos',p1:'p0',pos:'vs'}]});
+    const sch=buildSchedule(st);
+    ztControleer(st,sch,'vaste positie',fout);
+    if(sch)for(let b=0;b<sch.perQ*4;b++){const a=sch.assignments[b];
+      for(const pos in a)if(a[pos]==='p0'&&pos!=='vs')fout('vaste positie: p0 staat op '+pos);}
+  });
+  test('Regel: niet in bepaalde kwarten',()=>{
+    const st=ztTeam(15,{rules:[{id:'n',type:'noq',p1:'p1',qs:[2,4]}]});
+    const sch=buildSchedule(st);
+    ztControleer(st,sch,'noq',fout);
+    if(sch)for(let b=0;b<sch.perQ*4;b++){const q=Math.floor(b/sch.perQ)+1;
+      if([2,4].includes(q)&&Object.values(sch.assignments[b]).includes('p1'))fout('noq: p1 speelt in Q'+q);}
+  });
+  test('Regel: twee spelers niet samen',()=>{
+    const st=ztTeam(15,{rules:[{id:'a',type:'apart',p1:'p0',p2:'p1'}]});
+    const sch=buildSchedule(st);
+    ztControleer(st,sch,'apart',fout);
+    // 'liever niet samen' is een zachte regel: met tien plekken en vijf op de bank
+    // is het niet altijd te vermijden. We toetsen dus of hij grotendeels wordt gehaald.
+    let samen=0, B=sch?sch.perQ*4:0;
+    if(sch)for(let b=0;b<B;b++){const ids=Object.values(sch.assignments[b]);
+      if(ids.includes('p0')&&ids.includes('p1'))samen++;}
+    if(B&&samen>B/2)fout('apart: p0 en p1 staan in '+samen+' van de '+B+' blokken samen op het veld');
+  });
+  test('Linies bij de speler',()=>{
+    const st=ztTeam(15);
+    st.players[1].lines=['achter']; st.players[2].lines=['voor'];
+    ztControleer(st,buildSchedule(st),'linies',fout);
+  });
+  test('Migratie van oude gegevens',()=>{
+    const oud={players:[{id:'a',name:'A',prefs:['lv','',''],present:true},
+                        {id:'b',name:'B',prefs:['mm','',''],present:true}],
+               rules:[{id:'r1',type:'line',p1:'a',line:'voor'},
+                      {id:'r2',type:'noline',p1:'b',line:'achter'},
+                      {id:'r3',type:'half',p1:'a',half:1}]};
+    const n=migrateState(JSON.parse(JSON.stringify(oud)));
+    if(n.v!==STATE_V)fout('migratie: versie is '+n.v+' in plaats van '+STATE_V);
+    if(n.rules.some(r=>r.type==='line'||r.type==='noline'))fout('migratie: linie-regels zijn blijven staan');
+    if(n.rules.some(r=>r.type==='half'))fout('migratie: half-regel is niet omgezet');
+    if(!n.rules.some(r=>r.type==='noq'))fout('migratie: half is niet naar noq omgezet');
+    if(JSON.stringify(n.players[0].lines)!=='["voor"]')fout('migratie: A moest alleen voor krijgen, kreeg '+JSON.stringify(n.players[0].lines));
+    if(JSON.stringify(n.players[1].lines)!=='["voor","midden"]')fout('migratie: B moest voor+midden krijgen, kreeg '+JSON.stringify(n.players[1].lines));
+    // tweede keer draaien mag niets meer veranderen
+    const nn=migrateState(JSON.parse(JSON.stringify(n)));
+    if(JSON.stringify(nn)!==JSON.stringify(n))fout('migratie: tweede keer draaien verandert de gegevens alsnog');
+  });
+  test('Herplannen laat het verleden staan',()=>{
+    const st=ztTeam(15); const sch=buildSchedule(st); st.schedule=sch;
+    const perQ=sch.perQ, vanaf=perQ+1;                    // ergens in Q2
+    const fixedBlocks={},playedSoFar={};
+    st.players.filter(p=>p.id!=='k').forEach(p=>playedSoFar[p.id]=0);
+    for(let b=0;b<vanaf;b++){const set=new Set(Object.values(sch.assignments[b]));
+      fixedBlocks[b]=set;set.forEach(id=>{if(playedSoFar[id]!=null)playedSoFar[id]++;});}
+    const fresh=buildSchedule(st,{forcePerQ:perQ,fromBlock:vanaf,fixedBlocks,playedSoFar,
+      vastAssignments:sch.assignments});
+    if(!fresh){fout('herplannen: geen schema');return;}
+    for(let b=0;b<vanaf;b++)
+      if(JSON.stringify(fresh.assignments[b])!==JSON.stringify(sch.assignments[b]))
+        fout('herplannen: blok '+b+' is achteraf gewijzigd');
+    ztControleer(st,fresh,'herplannen',fout);
+  });
+  test('Wisselmomenten uit één bron',()=>{
+    const st=ztTeam(15); st.schedule=buildSchedule(st);
+    for(let q=0;q<4;q++){
+      const mo=kwartMomenten(q,st.schedule);
+      if(mo.length!==st.schedule.perQ-1)fout('momenten: Q'+(q+1)+' heeft er '+mo.length);
+      mo.forEach(x=>{ if(x.blok!==q*st.schedule.perQ+x.m)fout('momenten: blok klopt niet in Q'+(q+1)); });
+    }
+  });
+  return {fouten,gedaan};
+}
+function toonZelftest(){
+  zelftestModus=true;
+  const t0=performance.now();
+  const {fouten,gedaan}=zelftest();
+  const ms=Math.round(performance.now()-t0);
+  const goed=fouten.length===0;
+  document.body.classList.remove('timermode');
+  document.getElementById('timerHost').classList.remove('show');
+  document.getElementById('view').innerHTML=
+    `<div class="card"><h2>Zelftest ${goed?'&#9989; alles in orde':'&#10060; '+fouten.length+' probleem'+(fouten.length>1?'en':'')}</h2>
+      <p class="hint">Versie ${shownVer(APP_VERSION)} &middot; ${gedaan.length} onderdelen in ${ms} ms</p>
+      ${gedaan.map(g=>`<div class="rule"><span>${g.ok?'&#9989;':'&#10060;'} ${esc(g.naam)}</span></div>`).join('')}
+      ${fouten.length?'<h2 style="margin-top:14px">Wat er mis is</h2>'+fouten.map(f=>`<p class="hint" style="color:#ffb3a3">&bull; ${esc(f)}</p>`).join(''):''}
+      <button class="btn ghost full" style="margin-top:14px" onclick="location.search=''">Terug naar de app</button>
+    </div>`;
+}
 
 /* ============ Kwart delen als afbeelding ============ */
 function plainChainText(d){
@@ -3349,6 +3532,8 @@ try{
 if(CLOUD.on&&CLOUD.cfg&&CLOUD.team){ cloudConnect().then(ok=>{ if(!ok)CLOUD.on=false; }); }
 render();
 checkIncomingShare();
+// ?zelftest=1 — controleert de planner zonder de eigen gegevens aan te raken
+if(/[?&]zelftest=1/.test(location.search))setTimeout(toonZelftest,0);
 </script>
 </body>
 </html>
