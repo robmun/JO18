@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="80">
+<meta name="app-version" content="111">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1727,6 +1727,8 @@ function veldKlokBijwerken(){
 function uitLijst(){return state.players.filter(p=>p.present&&p.uit);}
 function wisUitStatus(){state.players.forEach(p=>{if(p.uit)delete p.uit;});}
 // Het blok dat nú bezig is in kwart q (of het startblok als de klok stilstaat).
+// De wedstrijd is bezig zodra de klok loopt of gepauzeerd op een tijd staat.
+function wedstrijdBezig(){return klok.q!=null && (klok.loopt || klok.sec>0);}
 function huidigBlok(q){const lb=levendBlok(q);return lb==null?0:lb;}
 function levendBlok(q){
   if(!state.schedule)return null;
@@ -1923,7 +1925,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 67 &middot; 24 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 70 &middot; 24 augustus 2026</div>';
   return html;
 }
 
@@ -2376,7 +2378,13 @@ function renderQuarter(q){
       <button class="btn" data-regen>Opstelling genereren</button></div>`;
     return html;
   }
-  if(stale&&!(CLOUD.on&&CLOUD.role==='viewer'))html+=`<div class="banner">&#9888;&#65039; Spelers of regels zijn gewijzigd.<button class="btn small" data-regen>Opnieuw genereren</button></div>`;
+  if(stale&&!(CLOUD.on&&CLOUD.role==='viewer')){
+    html+= wedstrijdBezig()
+      // Tijdens de wedstrijd nooit het hele schema opnieuw: wat gespeeld is blijft staan
+      // en het lopende blok ook, anders verdwijnen spelers halverwege van het veld.
+      ? `<div class="banner">&#9888;&#65039; Spelers of regels zijn gewijzigd. Verwerken kan vanaf het volgende wisselmoment.<button class="btn small" id="verwerkNuBtn">Verwerken</button></div>`
+      : `<div class="banner">&#9888;&#65039; Spelers of regels zijn gewijzigd.<button class="btn small" data-regen>Opnieuw genereren</button></div>`;
+  }
   html+=warnBoxesHTML();
   const sch=state.schedule, perQ=sch.perQ, blockLen=17.5/perQ;
   // Loopt de klok in dit kwart, dan tonen we het blok dat nú bezig is.
@@ -2443,9 +2451,16 @@ function renderQuarter(q){
   tekst+=`</div>`;
   if(!(CLOUD.on&&CLOUD.role==='viewer')){
     if(_undoLabel)tekst+=`<button class="btn ghost full" id="undoBtn" style="margin-bottom:8px">&#8634; Ongedaan maken (${esc(_undoLabel)})</button>`;
-    tekst+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
-    tekst+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
-    tekst+=`<button class="btn ghost full" id="injuryBtn" style="margin-bottom:8px">&#127973; Speler geblesseerd &mdash; herplan met gespeelde minuten</button>`;
+    if(wedstrijdBezig()){
+      // De wedstrijd loopt: geen herplanknoppen. Wat er onderweg misgaat regel je door
+      // een speler aan te tikken; het schema zelf laat je met rust.
+      tekst+=`<p class="hint" style="margin:0 0 10px">De wedstrijd loopt. Tik een speler aan om te wisselen of een blessure door te geven; opnieuw genereren kan pas als de klok op nul staat.</p>`;
+    }else{
+      tekst+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
+      if(q>0)tekst+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
+      // Vangnet als je vergeten bent de klok te starten: dan geef je het moment zelf op.
+      tekst+=`<button class="btn ghost full" id="injuryBtn" style="margin-bottom:8px">&#127973; Speler geblesseerd &mdash; herplan met gespeelde minuten</button>`;
+    }
   }
   // Liggende tablet: veld links, wisselteksten rechts. Anders gewoon onder elkaar.
   html+=isWide()?`<div class="twocol"><div class="col-field">${veld}</div><div>${tekst}</div></div>`:veld+tekst;
@@ -2523,6 +2538,10 @@ function render(){
 }
 function bind(v){
   v.querySelectorAll('[data-regen]').forEach(b=>b.onclick=regenerate);
+  const vnb=v.querySelector('#verwerkNuBtn');
+  // vanafVolgende: het blok dat nu op het veld staat blijft staan; de herverdeling
+  // begint pas bij het eerstvolgende wisselmoment.
+  if(vnb)vnb.onclick=()=>{ snapshot('wijziging verwerken'); herplanVanafNu('Wijziging verwerkt',true); };
   const rb=v.querySelector('#replanBtn');
   if(rb)rb.onclick=()=>replanFromQuarter(Number(rb.dataset.q));
   const ijb=v.querySelector('#injuryBtn');
@@ -2843,7 +2862,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=108;
+const APP_VERSION=111;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -2859,7 +2878,10 @@ async function checkForUpdate(){
     const r=await fetch('index.html?upd='+Date.now(),{cache:'no-store'});
     if(!r.ok)return;
     const t=await r.text();
-    const m=t.match(/name="app-version" content="(\d+)"/);
+    // Lees APP_VERSION rechtstreeks uit de opgehaalde broncode. Een aparte meta-tag
+    // moest met de hand worden bijgewerkt en liep daardoor jarenlang achter, waardoor
+    // de melding nooit verscheen. Nu is er nog maar één plek waar het nummer staat.
+    const m=t.match(/const APP_VERSION=(\d+)/) || t.match(/name="app-version" content="(\d+)"/);
     if(m&&Number(m[1])>APP_VERSION)showUpdateBar(Number(m[1]));
   }catch(e){/* offline of file:// — stil overslaan */}
 }
