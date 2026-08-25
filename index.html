@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="115">
+<meta name="app-version" content="116">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -151,6 +151,9 @@ main{
 .card h2{font-size:var(--fs-h);font-weight:800;letter-spacing:-.2px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .card h2 .sub{font-weight:600;font-size:var(--fs-sm);color:var(--dim);margin-left:auto}
 .hint{font-size:var(--fs-sm);color:var(--dim);line-height:1.45}
+.banner.err{background:linear-gradient(135deg,rgba(255,120,100,.22),rgba(255,120,100,.09));
+  border-color:rgba(255,140,120,.55);color:#ffd8cf}
+body.sun .banner.err{background:#fdeae6;border-color:#b3241a;color:#7a1811}
 .banner{
   background:linear-gradient(135deg,rgba(255,205,110,.16),rgba(255,205,110,.07));
   border:1px solid rgba(255,210,122,.4);border-radius:var(--r-lg);padding:12px 14px;margin-bottom:14px;
@@ -1106,6 +1109,26 @@ function diffAsg(prevA,newA){
   return {pairs,moves};
 }
 
+// ── Eén bron voor de wisselmomenten van een kwart ──
+// Scherm, print en deel-afbeelding rekenden alle drie zelf uit welke blokken bij
+// een kwart horen. Dat liep uit elkaar toen de veldweergave met de klok mee ging
+// lopen: het scherm pakte het lopende blok, print en afbeelding het begin van het
+// kwart. Sindsdien komt die berekening uit deze ene functie.
+function kwartMomenten(q,sch){
+  sch=sch||state.schedule;
+  if(!sch)return [];
+  const perQ=sch.perQ, qStart=q*perQ, blockLen=17.5/perQ, uit=[];
+  for(let m=1;m<perQ;m++){
+    uit.push({
+      m,
+      minuut:Math.round(m*blockLen),
+      blok:qStart+m,
+      wissels:wisselChains(sch.assignments[qStart+m-1],sch.assignments[qStart+m]),
+      bankNa:benchOfBlock(sch,qStart+m)
+    });
+  }
+  return uit;
+}
 // Wissels als ketens: 'X erin voor Y — positie; daarmee schuift Z van A naar B'
 function wisselChains(prevA,newA){
   const pb={},nb={};
@@ -1206,12 +1229,35 @@ function cleanupGkRules(){
   }
   return false;
 }
-function save(){cleanupGkRules();try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e){} cloudPush();}
+// Opslagfout mag nooit stil blijven: dan denkt de coach dat zijn team bewaard is
+// terwijl het bij de volgende start weg is. Safari blokkeert opslag in privémodus,
+// en iOS ruimt gegevens van zelden gebruikte websites op.
+let opslagFout=null;
+function save(){
+  cleanupGkRules();
+  try{
+    localStorage.setItem(LS_KEY,JSON.stringify(state));
+    if(opslagFout){opslagFout=null;render();}
+  }catch(e){
+    const nieuw=(e&&e.name==='QuotaExceededError')?'vol':'geblokkeerd';
+    if(opslagFout!==nieuw){opslagFout=nieuw;setTimeout(render,0);}
+  }
+  cloudPush();
+}
+// Vraag de browser de gegevens te behandelen als iets om te bewaren, niet als
+// wegwerpcache. Zonder dit kan iOS het team van een zelden geopende app opruimen.
+(function(){
+  try{
+    if(navigator.storage&&navigator.storage.persist&&navigator.storage.persisted){
+      navigator.storage.persisted().then(ok=>{ if(!ok)navigator.storage.persist().catch(()=>{}); }).catch(()=>{});
+    }
+  }catch(e){}
+})();
 
 /* ============ Samenwerken (live, via Firebase Firestore) ============ */
 // Vaste Firebase-config van dit project (mag openbaar: beveiliging zit in de Firestore-regels + login, niet in deze sleutel)
 const FB_CONFIG={"apiKey":"AIzaSyDwrfF3mDmievts5mme5fOlRJ3O3fhKGb8","authDomain":"hockey-app-teaming.firebaseapp.com","projectId":"hockey-app-teaming","storageBucket":"hockey-app-teaming.firebasestorage.app","messagingSenderId":"527542328518","appId":"1:527542328518:web:e2537891c7941d09568bc7"};
-const CLOUD={on:false,cfg:FB_CONFIG,team:'',role:'editor',name:'',db:null,ref:null,unsub:null,applying:false,writeT:null,status:'uit',lastBy:'',lastAt:0,lastWhat:'',vorig:null,klok:null,klokBaas:null,klokT:null};
+const CLOUD={on:false,cfg:FB_CONFIG,team:'',role:'editor',name:'',db:null,ref:null,unsub:null,applying:false,writeT:null,status:'uit',lastBy:'',lastAt:0,lastWhat:'',vorig:null,klok:null,klokBaas:null,klokT:null,rev:0,eigenRev:0};
 // Vast id per toestel, zodat we onze eigen klokwijzigingen herkennen.
 const DEVICE_ID=(function(){try{let d=localStorage.getItem('gw_device');if(!d){d='d'+Math.random().toString(36).slice(2,10);localStorage.setItem('gw_device',d);}return d;}catch(e){return 'd'+Math.random().toString(36).slice(2,10);}})();
 function cloudLoadSettings(){try{const r=JSON.parse(localStorage.getItem('gw_cloud')||'null');if(r){CLOUD.cfg=r.cfg||FB_CONFIG;CLOUD.team=(r.team||'').trim().toLowerCase();CLOUD.role=r.role||'editor';CLOUD.name=r.name||'';CLOUD.on=!!r.on;}}catch(e){}}
@@ -1313,6 +1359,15 @@ function cloudListen(){
       klokNaarTimer(null);
     }
     if(!d.state)return;
+    // Botsing herkennen: een stand van een ander toestel met een volgnummer dat niet
+    // op het onze volgt, betekent dat onze wijziging is overschreven (of andersom).
+    const binnenRev=Number(d.rev||0);
+    const vanAnderToestel=d.updatedById && d.updatedById!==DEVICE_ID;
+    if(vanAnderToestel && CLOUD.eigenRev && binnenRev<=CLOUD.eigenRev){
+      botsing={wie:d.updatedBy||'de andere coach'};
+    }
+    if(!vanAnderToestel && binnenRev>=CLOUD.eigenRev)CLOUD.eigenRev=0;   // onze schrijfactie is geland
+    CLOUD.rev=Math.max(binnenRev,CLOUD.rev||0);
     const zelfdeStand=(d.state===CLOUD.vorig);
     CLOUD.lastBy=d.updatedBy||''; CLOUD.lastAt=d.updatedAt||0; CLOUD.lastWhat=d.updatedWhat||'';
     CLOUD.vorig=d.state;   // vergelijk je eigen volgende wijziging hiermee
@@ -1339,8 +1394,13 @@ function cloudPush(force){
     if(!force&&CLOUD.vorig===nu)return;        // niets veranderd: geen schrijfactie
     const wat=beschrijfWijziging(CLOUD.vorig,state)||'Gegevens bijgewerkt';
     CLOUD.vorig=nu; CLOUD.lastWhat=wat;
+    // Volgnummer: we schrijven op basis van de laatste stand die we zagen. Komt er
+    // straks een stand terug die niet de onze is en ook niet op de onze volgt, dan
+    // heeft iemand tegelijk geschreven en is er iets overschreven.
+    const rev=(CLOUD.rev||0)+1;
+    CLOUD.rev=rev; CLOUD.eigenRev=rev;
     // merge is essentieel: zonder merge wist elke gewone wijziging het klokveld
-    CLOUD.ref.set({state:nu,updatedBy:CLOUD.name||'coach',updatedAt:Date.now(),updatedWhat:wat},{merge:true})
+    CLOUD.ref.set({state:nu,rev,updatedBy:CLOUD.name||'coach',updatedById:DEVICE_ID,updatedAt:Date.now(),updatedWhat:wat},{merge:true})
       .catch(e=>toast('Opslaan in cloud mislukt: '+(e.message||e)));
   }, force?0:600);
 }
@@ -1636,6 +1696,21 @@ let planInfo=[];        // uitleg over wat er in het schema is veranderd
 // Versie van timer.html als die niet gelijkloopt met de app. Blijft staan tot het
 // klopt: dit is een uploadfout, geen melding die je even wegtikt.
 let timerMismatch=null;
+// Twee coaches wijzigden vrijwel tegelijk; er is er dan één overschreven.
+// Beter een zichtbare melding dan stil verlies.
+let botsing=null;
+// Meldingen die op elk tabblad horen te staan en niet weg te tikken zijn:
+// het gaat om verlies van gegevens, niet om een tip.
+function globaleBanners(){
+  let h='';
+  if(botsing){
+    h+=`<div class="banner err">&#9888;&#65039; <span>${esc(botsing.wie)} wijzigde op hetzelfde moment iets. Eén van de twee wijzigingen is overschreven &mdash; controleer de opstelling en de spelerslijst.</span><button class="btn small" id="botsingOk">Begrepen</button></div>`;
+  }
+  if(opslagFout){
+    h+=`<div class="banner err">&#9888;&#65039; <span>Opslaan op dit toestel lukt niet (${opslagFout==='vol'?'geheugen vol':'geblokkeerd door de browser'}). Je wijzigingen zijn er nu wél, maar zijn na het sluiten van de app weg. Maak een back-up via Spelers &rarr; Back-up.</span></div>`;
+  }
+  return h;
+}
 function warnBoxesHTML(){
   let w='';
   if(timerMismatch!==null)
@@ -1944,7 +2019,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 74 &middot; 25 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 75 &middot; 25 augustus 2026</div>';
   return html;
 }
 
@@ -2518,15 +2593,11 @@ function renderQuarter(q){
   }
   // Wisselmomenten binnen het kwart
   tekst+=`<div class="card"><h2>Wissels in Q${q+1} <span class="sub">${perQ-1}&times; per kwart</span></h2>`;
-  for(let m=1;m<perQ;m++){
-    const d=wisselChains(sch.assignments[qStart+m-1],sch.assignments[qStart+m]);
-    const t=m*blockLen;
-    const benchAfter=benchOfBlock(sch,qStart+m);
-    const naMin=Math.round(t);
-    const kop=(q===1||q===3)?`Na ${naMin} min in Q${q+1}, dus bij ${fmtMin(naMin+17.5)} min`:`Na ${naMin} min`;
+  for(const mo of kwartMomenten(q,sch)){
+    const kop=(q===1||q===3)?`Na ${mo.minuut} min in Q${q+1}, dus bij ${fmtMin(mo.minuut+17.5)} min`:`Na ${mo.minuut} min`;
     tekst+=`<div class="wmoment"><div class="wtime">${kop}</div>`;
-    tekst+=chainsEmpty(d)?'<p class="empty">Geen wissels op dit moment.</p>':wisselLines(d);
-    tekst+=`<div class="wbench"><b>Wissels daarna:</b> ${benchAfter.map(pName).map(esc).join(', ')||'—'}</div></div>`;
+    tekst+=chainsEmpty(mo.wissels)?'<p class="empty">Geen wissels op dit moment.</p>':wisselLines(mo.wissels);
+    tekst+=`<div class="wbench"><b>Wissels daarna:</b> ${mo.bankNa.map(pName).map(esc).join(', ')||'—'}</div></div>`;
   }
   tekst+=`</div>`;
   if(!(CLOUD.on&&CLOUD.role==='viewer')){
@@ -2607,9 +2678,10 @@ function render(){
     return;
   }
   th.classList.remove('show'); // iframe blijft bestaan: timer loopt door
-  if(activeTab==='spelers')v.innerHTML=renderSpelers();
-  else if(activeTab==='regels')v.innerHTML=renderRegels();
-  else v.innerHTML=renderQuarter(Number(activeTab.slice(1)));
+  const alarm=globaleBanners();
+  if(activeTab==='spelers')v.innerHTML=alarm+renderSpelers();
+  else if(activeTab==='regels')v.innerHTML=alarm+renderRegels();
+  else v.innerHTML=alarm+renderQuarter(Number(activeTab.slice(1)));
   bind(v);
   if(_slide){ v.classList.remove('slideL','slideR'); void v.offsetWidth; v.classList.add(_slide); }
   // Bij her-renderen op hetzelfde tabblad: scrollpositie behouden
@@ -2707,6 +2779,8 @@ function bind(v){
   if(sh)sh.onclick=shareState;
   const im=v.querySelector('#importShare');
   if(im)im.onclick=importSharePrompt;
+  const bok=v.querySelector('#botsingOk');
+  if(bok)bok.onclick=()=>{botsing=null;render();};
   const kov=v.querySelector('#klokOver');
   if(kov)kov.onclick=klokOvernemen;
   const bex=v.querySelector('#backupExport');
@@ -2867,9 +2941,8 @@ function renderPrint(){
     const b0=q*perQ,asg0=sch.assignments[b0];
     const bench=benchOfBlock(sch,b0).map(pName).map(esc).join(', ')||'—';
     let w='';
-    for(let m=1;m<perQ;m++){
-      const dd=wisselChains(sch.assignments[b0+m-1],sch.assignments[b0+m]);
-      w+=`<div class="pw"><b>Na ${Math.round(m*blockLen)} min:</b><br>${chainsEmpty(dd)?'geen wissels':printChainText(dd)}</div>`;
+    for(const mo of kwartMomenten(q,sch)){
+      w+=`<div class="pw"><b>Na ${mo.minuut} min:</b><br>${chainsEmpty(mo.wissels)?'geen wissels':printChainText(mo.wissels)}</div>`;
     }
     const pk=q>0?keeperOfQ(sch,q-1):null, ck=keeperOfQ(sch,q);
     const kw=(pk&&ck&&pk!==ck)?`<div class="pw"><b>Keeper:</b> ${esc(pName(ck))} (was ${esc(pName(pk))})</div>`:'';
@@ -2943,7 +3016,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=115;
+const APP_VERSION=116;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -3014,9 +3087,9 @@ async function shareQuarterImage(q){
   const blocks=[];
   const bench=benchOfBlock(sch,b0).map(pName);
   if(bench.length)blocks.push({head:'Bank bij start:',lines:wrapText(bench.join(', '),58)});
-  for(let m=1;m<perQ;m++){
-    const d=wisselChains(sch.assignments[b0+m-1],sch.assignments[b0+m]);
-    const naMin=Math.round(m*blockLen);
+  for(const mo of kwartMomenten(q,sch)){
+    const d=mo.wissels;
+    const naMin=mo.minuut;
     const kop=(q===1||q===3)?`Na ${naMin} min (bij ${fmtMin(naMin+17.5)} min):`:`Na ${naMin} min:`;
     const lines=chainsEmpty(d)?['geen wissels']:plainChainText(d).flatMap(t=>wrapText('• '+t,58));
     blocks.push({head:kop,lines});
