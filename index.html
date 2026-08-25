@@ -131,14 +131,6 @@ main{
   /* Het veld blijft in beeld terwijl je de wisselteksten ernaast doorleest.
      Het wordt zo breed als past zonder hoger te worden dan het scherm. */
   .twocol .col-field{position:sticky;top:0}
-  /* Wedstrijdklok boven het veld: alleen in de liggende tabletstand */
-  .klokbalk{display:flex;align-items:baseline;justify-content:center;gap:12px;
-    background:var(--glass);border:1px solid var(--stroke);border-radius:var(--r-lg);
-    padding:8px 14px;margin-bottom:10px;backdrop-filter:blur(18px)}
-  .klokbalk .kb-tijd{font-size:30px;font-weight:800;letter-spacing:-.5px;
-    font-variant-numeric:tabular-nums;color:var(--txt)}
-  .klokbalk .kb-sub{font-size:var(--fs-sm);font-weight:700;color:var(--dim)}
-  .klokbalk.pauze .kb-tijd{opacity:.6}
   .twocol .col-field .fieldwrap{max-height:calc(100dvh - 260px);width:auto;margin:0 auto}
 }
 .card{
@@ -937,6 +929,9 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
       for(let b1=0;b1<B;b1++){
         if(q3like&&b1===q3Block)continue; // start Q3 blijft gelijk aan start Q1
         if(!(blocks[b1].has(r.p1)&&blocks[b1].has(r.p2)))continue;
+        // Een vastgezet blok kan een speler bevatten die niet meer inzetbaar is;
+        // die staat dan niet in elig en mag hier niet verschoven worden.
+        if(!elig[r.p1]||!elig[r.p2])continue;
         let fixed=false;
         for(const mv of [r.p1,r.p2]){
           for(let b2=0;b2<B&&!fixed;b2++){
@@ -945,7 +940,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
             const other=mv===r.p1?r.p2:r.p1;
             if(blocks[b2].has(other))continue;
             for(const x of blocks[b2]){
-              if(x===r.p1||x===r.p2||blocks[b1].has(x)||!elig[x][b1])continue;
+              if(x===r.p1||x===r.p2||blocks[b1].has(x)||!elig[x]||!elig[x][b1])continue;
               const tmp1=new Set(blocks[b1]);tmp1.delete(mv);
               if(conflictsWith(x,tmp1))continue;
               const tmp2=new Set(blocks[b2]);tmp2.delete(x);
@@ -1706,13 +1701,6 @@ function veldKlokHTML(){
     <div class="vk-sub" id="vkSub">${k.kwart}${k.loopt?'':' &middot; pauze'}</div>
   </div>`;
 }
-function klokBalkHTML(){
-  const k=klokTekst(); if(!k)return '';
-  return `<div class="klokbalk" id="klokbalk">
-    <div class="kb-tijd" id="kbTijd">${k.tijd}</div>
-    <div class="kb-sub"><span id="kbKwart">${k.kwart}</span> &middot; <span id="kbLoopt">${k.loopt?'loopt':'gepauzeerd'}</span></div>
-  </div>`;
-}
 // Klopt de getoonde opstelling nog met de klok? Zo niet: opnieuw tekenen.
 function beeldBijwerken(){
   if(!isQTab(activeTab)||!state.schedule)return;
@@ -1723,16 +1711,9 @@ function beeldBijwerken(){
   render();
   if(v)document.getElementById('view').scrollTop=y;
 }
-function klokBalkBijwerken(){
+// Werkt alleen het klokje op de veldtekening bij, zonder de rest te hertekenen.
+function veldKlokBijwerken(){
   const k=klokTekst(); if(!k)return;
-  // Balk boven het veld (liggende tablet)
-  const el=document.getElementById('kbTijd');
-  if(el){
-    el.textContent=k.tijd;
-    const kw=document.getElementById('kbKwart'); if(kw)kw.textContent=k.kwart;
-    const lp=document.getElementById('kbLoopt'); if(lp)lp.textContent=k.loopt?'loopt':'gepauzeerd';
-    const bal=document.getElementById('klokbalk'); if(bal)bal.classList.toggle('pauze',!k.loopt);
-  }
   const vt=document.getElementById('vkTijd');
   if(vt){
     vt.textContent=k.tijd;
@@ -1942,7 +1923,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 66 &middot; 24 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 67 &middot; 24 augustus 2026</div>';
   return html;
 }
 
@@ -2169,7 +2150,8 @@ function spelerActies(pid,q){
     if(act==='terug'){
       snapshot(p.name+' weer beschikbaar');
       delete p.uit;
-      if(!herplanVanafNu(p.name+' weer beschikbaar')){p.uit=true;render();}
+      // Hij komt op de bank; pas bij het eerstvolgende wisselmoment kan hij het veld in.
+      if(!herplanVanafNu(p.name+' weer beschikbaar \u2014 op de bank',true)){p.uit=true;render();}
       return;
     }
   });
@@ -2178,7 +2160,7 @@ function spelerActies(pid,q){
 // al gespeelde blokken per speler, zodat de resterende minuten eerlijk verdeeld worden.
 // Vergelijkt het oude en het nieuwe schema en vertelt in gewone taal wat er
 // veranderd is: eerst wat er nú op het veld gebeurt, daarna wat er verderop schuift.
-function beschrijfHerplan(oud,nieuw,vanaf,perQ){
+function beschrijfHerplan(oud,nieuw,vanaf,perQ,later){
   const posNaam=(asg,pid)=>{for(const k in asg)if(asg[k]===pid)return POSMAP[k]?POSMAP[k].name.toLowerCase():k;return null;};
   const a=oud[vanaf]||{}, b=nieuw[vanaf]||{};
   const inA=[...new Set(Object.values(a))], inB=[...new Set(Object.values(b))];
@@ -2190,11 +2172,11 @@ function beschrijfHerplan(oud,nieuw,vanaf,perQ){
     const delen=[];
     if(erin.length) delen.push(erin.map(p=>pName(p)+' erin op '+posNaam(b,p)).join(', '));
     if(eruit.length)delen.push(eruit.map(p=>pName(p)+' eruit').join(', '));
-    zinnen.push('Nu meteen: '+delen.join('; ')+'.');
+    zinnen.push((later?'Bij de volgende wissel: ':'Nu meteen: ')+delen.join('; ')+'.');
   }
   if(schuif.length)
     zinnen.push('Doorschuiven: '+schuif.map(p=>pName(p)+' naar '+posNaam(b,p)).join(', ')+'.');
-  if(!zinnen.length)zinnen.push('Op het veld verandert er nu niets.');
+  if(!zinnen.length)zinnen.push(later?'Bij de volgende wissel verandert er niets.':'Op het veld verandert er nu niets.');
   // wat er verderop nog verandert
   const anders=[];
   for(let i=vanaf+1;i<nieuw.length;i++)
@@ -2208,11 +2190,21 @@ function beschrijfHerplan(oud,nieuw,vanaf,perQ){
   }
   return zinnen.join(' ');
 }
-function herplanVanafNu(label){
+// vanafVolgende=true: het lopende blok blijft ook vast, er wordt pas vanaf het
+// volgende wisselmoment opnieuw gepland. Zo komt een herstelde speler eerst op
+// de bank en pas bij de eerstvolgende wissel weer in het veld.
+function herplanVanafNu(label,vanafVolgende){
   if(!state.schedule){toast('Genereer eerst een opstelling');return false;}
-  const sch=state.schedule, perQ=sch.perQ;
+  const sch=state.schedule, perQ=sch.perQ, B=perQ*4;
   const q=isQTab(activeTab)?Number(activeTab.slice(1)):(klok.q?klok.q-1:0);
-  const vanaf=q*perQ+huidigBlok(q);
+  let vanaf=q*perQ+huidigBlok(q);
+  if(vanafVolgende)vanaf++;
+  if(vanaf>=B){                       // laatste blok loopt al: niets meer te plannen
+    planInfo=[label+' \u2014 het laatste blok van de wedstrijd loopt al, dus het schema verandert niet meer. Hij staat op de bank.'];
+    save();render();
+    toast(label);
+    return true;
+  }
   const fixedBlocks={}, playedSoFar={};
   const pool=state.players.filter(p=>p.present && p.id!==state.keeperId);
   pool.forEach(p=>playedSoFar[p.id]=0);
@@ -2225,10 +2217,14 @@ function herplanVanafNu(label){
   const fresh=buildSchedule(state,{forcePerQ:perQ,fromBlock:vanaf,fixedBlocks,playedSoFar});
   if(!fresh){toast('Herplannen lukt niet met deze spelers');return false;}
   state.schedule=fresh; state.genHash=inputHash(state);
-  const min=Math.round(huidigBlok(q)*(17.5/perQ));
-  const wanneer='Q'+(q+1)+(min?' na '+min+' min':' vanaf de start');
+  const blokLen=17.5/perQ;
+  const blokIndex=vanaf-q*perQ;
+  const min=Math.round(blokIndex*blokLen);
+  const wanneer=(blokIndex>=perQ)
+    ? 'Q'+(Math.floor(vanaf/perQ)+1)+' vanaf de start'
+    : 'Q'+(q+1)+(min?' na '+min+' min':' vanaf de start');
   planInfo=[label+' \u2014 schema aangepast vanaf '+wanneer+'. '
-    +beschrijfHerplan(oudAssign,fresh.assignments,vanaf,perQ)];
+    +beschrijfHerplan(oudAssign,fresh.assignments,vanaf,perQ,!!vanafVolgende)];
   save();render();sendSwapTimesToTimer();
   toast(label);
   return true;
@@ -2384,7 +2380,8 @@ function renderQuarter(q){
   html+=warnBoxesHTML();
   const sch=state.schedule, perQ=sch.perQ, blockLen=17.5/perQ;
   // Loopt de klok in dit kwart, dan tonen we het blok dat nú bezig is.
-  const lb=levendBlok(q), toonBlok=lb==null?0:lb, b0=q*perQ+toonBlok;
+  const qStart=q*perQ;                 // eerste blok van dit kwart: basis voor de wisseltekst
+  const lb=levendBlok(q), toonBlok=lb==null?0:lb, b0=qStart+toonBlok;
   _getoond={q:q,blok:toonBlok};        // wat er nú op het scherm staat
   const asg0=sch.assignments[b0];
   const keeper=byId((sch.keeperByQ&&sch.keeperByQ[q])||sch.keeperId);
@@ -2423,7 +2420,7 @@ function renderQuarter(q){
   let tekst='';
   // Wissel bij start van kwart (t.o.v. vorige kwart)
   if(q>0){
-    const d=wisselChains(sch.assignments[b0-1],asg0);
+    const d=wisselChains(sch.assignments[qStart-1],sch.assignments[qStart]);
     const prevK=keeperOfQ(sch,q-1), curK=keeperOfQ(sch,q);
     let kLine='';
     if(prevK&&curK&&prevK!==curK){
@@ -2434,9 +2431,9 @@ function renderQuarter(q){
   // Wisselmomenten binnen het kwart
   tekst+=`<div class="card"><h2>Wissels in Q${q+1} <span class="sub">${perQ-1}&times; per kwart</span></h2>`;
   for(let m=1;m<perQ;m++){
-    const d=wisselChains(sch.assignments[b0+m-1],sch.assignments[b0+m]);
+    const d=wisselChains(sch.assignments[qStart+m-1],sch.assignments[qStart+m]);
     const t=m*blockLen;
-    const benchAfter=benchOfBlock(sch,b0+m);
+    const benchAfter=benchOfBlock(sch,qStart+m);
     const naMin=Math.round(t);
     const kop=(q===1||q===3)?`Na ${naMin} min in Q${q+1}, dus bij ${fmtMin(naMin+17.5)} min`:`Na ${naMin} min`;
     tekst+=`<div class="wmoment"><div class="wtime">${kop}</div>`;
@@ -2451,7 +2448,7 @@ function renderQuarter(q){
     tekst+=`<button class="btn ghost full" id="injuryBtn" style="margin-bottom:8px">&#127973; Speler geblesseerd &mdash; herplan met gespeelde minuten</button>`;
   }
   // Liggende tablet: veld links, wisselteksten rechts. Anders gewoon onder elkaar.
-  html+=isWide()?`<div class="twocol"><div class="col-field">${klokBalkHTML()}${veld}</div><div>${tekst}</div></div>`:veld+tekst;
+  html+=isWide()?`<div class="twocol"><div class="col-field">${veld}</div><div>${tekst}</div></div>`:veld+tekst;
   return html;
 }
 function wisselLines(d){
@@ -2846,7 +2843,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=107;
+const APP_VERSION=108;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -3035,7 +3032,7 @@ window.addEventListener('message',e=>{
   if(e.data.ghcStand){
     const st=e.data.ghcStand;
     klok={q:st.q,sec:st.sec,loopt:st.loopt};
-    klokBalkBijwerken();
+    veldKlokBijwerken();
     // Niet elke seconde hertekenen, maar wel zodra het beeld niet meer klopt met de klok.
     // We vergelijken met wat er echt getekend is, niet met de vorige klokstand — zo
     // herstelt de app zichzelf ook als hij een blokwissel gemist heeft.
