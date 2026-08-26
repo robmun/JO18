@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="117">
+<meta name="app-version" content="119">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -2045,7 +2045,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 76 &middot; 25 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 78 &middot; 26 augustus 2026</div>';
   return html;
 }
 
@@ -2265,18 +2265,56 @@ function spelerActies(pid,q){
     }
     if(act==='weg'){
       snapshot(p.name+' afgemeld');
+      const wasUit=!!p.uit;
       delete p.uit; p.present=false;
-      if(!herplanVanafNu(p.name+' vandaag niet meer')){p.present=true;render();}
+      const gelukt = wedstrijdBezig()
+        ? herplanVanafNu(p.name+' vandaag niet meer')
+        : herplanHeleWedstrijd(p.name+' afgemeld');
+      if(!gelukt){p.present=true;if(wasUit)p.uit=true;render();}
       return;
     }
     if(act==='terug'){
       snapshot(p.name+' weer beschikbaar');
       delete p.uit;
-      // Hij komt op de bank; pas bij het eerstvolgende wisselmoment kan hij het veld in.
+      // Altijd eerst op de bank: hij valt pas bij het eerstvolgende wisselmoment in.
+      // Stond hij nog in het blok dat in beeld staat (dat gebeurt als de klok is
+      // gereset), dan halen we hem daar eerst uit.
+      haalUitHuidigBlok(p.id);
       if(!herplanVanafNu(p.name+' weer beschikbaar \u2014 op de bank',true)){p.uit=true;render();}
       return;
     }
   });
+}
+// Haal een speler uit het blok dat nu in beeld staat en zet er iemand van de bank
+// voor in de plaats. Nodig bij een terugkeer met een stilstaande klok: dat blok wordt
+// als 'verleden' bevroren, en als de speler daar nog in stond zou hij meteen weer in
+// het veld verschijnen in plaats van op de bank.
+function haalUitHuidigBlok(pid){
+  const sch=state.schedule; if(!sch)return;
+  const q=isQTab(activeTab)?Number(activeTab.slice(1)):(klok.q?klok.q-1:0);
+  const b=q*sch.perQ+huidigBlok(q);
+  const asg=sch.assignments[b]; if(!asg)return;
+  const pos=Object.keys(asg).find(k=>asg[k]===pid); if(!pos)return;
+  const opVeld=new Set(Object.values(asg));
+  const keeper=(sch.keeperByQ&&sch.keeperByQ[q])||sch.keeperId;
+  const bank=state.players.filter(p=>p.present&&!p.uit&&p.id!==keeper&&p.id!==pid&&!opVeld.has(p.id));
+  // liefst iemand die in deze linie uit de voeten kan
+  const linie=POSMAP[pos]&&POSMAP[pos].line;
+  const kandidaat=bank.find(p=>!linie||magInLinie(p,linie))||bank[0];
+  if(kandidaat)asg[pos]=kandidaat.id;
+}
+// Staat de klok stil, dan is er geen 'nu' om vanaf te herplannen: dan rekenen we
+// de hele wedstrijd gewoon opnieuw uit. Zonder dit kon een herstelde speler pas
+// terugkomen nadat je de timer had gestart.
+function herplanHeleWedstrijd(label){
+  if(!resolveKeeperOrWarn())return false;
+  const vers=buildSchedule(state);
+  if(!vers){toast('Herplannen lukt niet met deze spelers');return false;}
+  state.schedule=vers; state.genHash=inputHash(state);
+  planInfo=[label+' \u2014 de klok staat op nul, dus het hele wisselschema is opnieuw gemaakt.'];
+  save();render();sendSwapTimesToTimer();
+  toast(label);
+  return true;
 }
 // Herplan vanaf het blok dat nu bezig is. Alles daarvóór ligt vast, inclusief de
 // al gespeelde blokken per speler, zodat de resterende minuten eerlijk verdeeld worden.
@@ -2893,8 +2931,13 @@ function chipTap(pid){
   if(cloudViewerBlocked())return;
   if(!activeTab.startsWith('q')||!state.schedule)return;
   const q=Number(activeTab.slice(1));
+  const sp=byId(pid);
+  // Een speler op de blessurelijst moet je altijd kunnen aantikken om hem weer
+  // beschikbaar te maken — ook als de klok stilstaat of net gereset is. Anders zit
+  // hij vast tot je de timer weer aanzet.
+  if(selChip===null && sp && sp.uit){ spelerActies(pid,q); return; }
   // Loopt de wedstrijd, dan eerst vragen wat je wilt — behalve als je midden in een ruil zit.
-  if(selChip===null && klok.q!=null && (klok.loopt||klok.sec>0)){ spelerActies(pid,q); return; }
+  if(selChip===null && wedstrijdBezig()){ spelerActies(pid,q); return; }
   if(selChip===null){selChip=pid;render();return;}
   if(selChip===pid){selChip=null;render();return;}
   const lb=levendBlok(q);                       // ruil het blok dat je vóór je ziet
@@ -3046,7 +3089,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=117;
+const APP_VERSION=119;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
