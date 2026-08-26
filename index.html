@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="120">
+<meta name="app-version" content="121">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1284,7 +1284,7 @@ function save(){
 /* ============ Samenwerken (live, via Firebase Firestore) ============ */
 // Vaste Firebase-config van dit project (mag openbaar: beveiliging zit in de Firestore-regels + login, niet in deze sleutel)
 const FB_CONFIG={"apiKey":"AIzaSyDwrfF3mDmievts5mme5fOlRJ3O3fhKGb8","authDomain":"hockey-app-teaming.firebaseapp.com","projectId":"hockey-app-teaming","storageBucket":"hockey-app-teaming.firebasestorage.app","messagingSenderId":"527542328518","appId":"1:527542328518:web:e2537891c7941d09568bc7"};
-const CLOUD={on:false,cfg:FB_CONFIG,team:'',role:'editor',name:'',db:null,ref:null,unsub:null,applying:false,writeT:null,status:'uit',lastBy:'',lastAt:0,lastWhat:'',vorig:null,klok:null,klokBaas:null,klokT:null,rev:0,eigenRev:0};
+const CLOUD={on:false,cfg:FB_CONFIG,team:'',role:'editor',name:'',db:null,ref:null,unsub:null,applying:false,writeT:null,status:'uit',lastBy:'',lastAt:0,lastWhat:'',vorig:null,klok:null,klokBaas:null,klokT:null,rev:0,eigenRev:0,uid:null,rol:null,koppelTot:0};
 // Vast id per toestel, zodat we onze eigen klokwijzigingen herkennen.
 const DEVICE_ID=(function(){try{let d=localStorage.getItem('gw_device');if(!d){d='d'+Math.random().toString(36).slice(2,10);localStorage.setItem('gw_device',d);}return d;}catch(e){return 'd'+Math.random().toString(36).slice(2,10);}})();
 function cloudLoadSettings(){try{const r=JSON.parse(localStorage.getItem('gw_cloud')||'null');if(r){CLOUD.cfg=r.cfg||FB_CONFIG;CLOUD.team=(r.team||'').trim().toLowerCase();CLOUD.role=r.role||'editor';CLOUD.name=r.name||'';CLOUD.on=!!r.on;}}catch(e){}}
@@ -1295,12 +1295,19 @@ async function cloudConnect(){
   CLOUD.status='verbinden';cloudUpdateCard();
   try{
     await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+    await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js');
     await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
     if(!firebase.apps||!firebase.apps.length)firebase.initializeApp(CLOUD.cfg);
+    // Anoniem inloggen: geen account, geen wachtwoord, maar de database weet nu wél
+    // welk toestel er klopt. Zonder dit kan iedereen die de teamcode raadt meelezen
+    // en overschrijven.
+    CLOUD.uid=await cloudLogin();
+    if(!CLOUD.uid){CLOUD.status='fout';cloudUpdateCard();toast('Inloggen bij de cloud mislukt');return false;}
     CLOUD.db=firebase.firestore();
     CLOUD.team=(CLOUD.team||'').trim().toLowerCase();
     CLOUD.ref=CLOUD.db.collection('teams').doc(CLOUD.team);
     CLOUD.on=true;cloudSaveSettings();
+    await cloudClaimOfKoppel();
     cloudListen();
     CLOUD.status='verbonden';cloudUpdateCard();
     klokNaarTimer(null);   // timer moet weten dat samenwerken aanstaat, anders deelt hij niets
@@ -1308,6 +1315,51 @@ async function cloudConnect(){
     if(CLOUD.role==='viewer'&&['timer','spelers','regels'].includes(activeTab))activeTab='q0';
     return true;
   }catch(e){CLOUD.status='fout';cloudUpdateCard();toast('Verbinden mislukt: '+(e.message||e));return false;}
+}
+// Anoniem inloggen; het kenmerk blijft op dit toestel bewaard zolang de app staat.
+async function cloudLogin(){
+  try{
+    const auth=firebase.auth();
+    if(auth.currentUser)return auth.currentUser.uid;
+    const res=await auth.signInAnonymously();
+    return res&&res.user?res.user.uid:null;
+  }catch(e){ onthoudFout('inloggen',e); return null; }
+}
+// Bepaalt wat dit toestel mag: eigenaar worden, meedoen als coach, of alleen kijken.
+async function cloudClaimOfKoppel(){
+  try{
+    const snap=await CLOUD.ref.get();
+    if(!snap.exists){
+      // Nieuw team: wie het aanmaakt is eigenaar.
+      await CLOUD.ref.set({owner:CLOUD.uid,editors:[CLOUD.uid],rev:0},{merge:true});
+      CLOUD.rol='eigenaar'; return;
+    }
+    const d=snap.data()||{};
+    if(!d.owner){
+      // Bestaand team van vóór deze beveiliging: de eerste die hem opent, claimt hem.
+      await CLOUD.ref.set({owner:CLOUD.uid,editors:[CLOUD.uid]},{merge:true});
+      CLOUD.rol='eigenaar'; toast('Je bent nu de eigenaar van dit team'); return;
+    }
+    const lijst=Array.isArray(d.editors)?d.editors:[];
+    if(lijst.includes(CLOUD.uid)){ CLOUD.rol=(d.owner===CLOUD.uid)?'eigenaar':'coach'; return; }
+    if(CLOUD.role==='viewer'){ CLOUD.rol='kijker'; return; }
+    // Coach die er nog niet bij staat: alleen binnen het koppelvenster toevoegen.
+    if(Number(d.koppelTot||0)>Date.now()){
+      try{
+        await CLOUD.ref.update({editors:firebase.firestore.FieldValue.arrayUnion(CLOUD.uid)});
+        CLOUD.rol='coach'; toast('Je bent gekoppeld als coach'); return;
+      }catch(e){ onthoudFout('koppelen',e); }
+    }
+    CLOUD.rol='wacht';
+  }catch(e){ onthoudFout('team openen',e); CLOUD.rol='wacht'; }
+}
+// Zet het koppelvenster een kwartier open zodat een mede-coach zich kan aanmelden.
+function koppelvensterOpen(){
+  if(!CLOUD.ref||CLOUD.rol!=='eigenaar'){toast('Alleen de eigenaar kan een coach toelaten');return;}
+  const tot=Date.now()+15*60*1000;
+  CLOUD.ref.set({koppelTot:tot},{merge:true})
+    .then(()=>{CLOUD.koppelTot=tot;toast('Een kwartier lang kan een coach zich koppelen');render();})
+    .catch(e=>{onthoudFout('koppelvenster',e);toast('Openen mislukt: '+(e.message||e));});
 }
 function cloudDisconnect(){
   if(CLOUD.unsub){try{CLOUD.unsub();}catch(e){}CLOUD.unsub=null;}
@@ -1372,6 +1424,7 @@ function cloudListen(){
   CLOUD.unsub=CLOUD.ref.onSnapshot(snap=>{
     if(!snap.exists){ if(CLOUD.role==='editor')cloudPush(true); return; }
     const d=snap.data(); if(!d)return;
+    CLOUD.koppelTot=Number(d.koppelTot||0);
     // Gedeelde klok: alleen toepassen als een ánder toestel hem bedient.
     if(d.klok){
       CLOUD.klok=d.klok;
@@ -1412,6 +1465,7 @@ function cloudListen(){
   }, err=>{ CLOUD.status='fout'; toast('Sync-fout: '+(err.message||err)); cloudUpdateCard(); });
 }
 function cloudPush(force){
+  if(CLOUD.on&&CLOUD.rol==='wacht')return;   // nog niet gekoppeld: niets wegschrijven
   if(!CLOUD.on||CLOUD.applying||!CLOUD.ref)return;
   if(CLOUD.role!=='editor')return;              // kijkers schrijven nooit
   clearTimeout(CLOUD.writeT);
@@ -1457,6 +1511,18 @@ function cloudUpdateCard(){
   let t=map[CLOUD.status]||'';
   if(CLOUD.status==='verbonden'){
     t+=' &middot; rol: '+(CLOUD.role==='viewer'?'Kijker (alleen lezen)':'Coach (mag wijzigen)');
+    // Wat de database van dit toestel vindt — dat is bepalender dan de zelfgekozen rol.
+    if(CLOUD.rol==='eigenaar'){
+      t+='<br>&#128273; Jij bent de eigenaar van dit team &middot; <button class="btn small" id="koppelBtn">Coach toelaten</button>';
+      if(Number(CLOUD.koppelTot||0)>Date.now()){
+        const min=Math.ceil((CLOUD.koppelTot-Date.now())/60000);
+        t+='<br>&#9203; Koppelen staat nog '+min+' min open &mdash; laat je mede-coach nu de coach-link openen.';
+      }
+    }else if(CLOUD.rol==='coach'){
+      t+='<br>&#128273; Je bent gekoppeld als coach.';
+    }else if(CLOUD.rol==='wacht'){
+      t+='<br>&#9888;&#65039; <b>Je bent nog niet gekoppeld.</b> Je kunt meelezen maar niet wijzigen. Vraag de hoofdcoach om op ‘Coach toelaten’ te tikken en open daarna deze app opnieuw.';
+    }
     if(CLOUD.lastAt){
       const d=new Date(CLOUD.lastAt);
       t+='<br>laatst bijgewerkt door '+esc(CLOUD.lastBy||'?')+' om '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
@@ -1666,8 +1732,12 @@ function cloudSetupDialog(){
   h.innerHTML=`<div class="modal-back center" id="mback"><div class="modal" role="dialog" aria-modal="true" style="max-width:min(94vw,460px)">
     <h3>Samenwerken instellen</h3>
     <p style="font-size:var(--fs-sm);color:var(--dim);margin:0 0 8px">Vul de teamcode in die je met je mede-coach deelt (dezelfde bij allebei), kies je rol en je naam. De verbinding met het team is al ingesteld.</p>
-    <label class="clab">Teamcode <span style="font-weight:400">(dezelfde als je mede-coach &middot; kleine letters, geen spaties)</span></label>
-    <input id="teamIn" class="cin" value="${esc(CLOUD.team)}" placeholder="afgesproken teamcode" autocapitalize="none" autocorrect="off" spellcheck="false">
+    <label class="clab">Teamcode <span style="font-weight:400">(deel hem via de coach-link, niet met de hand)</span></label>
+    <div class="row" style="gap:8px">
+      <input id="teamIn" class="cin" value="${esc(CLOUD.team)}" placeholder="tik op Nieuwe code" autocapitalize="none" autocorrect="off" spellcheck="false" style="flex:1">
+      <button class="btn small" id="nieuweCode" type="button">Nieuwe code</button>
+    </div>
+    <p style="font-size:var(--fs-xs);color:var(--dim);margin:4px 0 0">Een zelfbedachte code als ‘jo14’ is te raden en kan botsen met een ander team. Laat de app er een maken.</p>
     <label class="clab">Jouw rol</label>
     <select id="roleIn" class="cin sel">
       <option value="editor" ${CLOUD.role==='editor'?'selected':''}>Coach — mag wijzigen</option>
@@ -1687,6 +1757,13 @@ function cloudSetupDialog(){
   const back=document.getElementById('mback');
   document.getElementById('mcancel').onclick=closeModal;
   back.onclick=e=>{if(e.target===back)closeModal();};
+  document.getElementById('nieuweCode').onclick=()=>{
+    // Twaalf tekens uit een alfabet zonder verwarrende letters; niet te raden.
+    const tekens='abcdefghjkmnpqrstuvwxyz23456789';
+    let c='';for(let i=0;i<12;i++)c+=tekens[Math.floor(Math.random()*tekens.length)];
+    document.getElementById('teamIn').value=c;
+    toast('Nieuwe teamcode gemaakt');
+  };
   document.getElementById('mok').onclick=()=>{
     const raw=document.getElementById('cfgIn').value.trim();
     let cfg=FB_CONFIG;
@@ -2094,7 +2171,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 79 &middot; 26 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 80 &middot; 26 augustus 2026</div>';
   return html;
 }
 
@@ -2915,6 +2992,8 @@ function bind(v){
   if(rtb)rtb.onclick=()=>render();
   const bok=v.querySelector('#botsingOk');
   if(bok)bok.onclick=()=>{botsing=null;render();};
+  const kpb=v.querySelector('#koppelBtn');
+  if(kpb)kpb.onclick=koppelvensterOpen;
   const kov=v.querySelector('#klokOver');
   if(kov)kov.onclick=klokOvernemen;
   const bex=v.querySelector('#backupExport');
@@ -3155,7 +3234,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=120;
+const APP_VERSION=121;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
