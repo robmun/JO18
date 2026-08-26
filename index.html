@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="123">
+<meta name="app-version" content="124">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1850,11 +1850,10 @@ function controleerSchema(){
   schemaFout = state.schedule ? schemaKlopt(state.schedule) : null;
   return schemaFout;
 }
-// Zichtbaar voor de eigenaar van het team, en voor iedereen die ?diagnose=1 achter
-// de link zet. Dat tweede is er omdat juist de coach die belt géén eigenaar is:
-// dan stuur je hem die link en leest hij voor wat er staat.
-function diagnoseZichtbaar(){
-  return CLOUD.rol==='eigenaar' || /[?&]diagnose=1/.test(location.search);
+// Voor iedereen zichtbaar, maar ingeklapt: hij staat er als je hem nodig hebt en
+// zit verder niet in de weg. Is er wél iets aan de hand, dan klapt hij vanzelf open.
+function diagnoseProbleem(){
+  return _fouten.length>0 || !!opslagFout || !!schemaFout || timerMismatch!==null;
 }
 function diagnoseTekst(){
   const r=[];
@@ -1868,11 +1867,17 @@ function diagnoseTekst(){
   return r.join('\n');
 }
 function diagnoseKaart(){
-  if(!diagnoseZichtbaar())return '';
-  return `<div class="card"><h2>Diagnose <span class="sub">${_fouten.length?_fouten.length+' fout'+(_fouten.length>1?'en':''):'schoon'}</span></h2>
+  const probleem=diagnoseProbleem();
+  const kop = probleem
+    ? (_fouten.length?_fouten.length+' fout'+(_fouten.length>1?'en':''):'let op')
+    : 'alles in orde';
+  return `<div class="card"><details ${probleem?'open':''}>
+    <summary style="cursor:pointer;list-style:none"><h2 style="display:inline">Diagnose <span class="sub">${kop}</span></h2></summary>
+    <p class="hint" style="margin:8px 0 8px">Gaat er iets mis? Kopieer dit en stuur het naar de beheerder van de app.</p>
     <pre style="white-space:pre-wrap;word-break:break-word;font-size:var(--fs-xs);color:var(--dim);margin:0 0 10px;font-family:inherit">${esc(diagnoseTekst())}</pre>
     <button class="btn ghost full" id="diagKopieer">&#128203; Kopieer voor de beheerder</button>
-    ${_fouten.length?'<button class="btn ghost full" id="diagWis" style="margin-top:8px">Lijst wissen</button>':''}</div>`;
+    ${_fouten.length?'<button class="btn ghost full" id="diagWis" style="margin-top:8px">Lijst wissen</button>':''}
+  </details></div>`;
 }
 function globaleBanners(){
   let h='';
@@ -2205,7 +2210,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 82 &middot; 26 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 83 &middot; 26 augustus 2026</div>';
   return html;
 }
 
@@ -3278,7 +3283,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=123;
+const APP_VERSION=124;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
