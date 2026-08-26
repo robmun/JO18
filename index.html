@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="119">
+<meta name="app-version" content="120">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1478,20 +1478,26 @@ function cloudUpdateCard(){
 
 
 /* ============ Ongedaan maken (één stap terug) ============ */
-let _undo=null;        // bewaarde momentopname van het schema vóór een actie
-let _undoLabel='';
+// Stapel van tien momentopnamen. Eén stap was genoeg toen er alleen een knop was,
+// maar schudden is een gebaar dat je een paar keer achter elkaar doet; dan wil je
+// ook een paar stappen terug kunnen.
+const UNDO_MAX=10;
+let _undoStack=[];
 function snapshot(label){
-  // bewaar alleen het schema-deel (opstelling/wissels); spelers en regels blijven leidend
-  try{ _undo=state.schedule?JSON.parse(JSON.stringify(state.schedule)):null; _undoLabel=label||''; }catch(e){ _undo=null; }
+  try{
+    _undoStack.push({schema:state.schedule?JSON.parse(JSON.stringify(state.schedule)):null,label:label||''});
+    if(_undoStack.length>UNDO_MAX)_undoStack.shift();
+  }catch(e){}
 }
-function canUndo(){return _undo!==undefined && _undo!==null || _undoLabel!=='';}
+function canUndo(){return _undoStack.length>0;}
+function undoLabel(){return _undoStack.length?_undoStack[_undoStack.length-1].label:'';}
 function doUndo(){
   if(cloudViewerBlocked())return;
-  if(!_undoLabel){toast('Niets om ongedaan te maken');return;}
-  state.schedule=_undo?JSON.parse(JSON.stringify(_undo)):null;
-  _undo=null;_undoLabel='';
+  if(!_undoStack.length){toast('Niets om ongedaan te maken');return;}
+  const stap=_undoStack.pop();
+  state.schedule=stap.schema?JSON.parse(JSON.stringify(stap.schema)):null;
   selChip=null;save();render();sendSwapTimesToTimer();
-  toast('Ongedaan gemaakt');
+  toast('Ongedaan gemaakt'+(_undoStack.length?' \u2014 nog '+_undoStack.length+' stap'+(_undoStack.length>1?'pen':'')+' terug mogelijk':''));
 }
 
 /* ============ Delen met co-coach ============ */
@@ -1727,8 +1733,51 @@ let timerMismatch=null;
 let botsing=null;
 // Meldingen die op elk tabblad horen te staan en niet weg te tikken zijn:
 // het gaat om verlies van gegevens, niet om een tip.
+// Is dit schema intern consistent? Een schema kan beschadigd binnenkomen via een
+// deel-link van een andere versie, een half afgebroken synchronisatie of een oude
+// back-up. Zonder deze controle tekent de app gewoon door: een onbekende speler
+// verdwijnt stil van het veld en een dubbel opgestelde speler valt niemand op.
+function schemaKlopt(sch,st){
+  st=st||state;
+  if(!sch||!Array.isArray(sch.assignments))return 'geen geldig schema';
+  const perQ=sch.perQ, B=perQ*4;
+  if(!perQ||sch.assignments.length!==B)return 'aantal blokken klopt niet';
+  const bekend=new Set(st.players.map(p=>p.id));
+  for(let b=0;b<B;b++){
+    const a=sch.assignments[b];
+    if(!a||typeof a!=='object')return 'blok '+(b+1)+' ontbreekt';
+    const q=Math.floor(b/perQ);
+    const nodig=positionsOfQ(q,st.rules).length;
+    const ids=Object.values(a);
+    if(Object.keys(a).length!==nodig)return 'in Q'+(q+1)+' staan '+Object.keys(a).length+' spelers in plaats van '+nodig;
+    if(new Set(ids).size!==ids.length){
+      const dubbel=ids.find((x,i)=>ids.indexOf(x)!==i);
+      const p=st.players.find(y=>y.id===dubbel);
+      return (p?p.name:'een speler')+' staat twee keer tegelijk op het veld in Q'+(q+1);
+    }
+    for(const id of ids) if(!bekend.has(id))return 'onbekende speler in Q'+(q+1);
+  }
+  return null;   // in orde
+}
+// Kleine foutenlijst voor als een coach belt met 'hij doet het niet'. Blijft in het
+// geheugen; te zien onderaan het spelerstabblad.
+const _fouten=[];
+function onthoudFout(waar,e){
+  try{
+    _fouten.unshift({t:new Date().toLocaleTimeString('nl-NL'),waar,wat:String(e&&e.message||e)});
+    if(_fouten.length>20)_fouten.pop();
+  }catch(x){}
+}
+let schemaFout=null;
+function controleerSchema(){
+  schemaFout = state.schedule ? schemaKlopt(state.schedule) : null;
+  return schemaFout;
+}
 function globaleBanners(){
   let h='';
+  if(schemaFout){
+    h+=`<div class="banner err">&#9888;&#65039; <span>Het wisselschema is beschadigd: ${esc(schemaFout)}. Genereer het opnieuw.</span><button class="btn small" data-regen>Opnieuw genereren</button></div>`;
+  }
   if(botsing){
     h+=`<div class="banner err">&#9888;&#65039; <span>${esc(botsing.wie)} wijzigde op hetzelfde moment iets. Eén van de twee wijzigingen is overschreven &mdash; controleer de opstelling en de spelerslijst.</span><button class="btn small" id="botsingOk">Begrepen</button></div>`;
   }
@@ -2045,7 +2094,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 78 &middot; 26 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 79 &middot; 26 augustus 2026</div>';
   return html;
 }
 
@@ -2178,6 +2227,8 @@ function regenerate(){
   wisUitStatus();                      // nieuw schema: blessurestatus vervalt
   state.schedule=buildSchedule(state);
   state.genHash=inputHash(state);
+  const stuk=state.schedule?schemaKlopt(state.schedule):'geen schema';
+  if(stuk){onthoudFout('genereren',new Error(stuk));}
   const conflicts=detectRuleConflicts().concat(formConflicts());
   save();render();
   sendSwapTimesToTimer();
@@ -2667,7 +2718,7 @@ function renderQuarter(q){
   }
   tekst+=`</div>`;
   if(!(CLOUD.on&&CLOUD.role==='viewer')){
-    if(_undoLabel)tekst+=`<button class="btn ghost full" id="undoBtn" style="margin-bottom:8px">&#8634; Ongedaan maken (${esc(_undoLabel)})</button>`;
+    if(canUndo())tekst+=`<button class="btn ghost full" id="undoBtn" style="margin-bottom:8px">&#8634; Ongedaan maken (${esc(undoLabel())})${_undoStack.length>1?' &middot; '+_undoStack.length+' stappen':''}</button>`;
     if(wedstrijdBezig()){
       // De wedstrijd loopt: geen herplanknoppen. Wat er onderweg misgaat regel je door
       // een speler aan te tikken; het schema zelf laat je met rust.
@@ -2705,6 +2756,7 @@ let _lastTab=null;
 let zelftestModus=false;
 function render(){
   if(zelftestModus)return;   // de uitslag mag niet worden overschreven door een late hertekening
+  controleerSchema();
   if(CLOUD.on&&CLOUD.role==='viewer'&&['timer','spelers','regels'].includes(activeTab)){activeTab='q0';}
   wakeLockBijwerken();
   const _sc=document.getElementById('view');
@@ -2746,10 +2798,22 @@ function render(){
     return;
   }
   th.classList.remove('show'); // iframe blijft bestaan: timer loopt door
+  // Vangnet: gaat het opbouwen van de inhoud mis, dan werd innerHTML nooit toegewezen
+  // en bleef de vórige inhoud staan. Het tabblad zag er dan normaal uit maar reageerde
+  // nergens meer op — erger dan een leeg scherm, want je merkt het niet.
   const alarm=globaleBanners();
-  if(activeTab==='spelers')v.innerHTML=alarm+renderSpelers();
-  else if(activeTab==='regels')v.innerHTML=alarm+renderRegels();
-  else v.innerHTML=alarm+renderQuarter(Number(activeTab.slice(1)));
+  try{
+    if(activeTab==='spelers')v.innerHTML=alarm+renderSpelers();
+    else if(activeTab==='regels')v.innerHTML=alarm+renderRegels();
+    else v.innerHTML=alarm+renderQuarter(Number(activeTab.slice(1)));
+  }catch(err){
+    onthoudFout('tekenen '+activeTab,err);
+    v.innerHTML=alarm+`<div class="card"><h2>&#9888;&#65039; Er ging iets mis bij het tekenen</h2>
+      <p class="hint">De rest van de app werkt gewoon; dit tabblad kon niet worden opgebouwd.</p>
+      <p class="hint" style="opacity:.7;word-break:break-word">${esc(String(err&&err.message||err))}</p>
+      <button class="btn ghost full" id="retryBtn" style="margin-top:10px">&#8635; Opnieuw proberen</button>
+      <button class="btn ghost full" data-regen style="margin-top:8px">&#8635; Schema opnieuw genereren</button></div>`;
+  }
   bind(v);
   if(_slide){ v.classList.remove('slideL','slideR'); void v.offsetWidth; v.classList.add(_slide); }
   // Bij her-renderen op hetzelfde tabblad: scrollpositie behouden
@@ -2847,6 +2911,8 @@ function bind(v){
   if(sh)sh.onclick=shareState;
   const im=v.querySelector('#importShare');
   if(im)im.onclick=importSharePrompt;
+  const rtb=v.querySelector('#retryBtn');
+  if(rtb)rtb.onclick=()=>render();
   const bok=v.querySelector('#botsingOk');
   if(bok)bok.onclick=()=>{botsing=null;render();};
   const kov=v.querySelector('#klokOver');
@@ -3089,7 +3155,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=119;
+const APP_VERSION=120;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -3259,6 +3325,27 @@ function zelftest(){
       if(JSON.stringify(fresh.assignments[b])!==JSON.stringify(sch.assignments[b]))
         fout('herplannen: blok '+b+' is achteraf gewijzigd');
     ztControleer(st,fresh,'herplannen',fout);
+  });
+  test('Beschadigd schema wordt herkend',()=>{
+    const st=ztTeam(15); st.schedule=buildSchedule(st);
+    if(schemaKlopt(st.schedule,st))fout('een goed schema wordt ten onrechte afgekeurd');
+    const kapot=k=>{const c=JSON.parse(JSON.stringify(st.schedule));k(c);return schemaKlopt(c,st);};
+    const gevallen=[
+      ['dubbele speler',c=>{const a=c.assignments[0],ks=Object.keys(a);a[ks[1]]=a[ks[0]];}],
+      ['onbekende speler',c=>{const a=c.assignments[0];a[Object.keys(a)[0]]='bestaat-niet';}],
+      ['blok weg',c=>{c.assignments.pop();}],
+      ['lege plek',c=>{const a=c.assignments[0];delete a[Object.keys(a)[0]];}]
+    ];
+    gevallen.forEach(([naam,maak])=>{ if(!kapot(maak))fout('beschadigd schema niet herkend: '+naam); });
+  });
+  test('Tien stappen ongedaan maken',()=>{
+    const bewaar=_undoStack.slice(), bewaarSchema=state.schedule;
+    try{
+      _undoStack=[];
+      for(let i=0;i<14;i++)snapshot('stap '+i);
+      if(_undoStack.length!==UNDO_MAX)fout('stapel is '+_undoStack.length+' diep in plaats van '+UNDO_MAX);
+      if(undoLabel()!=='stap 13')fout('bovenste stap is '+undoLabel()+' in plaats van stap 13');
+    }finally{ _undoStack=bewaar; state.schedule=bewaarSchema; }
   });
   test('Wisselmomenten uit één bron',()=>{
     const st=ztTeam(15); st.schedule=buildSchedule(st);
@@ -3505,11 +3592,11 @@ function schudGebeurtenis(e){
 function schudVraag(){
   if(document.querySelector('#modalHost .modal'))return;   // er staat al een venster open
   if(CLOUD.on&&CLOUD.role==='viewer')return;
-  if(!_undoLabel){return;}                                  // niets om terug te draaien: niet storen
+  if(!canUndo()){return;}                                   // niets om terug te draaien: niet storen
   if('vibrate' in navigator)navigator.vibrate(30);
   confirmDialog({
     title:'Ongedaan maken?',
-    body:'Laatste actie: '+_undoLabel,
+    body:'Laatste actie: '+undoLabel()+(_undoStack.length>1?' (daarna nog '+(_undoStack.length-1)+' stappen terug mogelijk)':''),
     okLabel:'Ongedaan maken',
     cancelLabel:'Laat maar',
     onOk:doUndo
