@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="124">
+<meta name="app-version" content="125">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -39,7 +39,10 @@
   --shadow-xl:0 20px 56px rgba(4,14,32,.55);
   --edge-light:inset 0 1px 0 rgba(255,255,255,.09);
   /* Lettergroottes */
-  --fs-xs:11px; --fs-sm:12px; --fs-md:13px; --fs-base:14px; --fs-lg:16px; --fs-xl:19px; --fs-h:15px;
+  /* Schaal met echte stappen. Stond eerder op 11/12/13/14/16/19/15 — vier van die
+     maten lagen binnen vier pixels, waardoor een kaarttitel nauwelijks boven de
+     gewone tekst uitkwam en je alles moest lezen om iets te vinden. */
+  --fs-xs:11px; --fs-sm:12px; --fs-md:13px; --fs-base:15px; --fs-lg:17px; --fs-xl:19px; --fs-h:18px;
   /* Afstanden */
   --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
 }
@@ -161,6 +164,10 @@ body.sun .banner.err{background:#fdeae6;border-color:#b3241a;color:#7a1811}
   backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
 }
 .banner button{margin-left:auto;flex-shrink:0}
+/* Iconen in knoppen en koppen: op de basislijn, met vaste tussenruimte */
+.ico{flex-shrink:0;vertical-align:-3px;margin-right:7px}
+.btn .ico{margin-right:8px}
+h2 .ico{vertical-align:-3px;margin-right:7px}
 .btn{
   border:none;border-radius:var(--r-md);padding:11px 16px;font-size:var(--fs-base);font-weight:700;
   background:linear-gradient(135deg,#5b95e6,#3b6fc4);color:#fff;
@@ -172,7 +179,14 @@ body.sun .banner.err{background:#fdeae6;border-color:#b3241a;color:#7a1811}
 .iconbtn:active{transform:scale(.90)}
 .tab{transition:transform .12s cubic-bezier(.34,1.56,.64,1)}
 .tab:active{transform:scale(.93)}
+/* Drie soorten knoppen. Ze zagen er alle drie hetzelfde uit, terwijl de een een
+   vangnet is, de ander je hele wedstrijd weggooit en de derde een wedstrijdactie is.
+   Gevuld = de meest waarschijnlijke actie, doorzichtig = de rest,
+   rood omlijnd = alles wat iets weggooit. */
 .btn.ghost{background:var(--glass);border:1px solid var(--stroke);box-shadow:none;color:var(--txt)}
+.btn.gevaar{background:transparent;border:1.5px solid rgba(255,140,120,.55);color:#ffb3a3;box-shadow:none}
+.btn.gevaar:active{background:rgba(255,120,100,.14)}
+body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
 .btn.small{padding:8px 12px;font-size:var(--fs-md);border-radius:var(--r-md)}
 .btn.full{width:100%}
 .btn.danger{background:rgba(214,81,47,.18);border:1px solid rgba(214,81,47,.5);color:#ffb39e;box-shadow:none}
@@ -237,9 +251,15 @@ body.sun .banner{background:#fff6e0;border-color:#c98a00;color:#5c3d00}
 body.sun .modal{background:#ffffff;color:#0b1626;border:1px solid rgba(15,32,64,.25)}
 body.sun .modal-back{background:rgba(10,20,40,.45)}
 body.sun #toast{background:#10203c;color:#fff}
-body.sun .sw i{background:rgba(15,32,64,.22);border-color:rgba(15,32,64,.30)}
+/* Zonstand: aanwezig moet zichtbaar blijven maar rustig, afwezig springt eruit.
+   Zonder de eerste regel werd het schuifje wit-op-wit en verdween het helemaal. */
+body.sun .sw i{background:#e7ecf5;border-color:rgba(15,32,64,.32)}
 body.sun .sw i:after{color:rgba(15,32,64,.75)}
-body.sun .sw input:checked + i:after{color:#fff}
+body.sun .sw input:checked + i{background:#e7ecf5;border-color:rgba(15,32,64,.32)}
+body.sun .sw input:checked + i:after{color:rgba(15,32,64,.75)}
+body.sun .sw input:not(:checked) + i{background:linear-gradient(135deg,#e5a63a,#c17f12);border-color:#a06a0e}
+body.sun .sw input:not(:checked) + i:after{color:#fff}
+body.sun .dim-row .pname b{text-decoration-color:#b3781a}
 body.sun .rule .del{background:#fdeae6;color:#a01a10;border:1px solid rgba(179,36,26,.45)}
 body.sun .chip .tag .k{color:#b3241a}
 /* De tabbalk is het belangrijkst: hoog contrast, geen glas */
@@ -270,7 +290,10 @@ body.sun .veldklok{border-color:#fff}
 .sw input{opacity:0;width:100%;height:100%;position:absolute;z-index:2}
 .sw i{position:absolute;inset:0;border-radius:var(--r-pill);background:rgba(255,255,255,.16);transition:.18s;border:1px solid rgba(255,255,255,.14)}
 .sw i:before{content:"";position:absolute;width:22px;height:22px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.18s;box-shadow:var(--shadow-sm)}
-.sw input:checked + i{background:linear-gradient(135deg,#56c777,#2f9e5e)}
+/* Aanwezig was fel groen: zestien schreeuwende pillen voor de nórmale toestand.
+   Nu rustig; afwezig krijgt amber, want dat is wat je zoekt. */
+.sw input:checked + i{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.30)}
+.sw input:not(:checked) + i{background:linear-gradient(135deg,#d2952f,#9c6a16);border-color:rgba(255,225,170,.5)}
 .sw input:checked + i:before{left:calc(100% - 24px)}
 /* Woordje in het schuifje, aan de kant waar de knop niet staat */
 .sw i:after{position:absolute;top:0;line-height:28px;font-size:8.5px;font-weight:700;
@@ -296,7 +319,9 @@ body.sun .veldklok{border-color:#fff}
 .editpane .idrow input.dupe{border-color:#e8a24a}
 .pname{flex:1;min-width:0}
 .pname b{font-size:var(--fs-h);display:block}
-.pname span{font-size:var(--fs-xs);color:var(--dim);display:block;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* De voorkeursposities stonden op 11px in gedempt grijs, alsof het een voetnoot was —
+   terwijl je er juist naar kijkt als je de opstelling controleert. */
+.pname span{font-size:var(--fs-md);color:var(--dim);display:block;margin-top:3px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pname input{width:100%;background:rgba(255,255,255,.10);border:1px solid var(--stroke);border-radius:var(--r-sm);color:var(--txt);font-size:var(--fs-h);font-weight:700;padding:7px 9px}
 .chev{background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.28);color:var(--txt);
   width:46px;height:46px;border-radius:var(--r-sm);flex-shrink:0;
@@ -315,7 +340,12 @@ select,option{font-size:var(--fs-base)}
   background:rgba(255,255,255,.10) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6"><path d="M1 1l4 4 4-4" stroke="white" stroke-opacity=".6" fill="none" stroke-width="1.5"/></svg>') no-repeat right 10px center;
   border:1px solid var(--stroke);border-radius:var(--r-sm);color:var(--txt);padding:9px 26px 9px 10px;font-weight:600;
 }
-.dim-row{opacity:.4}
+/* Aanwezig is de normale toestand en hoort niet te schreeuwen; afwezig is de
+   uitzondering waar je zaterdagochtend naar zoekt. Vandaar deze omkering:
+   het schuifje was fel groen bij aanwezig, nu is het rustig, en afwezig valt op. */
+.dim-row{opacity:.55}
+.dim-row .pname b{text-decoration:line-through;text-decoration-thickness:1.5px;
+  text-decoration-color:rgba(255,190,120,.85)}
 .sel.lockedalt,.sel:disabled{opacity:.4;cursor:not-allowed}
 .num.dupe{border-color:rgba(255,140,90,.85);background:rgba(255,120,70,.16)}
 /* ---------- Regels ---------- */
@@ -464,7 +494,9 @@ body.with-a2hs main{padding-bottom:calc(230px + env(safe-area-inset-bottom))}
 .wline .pl-in{color:var(--sem-in)}
 .wline .pl-out{color:var(--sem-out)}
 .wline .pl-mv{color:#ffffff;font-weight:800}
-.wline .posname{color:var(--txt);font-size:var(--fs-md)}
+/* Positienaam onderscheidt zich op kleur, niet op grootte: met de ruimere
+   letterschaal viel hij anders weg midden in dezelfde zin. */
+.wline .posname{color:var(--dim);font-size:inherit}
 .wbench{margin-top:7px;font-size:var(--fs-sm);color:var(--dim)}
 .empty{font-size:var(--fs-md);color:var(--dim);font-style:italic}
 /* ---------- Timer-tab ---------- */
@@ -476,7 +508,8 @@ body.timermode .appbar{display:none}
 #timerHost.show{display:block}
 #timerHost iframe{width:100%;height:100%;border:none;display:block}
 /* ---------- Dialoog (bevestiging / invoer) ---------- */
-.modal-back{position:fixed;inset:0;z-index:70;background:rgba(4,10,24,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;padding:0 14px calc(18px + env(safe-area-inset-bottom));animation:fadeIn .16s ease}
+/* Boven de melding: die zweeft op 99 en dekte anders de knoppen van het venster af. */
+.modal-back{position:fixed;inset:0;z-index:120;background:rgba(4,10,24,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;padding:0 14px calc(18px + env(safe-area-inset-bottom));animation:fadeIn .16s ease}
 .modal-back.center{align-items:center;padding-bottom:14px}
 .modal{width:100%;max-width:430px;background:rgba(20,40,74,.96);border:1px solid rgba(255,255,255,.16);border-radius:var(--r-xl);padding:18px 18px 16px;box-shadow:var(--shadow-xl), var(--edge-light);animation:slideUp .22s cubic-bezier(.2,.8,.25,1)}
 .modal h3{font-size:17px;font-weight:800;margin-bottom:7px;letter-spacing:-.2px}
@@ -500,7 +533,10 @@ body.sun .warnbox.info .wt{color:#0b2a5c}
 body.sun .warnbox.info .wx{border-color:#12408f;color:#0b2a5c}
 /* ---------- Toast ---------- */
 #toast{
-  position:fixed;left:50%;bottom:calc(100px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
+  /* Vlak boven de tabbalk. Stond op 100px en dekte dan juist de inhoud af waar de
+     melding over ging — bij een net gegenereerd schema viel hij over 'Wissels in Q1'. */
+  position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));
+  transform:translateX(-50%) translateY(20px);max-width:min(92vw,420px);text-align:center;
   background:rgba(15,30,60,.92);border:1px solid var(--stroke);color:var(--txt);
   padding:11px 18px;border-radius:var(--r-lg);font-size:var(--fs-md);font-weight:600;z-index:99;
   opacity:0;pointer-events:none;transition:opacity .22s ease, transform .32s cubic-bezier(.34,1.56,.64,1);max-width:88vw;text-align:center;
@@ -592,7 +628,7 @@ body.viewer #app{padding-top:34px}
 
 <main id="view"></main>
 <div id="timerHost"><iframe title="GHC Wedstrijdtimer"></iframe></div>
-<div id="viewerBar">&#128065;&#65039; Kijkstand — spelers kunnen alleen lezen. Coaches/manager kan wijzigen.</div>
+<div id="viewerBar">${ico("oog")}Kijkstand — spelers kunnen alleen lezen. Coaches/manager kan wijzigen.</div>
 <div id="scrollThumb"></div>
 <div id="scrollHint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
 
@@ -1513,15 +1549,15 @@ function cloudUpdateCard(){
     t+=' &middot; rol: '+(CLOUD.role==='viewer'?'Kijker (alleen lezen)':'Coach (mag wijzigen)');
     // Wat de database van dit toestel vindt — dat is bepalender dan de zelfgekozen rol.
     if(CLOUD.rol==='eigenaar'){
-      t+='<br>&#128273; Jij bent de eigenaar van dit team &middot; <button class="btn small" id="koppelBtn">Coach toelaten</button>';
+      t+='<br>${ico("sleutel",16)}Jij bent de eigenaar van dit team &middot; <button class="btn small" id="koppelBtn">Coach toelaten</button>';
       if(Number(CLOUD.koppelTot||0)>Date.now()){
         const min=Math.ceil((CLOUD.koppelTot-Date.now())/60000);
         t+='<br>&#9203; Koppelen staat nog '+min+' min open &mdash; laat je mede-coach nu de coach-link openen.';
       }
     }else if(CLOUD.rol==='coach'){
-      t+='<br>&#128273; Je bent gekoppeld als coach.';
+      t+='<br>${ico("sleutel",16)}Je bent gekoppeld als coach.';
     }else if(CLOUD.rol==='wacht'){
-      t+='<br>&#9888;&#65039; <b>Je bent nog niet gekoppeld.</b> Je kunt meelezen maar niet wijzigen. Vraag de hoofdcoach om op ‘Coach toelaten’ te tikken en open daarna deze app opnieuw.';
+      t+='<br>${ico("waarschuwing")}<b>Je bent nog niet gekoppeld.</b> Je kunt meelezen maar niet wijzigen. Vraag de hoofdcoach om op ‘Coach toelaten’ te tikken en open daarna deze app opnieuw.';
     }
     if(CLOUD.lastAt){
       const d=new Date(CLOUD.lastAt);
@@ -1535,7 +1571,7 @@ function cloudUpdateCard(){
             : 'Klok wordt bediend door '+esc(CLOUD.klokBaas.naam))
           +' &middot; <button class="btn small" id="klokOver">Klok overnemen</button>';
       else if(CLOUD.klokBaas)
-        t+='<br>&#9201; Jij bedient de klok';
+        t+='<br>${ico("klok",16)}Jij bedient de klok';
     }
   }
   el.innerHTML=t;
@@ -1875,20 +1911,20 @@ function diagnoseKaart(){
     <summary style="cursor:pointer;list-style:none"><h2 style="display:inline">Diagnose <span class="sub">${kop}</span></h2></summary>
     <p class="hint" style="margin:8px 0 8px">Gaat er iets mis? Kopieer dit en stuur het naar de beheerder van de app.</p>
     <pre style="white-space:pre-wrap;word-break:break-word;font-size:var(--fs-xs);color:var(--dim);margin:0 0 10px;font-family:inherit">${esc(diagnoseTekst())}</pre>
-    <button class="btn ghost full" id="diagKopieer">&#128203; Kopieer voor de beheerder</button>
+    <button class="btn ghost full" id="diagKopieer">${ico("klembord")}Kopieer voor de beheerder</button>
     ${_fouten.length?'<button class="btn ghost full" id="diagWis" style="margin-top:8px">Lijst wissen</button>':''}
   </details></div>`;
 }
 function globaleBanners(){
   let h='';
   if(schemaFout){
-    h+=`<div class="banner err">&#9888;&#65039; <span>Het wisselschema is beschadigd: ${esc(schemaFout)}. Genereer het opnieuw.</span><button class="btn small" data-regen>Opnieuw genereren</button></div>`;
+    h+=`<div class="banner err">${ico("waarschuwing")}<span>Het wisselschema is beschadigd: ${esc(schemaFout)}. Genereer het opnieuw.</span><button class="btn small" data-regen>Opnieuw genereren</button></div>`;
   }
   if(botsing){
-    h+=`<div class="banner err">&#9888;&#65039; <span>${esc(botsing.wie)} wijzigde op hetzelfde moment iets. Eén van de twee wijzigingen is overschreven &mdash; controleer de opstelling en de spelerslijst.</span><button class="btn small" id="botsingOk">Begrepen</button></div>`;
+    h+=`<div class="banner err">${ico("waarschuwing")}<span>${esc(botsing.wie)} wijzigde op hetzelfde moment iets. Eén van de twee wijzigingen is overschreven &mdash; controleer de opstelling en de spelerslijst.</span><button class="btn small" id="botsingOk">Begrepen</button></div>`;
   }
   if(opslagFout){
-    h+=`<div class="banner err">&#9888;&#65039; <span>Opslaan op dit toestel lukt niet (${opslagFout==='vol'?'geheugen vol':'geblokkeerd door de browser'}). Je wijzigingen zijn er nu wél, maar zijn na het sluiten van de app weg. Maak een back-up via Spelers &rarr; Back-up.</span></div>`;
+    h+=`<div class="banner err">${ico("waarschuwing")}<span>Opslaan op dit toestel lukt niet (${opslagFout==='vol'?'geheugen vol':'geblokkeerd door de browser'}). Je wijzigingen zijn er nu wél, maar zijn na het sluiten van de app weg. Maak een back-up via Spelers &rarr; Back-up.</span></div>`;
   }
   return h;
 }
@@ -1897,7 +1933,7 @@ function warnBoxesHTML(){
   if(timerMismatch!==null)
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">timer.html loopt achter: timer is versie ${shownVer(timerMismatch)}, de app is versie ${shownVer(APP_VERSION)}. Upload timer.html opnieuw naar GitHub.</div></div>`;
   w+=swapWarnings.map((t,i)=>`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(t)}</div><button class="wx" data-warnx="${i}" aria-label="Melding sluiten">&#10005;</button></div>`).join('');
-  const inf=planInfo.map((t,i)=>`<div class="warnbox info"><div class="wi">&#8505;&#65039;</div><div class="wt">${esc(t)}</div><button class="wx" data-infox="${i}" aria-label="Melding sluiten">&#10005;</button></div>`).join('');
+  const inf=planInfo.map((t,i)=>`<div class="warnbox info"><div class="wi">${ico("info")}</div><div class="wt">${esc(t)}</div><button class="wx" data-infox="${i}" aria-label="Melding sluiten">&#10005;</button></div>`).join('');
   return w+inf;
 }
 
@@ -2043,7 +2079,7 @@ function renderTabbar(){
 
 /* ============ Tab: Spelers ============ */
 function prefSummary(p){
-  if(p.prefs&&p.prefs[0]==='keeper')return '\uD83E\uDDE4 Keeper';
+  if(p.prefs&&p.prefs[0]==='keeper')return ico('keeper',14)+'Keeper';
   const parts=(p.prefs||[]).filter(Boolean).map((x,i)=>POSMAP[x]?POSMAP[x].kort:'').filter(Boolean);
   return parts.length?parts.join(' · '):'Geen voorkeur';
 }
@@ -2073,33 +2109,33 @@ function renderSpelers(){
   }
   if(isWide())html+=`<div class="twocol"><div>`;
   html+=`<div class="card"><h2>Delen met co-coach</h2>
-    <button class="btn ghost full" id="shareState">&#128228; Deel actuele stand</button>
-    <button class="btn ghost full" id="importShare" style="margin-top:8px">&#128229; Gedeelde link overnemen&#8230;</button>
+    <button class="btn ghost full" id="shareState">${ico("delen")}Deel actuele stand</button>
+    <button class="btn ghost full" id="importShare" style="margin-top:8px">${ico("ontvangen")}Gedeelde link overnemen&#8230;</button>
     <p class="hint" style="margin-top:10px">Stuur de link in de coachgroep. De ontvanger tikt op de link, of kopieert hem en kiest hier &quot;Gedeelde link overnemen&quot;. Aanwezigheid, regels en het schema gaan allemaal mee.</p></div>`;
   if(isWide())html+=`</div><div>`;
   html+=`<div class="card"><h2>Samenwerken <span class="sub">live &middot; nieuw</span></h2>
     <p class="hint" style="margin:0 0 10px">E&#233;n gedeelde versie voor coach en manager, met live-sync. Je mede-coach hoeft alleen dezelfde teamcode in te vullen. Standaard staat dit uit; je huidige werkwijze verandert niet tot je verbindt.</p>
     <div id="cloudStatus" class="cloudstat">Uit — alleen deze telefoon</div>
-    <button class="btn ghost full" id="cloudSetup" style="margin-top:10px">&#9881;&#65039; Instellen&#8230;</button>
-    <button class="btn ghost full" id="cloudToggle" style="margin-top:8px">&#128268; Verbinden / verbreken</button>
-    <button class="btn ghost full" id="cloudShareView" style="margin-top:8px">&#128065;&#65039; Deel kijk-link voor spelers</button>
-    <button class="btn ghost full" id="cloudShareCoach" style="margin-top:8px">&#128100; Deel coach-link (mag wijzigen)</button>
+    <button class="btn ghost full" id="cloudSetup" style="margin-top:10px">${ico("tandwiel")}Instellen&#8230;</button>
+    <button class="btn ghost full" id="cloudToggle" style="margin-top:8px">${ico("stekker")}Verbinden / verbreken</button>
+    <button class="btn ghost full" id="cloudShareView" style="margin-top:8px">${ico("oog")}Deel kijk-link voor spelers</button>
+    <button class="btn ghost full" id="cloudShareCoach" style="margin-top:8px">${ico("persoon")}Deel coach-link (mag wijzigen)</button>
     <p class="hint" style="margin-top:10px">De kijk-link geeft spelers alleen leesrechten; ze zien altijd de laatste stand, maar kunnen niets wijzigen. De coach-link is voor je mede-coach.</p>
   </div>`;
   html+=`<div class="card"><h2>Back-up</h2>
-    <button class="btn ghost full" id="backupExport">&#128190; Opslaan als back-upbestand</button>
-    <button class="btn ghost full" id="backupImport" style="margin-top:8px">&#128194; Herstel uit back-up&#8230;</button>
+    <button class="btn ghost full" id="backupExport">${ico("opslaan")}Opslaan als back-upbestand</button>
+    <button class="btn ghost full" id="backupImport" style="margin-top:8px">${ico("map")}Herstel uit back-up&#8230;</button>
     <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p></div>`;
   // Schudden vraagt op iOS eenmalig toestemming. Wordt die geweigerd of gemist, dan
   // komt die vraag nooit meer vanzelf terug — vandaar deze knop.
   html+=diagnoseKaart();
   html+=`<div class="card"><h2>Schudden om ongedaan te maken</h2>
     <p class="hint" style="margin-bottom:10px">${
-      _schudStatus==='aan'?'&#9989; Staat aan. Schud je telefoon om de laatste actie terug te draaien.'
-      :_schudStatus==='geweigerd'?'&#10060; Je hebt de bewegingssensor geweigerd. Tik hieronder om het opnieuw te vragen; lukt dat niet, zet dan Bewegen en ori&#235;ntatie aan bij Instellingen &rarr; Safari.'
+      _schudStatus==='aan'?'&#10003; Staat aan. Schud je telefoon om de laatste actie terug te draaien.'
+      :_schudStatus==='geweigerd'?ico("kruis",16)+'Je hebt de bewegingssensor geweigerd. Tik hieronder om het opnieuw te vragen; lukt dat niet, zet dan Bewegen en ori&#235;ntatie aan bij Instellingen &rarr; Safari.'
       :_schudStatus==='kan niet'?'Dit toestel heeft geen bruikbare bewegingssensor.'
       :'Nog niet aangezet. iOS vraagt eenmalig toestemming voor de bewegingssensor.'}</p>
-    <button class="btn ghost full" id="schudBtn">&#128242; Schudden ${_schudStatus==='aan'?'opnieuw instellen':'aanzetten'}</button></div>`;
+    <button class="btn ghost full" id="schudBtn">${ico("telefoon")}Schudden ${_schudStatus==='aan'?'opnieuw instellen':'aanzetten'}</button></div>`;
   if(isWide())html+=`</div></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Keeper instellen? Geef &#233;&#233;n speler &#39;Keeper&#39; als eerste voorkeur via &#9662;. Daar zet je ook de aanvoerder aan &mdash; die krijgt een goud randje in de opstelling. Alles wordt automatisch bewaard op dit toestel.</p>`;
   return html;
@@ -2118,7 +2154,7 @@ function playerRow(p){
   if(open){
     const opts=(sel)=>`<option value="">—</option>`+POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.name}</option>`).join('');
     // Eerste voorkeur kan óók 'Keeper' zijn (alleen hier, niet als alternatief).
-    const optsK=(sel)=>`<option value="">—</option><option value="keeper" ${sel==='keeper'?'selected':''}>&#129508; Keeper</option>`+POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.name}</option>`).join('');
+    const optsK=(sel)=>`<option value="">—</option><option value="keeper" ${sel==='keeper'?'selected':''}>Keeper</option>`+POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.name}</option>`).join('');
     const isK=p.prefs[0]==='keeper';
     row+=`<div class="editpane"><div class="idrow">
       <label class="numlbl">Rugnummer<input class="${dupNum(p)?'dupe':''}" type="number" inputmode="numeric" data-act="num" data-id="${p.id}" value="${p.num??''}" placeholder="&ndash;"></label>
@@ -2142,7 +2178,7 @@ function playerRow(p){
         <span><b class="captbadge">C</b></span>
       </div>
     </div>
-    ${isK?`<p class="hint" style="margin-top:8px">&#129508; Deze speler is de keeper: staat de hele wedstrijd op doel en telt niet mee in de veldwissels.</p>`:''}</div>`;
+    ${isK?`<p class="hint" style="margin-top:8px">${ico("keeper",16)}Deze speler is de keeper: staat de hele wedstrijd op doel en telt niet mee in de veldwissels.</p>`:''}</div>`;
   }
   return row+`</div>`;
 }
@@ -2210,7 +2246,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 83 &middot; 26 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 84 &middot; 26 augustus 2026</div>';
   return html;
 }
 
@@ -2363,7 +2399,7 @@ function injuryDialog(){
   const veld=state.players.filter(p=>p.present && !p.uit && p.id!==state.keeperId);
   const h=document.getElementById('modalHost');
   h.innerHTML=`<div class="modal-back center" id="mback"><div class="modal" role="dialog" aria-modal="true" style="max-width:min(94vw,460px)">
-    <h3>&#127973; Speler geblesseerd</h3>
+    <h3>${ico("blessure")}Speler geblesseerd</h3>
     <p style="font-size:var(--fs-sm);color:var(--dim);margin:0 0 8px">Wie moet eruit, en vanaf wanneer? De rest van de wedstrijd wordt opnieuw eerlijk verdeeld, waarbij spelers die tot nu toe weinig speelden voorrang krijgen.</p>
     <label class="clab">Speler</label>
     <select id="ijP" class="cin sel">${veld.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select>
@@ -2402,19 +2438,19 @@ function spelerActies(pid,q){
   const isKeeper=pid===((sch.keeperByQ&&sch.keeperByQ[q])||sch.keeperId);
   const knoppen=[];
   if(p.uit){
-    knoppen.push(['terug','&#128994; Weer beschikbaar &mdash; op de bank']);
-    knoppen.push(['weg','&#128683; Vandaag niet meer']);
+    knoppen.push(['terug',ico('vink')+'Weer beschikbaar &mdash; op de bank']);
+    knoppen.push(['weg',ico('verboden')+'Vandaag niet meer',true]);
   }else{
     if(!isKeeper){
-      knoppen.push(['ruil','&#8645; Wissel met een andere speler']);
-      knoppen.push(['blessure','&#127973; Blessure &mdash; even niet beschikbaar']);
+      knoppen.push(['ruil',ico('wissel')+'Wissel met een andere speler']);
+      knoppen.push(['blessure',ico('blessure')+'Blessure &mdash; even niet beschikbaar']);
     }
-    knoppen.push(['weg','&#128683; Vandaag niet meer beschikbaar']);
+    knoppen.push(['weg',ico('verboden')+'Vandaag niet meer beschikbaar',true]);
   }
   const waar=p.uit?'niet beschikbaar':(isKeeper?'op doel':(inVeld?'in het veld':'op de bank'));
   const html=`<div class="modal-back" id="mback"><div class="modal">
     <h3>${esc(p.name)} <span class="sub">${waar}</span></h3>
-    ${knoppen.map(([k,t])=>`<button class="btn ghost full" data-act2="${k}" style="margin-top:8px;text-align:left">${t}</button>`).join('')}
+    ${knoppen.map(([k,t,gevaar])=>`<button class="btn ${gevaar?'gevaar':'ghost'} full" data-act2="${k}" style="margin-top:8px;text-align:left">${t}</button>`).join('')}
     <button class="btn ghost full" id="mcancel" style="margin-top:14px">Annuleren</button>
   </div></div>`;
   document.getElementById('modalHost').innerHTML=html;
@@ -2752,7 +2788,7 @@ function renderQuarter(q){
   const presentNow=state.players.filter(p=>p.present).length;
   if(presentNow<11){
     html+=`<div class="card" style="text-align:center;padding:34px 18px">
-      <div style="font-size:30px;margin-bottom:8px">&#128101;</div>
+      <div style="margin-bottom:10px;color:var(--dim)">${ico("personen",34)}</div>
       <p style="font-size:15px;font-weight:700;margin-bottom:6px">Nog ${11-presentNow} speler${11-presentNow===1?'':'s'} nodig</p>
       <p class="hint" style="margin-bottom:16px">Er zijn minimaal 11 aanwezige spelers nodig voor een opstelling. Zet op het tabblad <b>Spelers</b> meer spelers op aanwezig${state.players.filter(p=>p.guest).length<2?' of voeg een gastspeler toe':''}.</p>
       <button class="btn ghost" data-goplayers>Naar Spelers</button></div>`;
@@ -2760,7 +2796,7 @@ function renderQuarter(q){
   }
   if(!state.schedule){
     html+=`<div class="card" style="text-align:center;padding:34px 18px">
-      <div style="font-size:30px;margin-bottom:8px">&#9917;</div>
+      <div style="margin-bottom:10px;color:var(--dim)">${ico("bal",34)}</div>
       <p style="font-size:15px;font-weight:700;margin-bottom:6px">Klaar om te genereren</p>
       <p class="hint" style="margin-bottom:16px">${presentNow} spelers aanwezig. Maak het wisselschema met eerlijke speelminuten voor alle vier de kwarten.</p>
       <button class="btn" data-regen>Opstelling genereren</button></div>`;
@@ -2770,8 +2806,8 @@ function renderQuarter(q){
     html+= wedstrijdBezig()
       // Tijdens de wedstrijd nooit het hele schema opnieuw: wat gespeeld is blijft staan
       // en het lopende blok ook, anders verdwijnen spelers halverwege van het veld.
-      ? `<div class="banner">&#9888;&#65039; Spelers of regels zijn gewijzigd. Verwerken kan vanaf het volgende wisselmoment.<button class="btn small" id="verwerkNuBtn">Verwerken</button></div>`
-      : `<div class="banner">&#9888;&#65039; Spelers of regels zijn gewijzigd.<button class="btn small" data-regen>Opnieuw genereren</button></div>`;
+      ? `<div class="banner">${ico("waarschuwing")}Spelers of regels zijn gewijzigd. Verwerken kan vanaf het volgende wisselmoment.<button class="btn small" id="verwerkNuBtn">Verwerken</button></div>`
+      : `<div class="banner">${ico("waarschuwing")}Spelers of regels zijn gewijzigd.<button class="btn small" data-regen>Opnieuw genereren</button></div>`;
   }
   html+=warnBoxesHTML();
   const sch=state.schedule, perQ=sch.perQ, blockLen=17.5/perQ;
@@ -2840,10 +2876,10 @@ function renderQuarter(q){
       // een speler aan te tikken; het schema zelf laat je met rust.
       tekst+=`<p class="hint" style="margin:0 0 10px">De wedstrijd loopt. Tik een speler aan om te wisselen of een blessure door te geven; opnieuw genereren kan pas als de klok op nul staat.</p>`;
     }else{
-      tekst+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
+      tekst+=`<button class="btn gevaar full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
       if(q>0)tekst+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
       // Vangnet als je vergeten bent de klok te starten: dan geef je het moment zelf op.
-      tekst+=`<button class="btn ghost full" id="injuryBtn" style="margin-bottom:8px">&#127973; Speler geblesseerd &mdash; herplan met gespeelde minuten</button>`;
+      tekst+=`<button class="btn full" id="injuryBtn" style="margin-bottom:8px">${ico("blessure")}Speler geblesseerd &mdash; herplan met gespeelde minuten</button>`;
     }
   }
   // Liggende tablet: veld links, wisselteksten rechts. Anders gewoon onder elkaar.
@@ -2924,7 +2960,7 @@ function render(){
     else v.innerHTML=alarm+renderQuarter(Number(activeTab.slice(1)));
   }catch(err){
     onthoudFout('tekenen '+activeTab,err);
-    v.innerHTML=alarm+`<div class="card"><h2>&#9888;&#65039; Er ging iets mis bij het tekenen</h2>
+    v.innerHTML=alarm+`<div class="card"><h2>${ico("waarschuwing")}Er ging iets mis bij het tekenen</h2>
       <p class="hint">De rest van de app werkt gewoon; dit tabblad kon niet worden opgebouwd.</p>
       <p class="hint" style="opacity:.7;word-break:break-word">${esc(String(err&&err.message||err))}</p>
       <button class="btn ghost full" id="retryBtn" style="margin-top:10px">&#8635; Opnieuw proberen</button>
@@ -3283,7 +3319,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=124;
+const APP_VERSION=125;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -3328,6 +3364,43 @@ window.addEventListener('pageshow',()=>checkForUpdate());
 window.addEventListener('focus',()=>checkForUpdate());
 setInterval(()=>{if(document.visibilityState==='visible')checkForUpdate();},60000);
 
+
+
+/* ============ Iconen ============
+   Eén set in dezelfde stijl als de tabbalk: lijnen van 2 pixels, ronde uiteinden,
+   kleur volgt de tekst. Hiervoor stonden er eenentwintig emoji in de app; die
+   renderen op elke iOS-versie anders, zijn meerkleurig in een strak palet, en op
+   knopformaat waren 'delen' en 'overnemen' nauwelijks te onderscheiden. */
+const ICONEN={
+  tandwiel:'<circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>',
+  bal:'<circle cx="12" cy="12" r="9"/><path d="M12 7.2 8.4 9.8l1.4 4.3h4.4l1.4-4.3z"/><path d="M12 3v4.2M4.6 9.4l3.8.4M19.4 9.4l-3.8.4M7.4 20l2.4-5.9M16.6 20l-2.4-5.9"/>',
+  delen:'<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>',
+  ontvangen:'<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="8 11 12 15 16 11"/><line x1="12" y1="2" x2="12" y2="15"/>',
+  oog:'<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/>',
+  persoon:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  personen:'<path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="3.6"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16.5 3.6a4 4 0 0 1 0 7"/>',
+  stekker:'<path d="M9 2v6M15 2v6"/><path d="M6 8h12v3a6 6 0 0 1-6 6 6 6 0 0 1-6-6z"/><path d="M12 17v5"/>',
+  opslaan:'<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+  map:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  klembord:'<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>',
+  telefoon:'<rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="10.5" y1="18.5" x2="13.5" y2="18.5"/>',
+  sleutel:'<circle cx="7.5" cy="15.5" r="4"/><path d="M10.4 12.6 21 2"/><path d="M17 6l2.5 2.5"/>',
+  keeper:'<path d="M6 11V7a2.5 2.5 0 0 1 5 0"/><path d="M11 11V5.5a2.5 2.5 0 0 1 5 0V11"/><path d="M16 11V8a2.5 2.5 0 0 1 5 0v6a7 7 0 0 1-7 7h-2a7 7 0 0 1-7-7v-3a2 2 0 0 1 4 0"/>',
+  blessure:'<rect x="3" y="5" width="18" height="15" rx="3"/><path d="M9 5V4a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 4v1"/><path d="M12 9.5v6M9 12.5h6"/>',
+  verboden:'<circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/>',
+  vink:'<circle cx="12" cy="12" r="9"/><polyline points="8 12.5 11 15.5 16.5 9"/>',
+  kruis:'<circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>',
+  klok:'<circle cx="12" cy="12" r="9"/><polyline points="12 6.5 12 12 16 14"/>',
+  wissel:'<polyline points="16 3 20 7 16 11"/><path d="M20 7H8a4 4 0 0 0-4 4"/><polyline points="8 21 4 17 8 13"/><path d="M4 17h12a4 4 0 0 0 4-4"/>',
+  waarschuwing:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13.5"/><line x1="12" y1="17" x2="12" y2="17"/>',
+  info:'<circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><line x1="12" y1="7.8" x2="12" y2="7.8"/>'
+};
+function ico(naam,grootte){
+  const d=ICONEN[naam]; if(!d)return '';
+  const g=grootte||18;
+  return `<svg class="ico" width="${g}" height="${g}" viewBox="0 0 24 24" fill="none" stroke="currentColor" `
+    +`stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+}
 
 /* ============ Zelftest ============
    Open index.html?zelftest=1 en de app rekent de planner honderden keren door met
@@ -3494,9 +3567,9 @@ function toonZelftest(){
   document.body.classList.remove('timermode');
   document.getElementById('timerHost').classList.remove('show');
   document.getElementById('view').innerHTML=
-    `<div class="card"><h2>Zelftest ${goed?'&#9989; alles in orde':'&#10060; '+fouten.length+' probleem'+(fouten.length>1?'en':'')}</h2>
+    `<div class="card"><h2>Zelftest ${goed?'&#10003; alles in orde':'&#10007; '+fouten.length+' probleem'+(fouten.length>1?'en':'')}</h2>
       <p class="hint">Versie ${shownVer(APP_VERSION)} &middot; ${gedaan.length} onderdelen in ${ms} ms</p>
-      ${gedaan.map(g=>`<div class="rule"><span>${g.ok?'&#9989;':'&#10060;'} ${esc(g.naam)}</span></div>`).join('')}
+      ${gedaan.map(g=>`<div class="rule"><span>${g.ok?'&#10003;':'&#10007;'} ${esc(g.naam)}</span></div>`).join('')}
       ${fouten.length?'<h2 style="margin-top:14px">Wat er mis is</h2>'+fouten.map(f=>`<p class="hint" style="color:#ffb3a3">&bull; ${esc(f)}</p>`).join(''):''}
       <button class="btn ghost full" style="margin-top:14px" onclick="location.search=''">Terug naar de app</button>
     </div>`;
