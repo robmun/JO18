@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="121">
+<meta name="app-version" content="123">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1287,8 +1287,8 @@ const FB_CONFIG={"apiKey":"AIzaSyDwrfF3mDmievts5mme5fOlRJ3O3fhKGb8","authDomain"
 const CLOUD={on:false,cfg:FB_CONFIG,team:'',role:'editor',name:'',db:null,ref:null,unsub:null,applying:false,writeT:null,status:'uit',lastBy:'',lastAt:0,lastWhat:'',vorig:null,klok:null,klokBaas:null,klokT:null,rev:0,eigenRev:0,uid:null,rol:null,koppelTot:0};
 // Vast id per toestel, zodat we onze eigen klokwijzigingen herkennen.
 const DEVICE_ID=(function(){try{let d=localStorage.getItem('gw_device');if(!d){d='d'+Math.random().toString(36).slice(2,10);localStorage.setItem('gw_device',d);}return d;}catch(e){return 'd'+Math.random().toString(36).slice(2,10);}})();
-function cloudLoadSettings(){try{const r=JSON.parse(localStorage.getItem('gw_cloud')||'null');if(r){CLOUD.cfg=r.cfg||FB_CONFIG;CLOUD.team=(r.team||'').trim().toLowerCase();CLOUD.role=r.role||'editor';CLOUD.name=r.name||'';CLOUD.on=!!r.on;}}catch(e){}}
-function cloudSaveSettings(){try{localStorage.setItem('gw_cloud',JSON.stringify({on:CLOUD.on,cfg:CLOUD.cfg,team:CLOUD.team,role:CLOUD.role,name:CLOUD.name}));}catch(e){}}
+function cloudLoadSettings(){try{const r=JSON.parse(localStorage.getItem('gw_cloud')||'null');if(r){CLOUD.cfg=r.cfg||FB_CONFIG;CLOUD.team=(r.team||'').trim().toLowerCase();CLOUD.role=r.role||'editor';CLOUD.name=r.name||'';CLOUD.on=!!r.on;}}catch(e){onthoudFout('cloudinstellingen lezen',e);}}
+function cloudSaveSettings(){try{localStorage.setItem('gw_cloud',JSON.stringify({on:CLOUD.on,cfg:CLOUD.cfg,team:CLOUD.team,role:CLOUD.role,name:CLOUD.name}));}catch(e){onthoudFout('cloudinstellingen bewaren',e);}}
 function loadScript(src){return new Promise((res,rej)=>{if([...document.scripts].some(x=>x.src===src))return res();const el=document.createElement('script');el.src=src;el.onload=()=>res();el.onerror=()=>rej(new Error('kan Firebase niet laden'));document.head.appendChild(el);});}
 async function cloudConnect(){
   if(!CLOUD.cfg||!CLOUD.team){toast('Vul eerst de Firebase-gegevens en een teamcode in');return false;}
@@ -1850,6 +1850,30 @@ function controleerSchema(){
   schemaFout = state.schedule ? schemaKlopt(state.schedule) : null;
   return schemaFout;
 }
+// Zichtbaar voor de eigenaar van het team, en voor iedereen die ?diagnose=1 achter
+// de link zet. Dat tweede is er omdat juist de coach die belt géén eigenaar is:
+// dan stuur je hem die link en leest hij voor wat er staat.
+function diagnoseZichtbaar(){
+  return CLOUD.rol==='eigenaar' || /[?&]diagnose=1/.test(location.search);
+}
+function diagnoseTekst(){
+  const r=[];
+  r.push('app '+shownVer(APP_VERSION)+(timerMismatch!==null?' / timer '+shownVer(timerMismatch)+' (LOOPT ACHTER)':' / timer gelijk'));
+  r.push('toestel '+DEVICE_ID+(CLOUD.uid?' · cloud-id '+CLOUD.uid:''));
+  r.push('samenwerken: '+(CLOUD.on?(CLOUD.status+' · '+(CLOUD.rol||CLOUD.role)+' · team '+(CLOUD.team||'?')):'uit'));
+  r.push('opslag: '+(opslagFout?('PROBLEEM ('+opslagFout+')'):'in orde')+' · schema: '+(schemaFout||'in orde'));
+  r.push('spelers '+state.players.filter(p=>p.present).length+' aanwezig · '+(state.schedule?('schema '+state.schedule.perQ*4+' blokken'):'geen schema'));
+  r.push(_fouten.length?('laatste fouten:'):'geen fouten geregistreerd');
+  _fouten.forEach(f=>r.push('  '+f.t+' · '+f.waar+' · '+f.wat));
+  return r.join('\n');
+}
+function diagnoseKaart(){
+  if(!diagnoseZichtbaar())return '';
+  return `<div class="card"><h2>Diagnose <span class="sub">${_fouten.length?_fouten.length+' fout'+(_fouten.length>1?'en':''):'schoon'}</span></h2>
+    <pre style="white-space:pre-wrap;word-break:break-word;font-size:var(--fs-xs);color:var(--dim);margin:0 0 10px;font-family:inherit">${esc(diagnoseTekst())}</pre>
+    <button class="btn ghost full" id="diagKopieer">&#128203; Kopieer voor de beheerder</button>
+    ${_fouten.length?'<button class="btn ghost full" id="diagWis" style="margin-top:8px">Lijst wissen</button>':''}</div>`;
+}
 function globaleBanners(){
   let h='';
   if(schemaFout){
@@ -2061,6 +2085,16 @@ function renderSpelers(){
     <button class="btn ghost full" id="backupExport">&#128190; Opslaan als back-upbestand</button>
     <button class="btn ghost full" id="backupImport" style="margin-top:8px">&#128194; Herstel uit back-up&#8230;</button>
     <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p></div>`;
+  // Schudden vraagt op iOS eenmalig toestemming. Wordt die geweigerd of gemist, dan
+  // komt die vraag nooit meer vanzelf terug — vandaar deze knop.
+  html+=diagnoseKaart();
+  html+=`<div class="card"><h2>Schudden om ongedaan te maken</h2>
+    <p class="hint" style="margin-bottom:10px">${
+      _schudStatus==='aan'?'&#9989; Staat aan. Schud je telefoon om de laatste actie terug te draaien.'
+      :_schudStatus==='geweigerd'?'&#10060; Je hebt de bewegingssensor geweigerd. Tik hieronder om het opnieuw te vragen; lukt dat niet, zet dan Bewegen en ori&#235;ntatie aan bij Instellingen &rarr; Safari.'
+      :_schudStatus==='kan niet'?'Dit toestel heeft geen bruikbare bewegingssensor.'
+      :'Nog niet aangezet. iOS vraagt eenmalig toestemming voor de bewegingssensor.'}</p>
+    <button class="btn ghost full" id="schudBtn">&#128242; Schudden ${_schudStatus==='aan'?'opnieuw instellen':'aanzetten'}</button></div>`;
   if(isWide())html+=`</div></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Keeper instellen? Geef &#233;&#233;n speler &#39;Keeper&#39; als eerste voorkeur via &#9662;. Daar zet je ook de aanvoerder aan &mdash; die krijgt een goud randje in de opstelling. Alles wordt automatisch bewaard op dit toestel.</p>`;
   return html;
@@ -2171,7 +2205,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 80 &middot; 26 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 82 &middot; 26 augustus 2026</div>';
   return html;
 }
 
@@ -2996,6 +3030,16 @@ function bind(v){
   if(kpb)kpb.onclick=koppelvensterOpen;
   const kov=v.querySelector('#klokOver');
   if(kov)kov.onclick=klokOvernemen;
+  const dgk=v.querySelector('#diagKopieer');
+  if(dgk)dgk.onclick=async()=>{
+    const t=diagnoseTekst();
+    try{ await navigator.clipboard.writeText(t); toast('Gekopieerd — plak het in een bericht'); }
+    catch(e){ onthoudFout('kopiëren',e); toast('Kopiëren lukt niet; maak een schermafbeelding'); }
+  };
+  const dgw=v.querySelector('#diagWis');
+  if(dgw)dgw.onclick=()=>{_fouten.length=0;render();};
+  const shb=v.querySelector('#schudBtn');
+  if(shb)shb.onclick=()=>{_schudActief=false;schuddenAanzetten(true);};
   const bex=v.querySelector('#backupExport');
   if(bex)bex.onclick=backupExport;
   const bim=v.querySelector('#backupImport');
@@ -3171,7 +3215,7 @@ function renderPrint(){
 
 /* ============ Offline (service worker) ============ */
 if('serviceWorker' in navigator){
-  try{navigator.serviceWorker.register('sw.js');}catch(e){}
+  try{navigator.serviceWorker.register('sw.js');}catch(e){onthoudFout('service worker',e);}
 }
 
 /* ============ Namen passend schalen ============ */
@@ -3234,7 +3278,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=121;
+const APP_VERSION=123;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -3267,8 +3311,8 @@ function showUpdateBar(v){
   document.body.appendChild(d);
 }
 async function applyUpdate(){
-  try{const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));}catch(e){}
-  try{const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.update()));}catch(e){}
+  try{const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));}catch(e){onthoudFout('cache legen',e);}
+  try{const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.update()));}catch(e){onthoudFout('sw vernieuwen',e);}
   location.reload();
 }
 setTimeout(checkForUpdate,2500);
@@ -3646,7 +3690,11 @@ document.getElementById('shareTopBtn').onclick=()=>{
 // Zoals in Mail: even schudden en je krijgt de vraag of je de laatste actie terug wilt.
 // iOS vraagt sinds versie 13 eerst toestemming voor de bewegingssensor, en dat mag
 // alleen vanuit een aanraking — daarom haken we aan op de eerste tik in de app.
-let _schudActief=false, _schudLaatst=0, _schudTeller=0, _schudVorige=null;
+// Drempel: doorgerekend met echte schudwaarden. Een stevige beweging levert rond de
+// 800 op, een normale hanteling van de telefoon blijft ruim onder de 300. 550 vraagt
+// een duidelijk gebaar zonder dat je moet zwaaien.
+const SCHUD_DREMPEL=450;
+let _schudActief=false, _schudLaatst=0, _schudTeller=0, _schudVorige=null, _schudStatus='uit';
 function schudGebeurtenis(e){
   const a=e.accelerationIncludingGravity||e.acceleration;
   if(!a||a.x==null)return;
@@ -3656,7 +3704,7 @@ function schudGebeurtenis(e){
     if(dt>90){
       const verschil=Math.abs(a.x-_schudVorige.x)+Math.abs(a.y-_schudVorige.y)+Math.abs(a.z-_schudVorige.z);
       const kracht=verschil/dt*1000;
-      if(kracht>1100){
+      if(kracht>SCHUD_DREMPEL){
         _schudTeller++;
         if(_schudTeller>=2&&nu-_schudLaatst>2500){
           _schudLaatst=nu; _schudTeller=0;
@@ -3675,24 +3723,29 @@ function schudVraag(){
   if('vibrate' in navigator)navigator.vibrate(30);
   confirmDialog({
     title:'Ongedaan maken?',
-    body:'Laatste actie: '+undoLabel()+(_undoStack.length>1?' (daarna nog '+(_undoStack.length-1)+' stappen terug mogelijk)':''),
+    body:'Laatste actie: '+undoLabel()+(_undoStack.length>1?' (daarna nog '+(_undoStack.length-1)+' stap'+(_undoStack.length>2?'pen':'')+' terug mogelijk)':''),
     okLabel:'Ongedaan maken',
     cancelLabel:'Laat maar',
     onOk:doUndo
   });
 }
-function schuddenAanzetten(){
-  if(_schudActief)return;
-  const zet=()=>{ _schudActief=true; window.addEventListener('devicemotion',schudGebeurtenis); };
+function schuddenAanzetten(vanKnop){
+  if(_schudActief){ if(vanKnop)toast('Schudden staat al aan'); return; }
+  const zet=()=>{ _schudActief=true; _schudStatus='aan'; window.addEventListener('devicemotion',schudGebeurtenis);
+    if(vanKnop){toast('Schudden staat aan');render();} };
   try{
-    if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){
-      DeviceMotionEvent.requestPermission().then(r=>{ if(r==='granted')zet(); }).catch(()=>{});
-    }else if(typeof DeviceMotionEvent!=='undefined')zet();
-  }catch(e){}
+    if(typeof DeviceMotionEvent==='undefined'){ _schudStatus='kan niet'; if(vanKnop)toast('Dit toestel heeft geen bewegingssensor'); return; }
+    if(typeof DeviceMotionEvent.requestPermission==='function'){
+      // iOS vraagt toestemming, en dat mag alleen direct na een aanraking.
+      DeviceMotionEvent.requestPermission()
+        .then(r=>{ if(r==='granted')zet(); else {_schudStatus='geweigerd'; if(vanKnop){toast('Toestemming geweigerd');render();}} })
+        .catch(e=>{ _schudStatus='geweigerd'; onthoudFout('bewegingssensor',e); if(vanKnop)render(); });
+    }else zet();
+  }catch(e){ _schudStatus='kan niet'; onthoudFout('bewegingssensor',e); }
 }
 document.addEventListener('pointerdown',function eerste(){
   document.removeEventListener('pointerdown',eerste);
-  schuddenAanzetten();
+  schuddenAanzetten(false);
 },{once:true});
 
 // ── Zonstand ──
@@ -3719,7 +3772,7 @@ document.getElementById('printBtn').onclick=()=>{
   setTimeout(()=>window.print(),50);
 };
 if(!state.schedule&&state.players.filter(p=>p.present).length>=11){
-  try{state.schedule=buildSchedule(state);state.genHash=inputHash(state);save();}catch(e){}
+  try{state.schedule=buildSchedule(state);state.genHash=inputHash(state);save();}catch(e){onthoudFout('schema opbouwen',e);}
 }
 cloudLoadSettings();
 // Kijk-/coach-link: ?team=CODE&rol=kijker|coach -> automatisch instellen en verbinden
