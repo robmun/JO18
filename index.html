@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="128">
+<meta name="app-version" content="129">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -166,7 +166,9 @@ main{
   .gk-boog{fill:none;stroke:#7fb4ff;stroke-width:13;stroke-linecap:round;
     transition:stroke-dashoffset .4s linear,stroke .3s}
   .gk-boog.laat{stroke:#ff5a45}
-  .gk-tijd{fill:#fff;font-size:44px;font-weight:800;text-anchor:middle;
+  /* Rood, zodat de tijd van een afstand opvalt. De ring blijft blauw als voortgang
+     en kleurt mee rood in de laatste twee minuten — alles rood betekent: bijna klaar. */
+  .gk-tijd{fill:#ff6a52;font-size:44px;font-weight:800;text-anchor:middle;
     font-variant-numeric:tabular-nums;letter-spacing:-1px}
   .gk-sub{fill:rgba(255,255,255,.72);font-size:17px;font-weight:800;text-anchor:middle;letter-spacing:1.5px}
   .gk-tot{fill:rgba(255,255,255,.62);font-size:12px;font-weight:700;text-anchor:middle}
@@ -405,11 +407,22 @@ select,option{font-size:var(--fs-base)}
   box-shadow:inset 0 2px 3px rgba(255,255,255,.30), inset 0 -4px 6px rgba(0,0,0,.32),
              0 5px 8px rgba(4,14,32,.42)}
 .veldklok .vk-tijd{font-size:22px;font-weight:800;letter-spacing:.5px;line-height:1.05;
-  font-variant-numeric:tabular-nums;color:#fff}
+  font-variant-numeric:tabular-nums;color:#ff6a52}
 .veldklok .vk-sub{font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
   color:rgba(255,255,255,.78);margin-top:1px}
+.zwklok{position:fixed;right:14px;z-index:35;display:none;align-items:baseline;gap:8px;
+  background:rgba(6,16,34,.88);border:1.5px solid rgba(255,255,255,.22);border-radius:12px;
+  padding:5px 12px;box-shadow:0 6px 16px rgba(4,14,32,.45);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);pointer-events:none}
+.zwklok.toon{display:flex}
+.zwklok .zw-tijd{font-size:21px;font-weight:800;letter-spacing:.5px;
+  font-variant-numeric:tabular-nums;color:#ff6a52}
+.zwklok .zw-sub{font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
+  color:rgba(255,255,255,.7)}
+.zwklok.pauze .zw-tijd{color:rgba(255,106,82,.72)}
+body.sun .zwklok{background:#0b2148;border-color:#0b2148}
 .veldklok.pauze{opacity:.82}
-.veldklok.pauze .vk-tijd{color:rgba(255,255,255,.8)}
+.veldklok.pauze .vk-tijd{color:rgba(255,106,82,.72)}
 /* Spelers die even niet inzetbaar zijn: rechtsboven op het veld, aantikbaar om terug te halen */
 .uitlijst{position:absolute;right:3.5%;top:16%;z-index:3;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
 .uitlbl{font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#ffc9bd;text-shadow:0 1px 3px rgba(0,0,0,.5)}
@@ -666,6 +679,11 @@ body.viewer #app{padding-top:34px}
 </div>
 
 <main id="view"></main>
+<!-- Blijft hangen zodra de klok op het veld uit beeld scrollt, zodat je bij het
+     wisselschema nog steeds ziet hoe laat het is. Alleen op smalle schermen. -->
+<div id="zwevendeKlok" class="zwklok" aria-hidden="true">
+  <span class="zw-tijd" id="zwTijd">00:00</span><span class="zw-sub" id="zwSub">Q1</span>
+</div>
 <div id="timerHost"><iframe title="GHC Wedstrijdtimer"></iframe></div>
 <div id="viewerBar">${ico("oog")}Kijkstand — spelers kunnen alleen lezen. Coaches/manager kan wijzigen.</div>
 <div id="scrollThumb"></div>
@@ -2125,6 +2143,23 @@ function beeldBijwerken(){
   if(v)document.getElementById('view').scrollTop=y;
 }
 // Werkt alleen het klokje op de veldtekening bij, zonder de rest te hertekenen.
+// Toont de zwevende klok zodra die op het veld uit beeld scrollt. Alleen op smalle
+// schermen: op een liggende tablet staat het veld sowieso stil bovenaan.
+function zwevendeKlokBijwerken(){
+  const zw=document.getElementById('zwevendeKlok'); if(!zw)return;
+  const veldk=document.getElementById('veldklok');
+  const bar=document.querySelector('.appbar');
+  const onder=bar?bar.getBoundingClientRect().bottom:0;
+  const toon = !isWide() && isQTab(activeTab) && !!veldk
+    && veldk.getBoundingClientRect().bottom < onder + 4;
+  zw.classList.toggle('toon',toon);
+  if(!toon)return;
+  zw.style.top=(onder+10)+'px';
+  const k=klokTekst(); if(!k)return;
+  const t=document.getElementById('zwTijd'); if(t)t.textContent=k.tijd;
+  const sub=document.getElementById('zwSub'); if(sub)sub.textContent=k.kwart+(k.loopt?'':' · pauze');
+  zw.classList.toggle('pauze',!k.loopt);
+}
 function veldKlokBijwerken(){
   const k=klokTekst(); if(!k)return;
   // grote klok (liggende tablet)
@@ -2142,6 +2177,7 @@ function veldKlokBijwerken(){
       boog.classList.toggle('laat',sec>QLEN-120);
     }
   }
+  zwevendeKlokBijwerken();
   const vt=document.getElementById('vkTijd');
   if(vt){
     vt.textContent=k.tijd;
@@ -2363,7 +2399,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 87 &middot; 27 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 88 &middot; 27 augustus 2026</div>';
   return html;
 }
 
@@ -3103,7 +3139,7 @@ function render(){
   // Bij her-renderen op hetzelfde tabblad: scrollpositie behouden
   // (iOS springt anders naar boven zodra de inhoud even inklapt).
   if(_keepY!==null&&_sc&&Math.abs(_sc.scrollTop-_keepY)>2)_sc.scrollTop=_keepY;
-  requestAnimationFrame(()=>{updateScrollUI();fitNames();});
+  requestAnimationFrame(()=>{updateScrollUI();fitNames();zwevendeKlokBijwerken();});
 }
 function bind(v){
   v.querySelectorAll('[data-regen]').forEach(b=>b.onclick=regenerate);
@@ -3446,12 +3482,13 @@ function updateScrollUI(){
     th.classList.add('actief');
     clearTimeout(_thumbTm);_thumbTm=setTimeout(()=>th.classList.remove('actief'),600);
     updateScrollUI();
+    zwevendeKlokBijwerken();
   },{passive:true});
   window.addEventListener('resize',updateScrollUI);
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=128;
+const APP_VERSION=129;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
