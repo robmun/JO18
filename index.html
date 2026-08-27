@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="127">
+<meta name="app-version" content="128">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -137,7 +137,41 @@ main{
   /* Het veld blijft in beeld terwijl je de wisselteksten ernaast doorleest.
      Het wordt zo breed als past zonder hoger te worden dan het scherm. */
   .twocol .col-field{position:sticky;top:0}
-  .twocol .col-field .fieldwrap{max-height:calc(100dvh - 260px);width:auto;margin:0 auto}
+  /* De klok ligt deels óver het veld, rechtsboven. Zo blijft het veld op volle
+     breedte en dekt de klok alleen het lege stuk naast de bank af: de twee
+     kolommen wisselspelers links blijven zichtbaar. */
+  /* De rij is precies zo breed als het veld, anders wordt de klok uitgelijnd op de
+     kolom en hangt hij ver naast het gras in plaats van net over de rand. */
+  .twocol .col-field .veldrij{position:relative;width:fit-content;margin:0 auto}
+  /* Breedte volgt uit de hoogte en de verhouding 100:150. Met alleen 'width:auto'
+     klapte het veld in zodra de rij zich naar de inhoud voegde. */
+  .twocol .col-field .fieldwrap{--veldh:min(calc(100dvh - 250px), calc((100% - 0px) * 999));
+    height:calc(100dvh - 250px);width:calc((100dvh - 250px) * 100 / 150);
+    max-width:100%;margin:0 auto}
+  /* Maat als deel van het veld, niet van het venster: anders dekt de klok bij een
+     smal veld de bank af en zweeft hij bij een breed veld in het niets. */
+  .grklok{position:absolute;right:-7%;top:-4%;z-index:4;
+    width:37%;max-width:205px;min-width:104px;aspect-ratio:1;
+    filter:drop-shadow(0 6px 18px rgba(4,14,32,.5))}
+  /* Veel wisselspelers: de bank groeit naar een derde rij en komt dan tegen de klok
+     aan. Vandaar dat hij dan meekrimpt. */
+  .grklok.krap{width:26%;max-width:150px}
+  .grklok .gk-schijf{fill:rgba(6,16,34,.72)}
+  /* In de zonstand valt de schijf deels buiten het groen; doorschijnend donker
+     wordt daar vuilgrijs op wit. Dus dekkend donkerblauw. */
+  body.sun .grklok .gk-schijf{fill:#0b2148}
+  body.sun .gk-baan{stroke:rgba(255,255,255,.20)}
+  body.sun .gk-boog{stroke:#8ab6ff}
+  .gk-baan{fill:none;stroke:rgba(255,255,255,.13);stroke-width:13}
+  .gk-boog{fill:none;stroke:#7fb4ff;stroke-width:13;stroke-linecap:round;
+    transition:stroke-dashoffset .4s linear,stroke .3s}
+  .gk-boog.laat{stroke:#ff5a45}
+  .gk-tijd{fill:#fff;font-size:44px;font-weight:800;text-anchor:middle;
+    font-variant-numeric:tabular-nums;letter-spacing:-1px}
+  .gk-sub{fill:rgba(255,255,255,.72);font-size:17px;font-weight:800;text-anchor:middle;letter-spacing:1.5px}
+  .gk-tot{fill:rgba(255,255,255,.62);font-size:12px;font-weight:700;text-anchor:middle}
+  body.sun .gk-baan{stroke:rgba(15,32,64,.16)}
+  body.sun .gk-boog{stroke:#12408f}
 }
 .card{
   background:var(--glass);
@@ -385,7 +419,12 @@ body.sun .brow.uit{background:#fdeae6;border-color:#b3241a}
 body.sun .brow.uit span{color:#7a1811}
 .benchlabel{position:absolute;left:3.5%;top:2%;font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.78);text-shadow:0 1px 3px rgba(0,0,0,.35);z-index:1}
 .benchlist{position:absolute;left:3.5%;top:5.5%;right:3.5%;z-index:3;display:flex;align-items:flex-start;gap:7px;max-height:32%}
+/* Naast de grote klok houdt de bank afstand, zodat namen er nooit onder verdwijnen.
+   De klok beslaat 42% van de veldbreedte plus wat hij uitsteekt. */
+.twocol .col-field .benchlist{right:31%;padding-right:4px}
+.twocol .col-field .veldrij:has(.grklok.krap) .benchlist{right:20%}
 .benchcol{display:flex;flex-direction:column;gap:6px;min-width:0}
+.brow.meer{justify-content:center;font-weight:800;color:rgba(255,255,255,.8);padding:6px 12px}
 .brow{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border-radius:var(--r-pill);background:rgba(11,24,48,.58);border:1px solid rgba(255,255,255,.24);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .brow .bball{width:32px;height:32px;border-radius:50%;background:linear-gradient(160deg,#21437e,#0e2247);border:1.5px solid rgba(255,255,255,.7);color:#fff;font-weight:800;font-size:var(--fs-sm);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .brow .bball.capt{border-color:var(--capt);box-shadow:0 0 0 1.5px rgba(242,201,76,.30)}
@@ -2033,6 +2072,40 @@ function klokTekst(){
   return {tijd:String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'),
           kwart:'Q'+q, loopt:loopt};
 }
+// Grote ronde klok naast het veld, alleen in de liggende tabletstand. Bedoeld om
+// vanaf de bank leesbaar te zijn: spelers moeten kunnen zien hoeveel er gespeeld is.
+const KLOK_R=86, KLOK_OMTREK=2*Math.PI*KLOK_R;
+// Totale speeltijd van de wedstrijd tot nu toe — dat is wat spelers langs de lijn
+// willen weten, niet alleen de tijd binnen dit kwart.
+function gespeeldTotaal(){
+  if(klok.q==null)return '0:00';
+  const tot=(klok.q-1)*17.5*60+klok.sec;
+  const m=Math.floor(tot/60), s2=Math.floor(tot%60);
+  return m+':'+String(s2).padStart(2,'0');
+}
+function groteKlokHTML(bankAantal){
+  const k=klokTekst(); if(!k)return '';
+  // Twee kolommen bank passen naast de klok tot en met zes spelers; daarboven komt
+  // er een rij bij die tegen de klok aan zou lopen.
+  const krap=(bankAantal||0)>5;
+  const QLEN=17.5*60;
+  const sec=klok.q==null?0:Math.min(klok.sec,QLEN);
+  const deel=sec/QLEN;
+  const laatst=sec>QLEN-120;                       // laatste twee minuten van het kwart
+  return `<div class="grklok${krap?' krap':''}" id="grklok">
+    <svg viewBox="0 0 200 200" width="100%" height="100%">
+      <circle cx="100" cy="100" r="${KLOK_R+7}" class="gk-schijf"/>
+      <circle cx="100" cy="100" r="${KLOK_R}" class="gk-baan"/>
+      <circle cx="100" cy="100" r="${KLOK_R}" class="gk-boog${laatst?' laat':''}" id="gkBoog"
+        stroke-dasharray="${KLOK_OMTREK.toFixed(1)}"
+        stroke-dashoffset="${(KLOK_OMTREK*(1-deel)).toFixed(1)}"
+        transform="rotate(-90 100 100)"/>
+      <text x="100" y="94" class="gk-tijd" id="gkTijd">${k.tijd}</text>
+      <text x="100" y="120" class="gk-sub" id="gkSub">${k.kwart}${k.loopt?'':' \u00b7 pauze'}</text>
+      <text x="100" y="145" class="gk-tot" id="gkTot">${gespeeldTotaal()} gespeeld</text>
+    </svg>
+  </div>`;
+}
 // Digitale klok rechtsboven op de veldtekening; toont dezelfde tijd als de timer.
 function veldKlokHTML(){
   const k=klokTekst(); if(!k)return '';
@@ -2054,6 +2127,21 @@ function beeldBijwerken(){
 // Werkt alleen het klokje op de veldtekening bij, zonder de rest te hertekenen.
 function veldKlokBijwerken(){
   const k=klokTekst(); if(!k)return;
+  // grote klok (liggende tablet)
+  const gt=document.getElementById('gkTijd');
+  if(gt){
+    gt.textContent=k.tijd;
+    const gs=document.getElementById('gkSub');
+    if(gs)gs.textContent=k.kwart+(k.loopt?'':' \u00b7 pauze');
+    const gtot=document.getElementById('gkTot');
+    if(gtot)gtot.textContent=gespeeldTotaal()+' gespeeld';
+    const boog=document.getElementById('gkBoog');
+    if(boog){
+      const QLEN=17.5*60, sec=klok.q==null?0:Math.min(klok.sec,QLEN);
+      boog.setAttribute('stroke-dashoffset',(KLOK_OMTREK*(1-sec/QLEN)).toFixed(1));
+      boog.classList.toggle('laat',sec>QLEN-120);
+    }
+  }
   const vt=document.getElementById('vkTijd');
   if(vt){
     vt.textContent=k.tijd;
@@ -2275,7 +2363,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 86 &middot; 27 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 87 &middot; 27 augustus 2026</div>';
   return html;
 }
 
@@ -2853,11 +2941,23 @@ function renderQuarter(q){
                                 : `Actuele opstelling Q${q+1}, speelvorm ${formOfQ(q)}`;
   const kopSub = toonBlok===0 ? `${q<2?'eerste':'tweede'} helft`
                               : `na ${Math.round(toonBlok*blockLen)} min`;
-  let veld=`<div class="card tight"><h2>${kopTitel} <span class="sub">${kopSub}</span></h2><div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>${veldKlokHTML()}`;
+  let veld=`<div class="card tight"><h2>${kopTitel} <span class="sub">${kopSub}</span></h2>`
+    +(isWide()?`<div class="veldrij">`:'')
+    +`<div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>${isWide()?'':veldKlokHTML()}`;
   if(benchIds.length){
-    const half=benchIds.length>3?Math.ceil(benchIds.length/2):benchIds.length;
-    const cols=[benchIds.slice(0,half),benchIds.slice(half)].filter(c=>c.length);
-    veld+=`<div class="benchlist">`+cols.map(col=>`<div class="benchcol">`+col.map(id=>`<div class="brow ${selChip===id?'selected':''}" data-chip="${id}"><div class="bball${id===capt?' capt':''}">${pNum(id)}${id===capt?'<span class="cbadge">C</span>':''}</div><span>${esc(pName(id))}</span></div>`).join('')+`</div>`).join('')+`</div>`;
+    // Bij een grote selectie liep de banklijst over de veldspelers heen. Twee kolommen
+    // van hoogstens vier passen altijd; de rest wordt geteld in plaats van getoond.
+    // Naast de klok passen twee kolommen van drie; bij een heel grote bank wordt dat
+    // twee van twee plus een teller, anders loopt de onderste rij tegen de klok aan.
+    const MAX_BANK=isWide()?(benchIds.length>6?4:6):8;
+    const zichtbaar=benchIds.slice(0,MAX_BANK), rest=benchIds.length-zichtbaar.length;
+    const half=zichtbaar.length>3?Math.ceil(zichtbaar.length/2):zichtbaar.length;
+    const cols=[zichtbaar.slice(0,half),zichtbaar.slice(half)].filter(c=>c.length);
+    // De teller '+3' kreeg een eigen kolom en schoof daarmee onder de klok;
+    // hij hoort onderaan de laatste bestaande kolom.
+    const tellerIn=cols.length-1;
+    veld+=`<div class="benchlist">`+cols.map((col,i)=>`<div class="benchcol">`+col.map(id=>`<div class="brow ${selChip===id?'selected':''}" data-chip="${id}"><div class="bball${id===capt?' capt':''}">${pNum(id)}${id===capt?'<span class="cbadge">C</span>':''}</div><span>${esc(pName(id))}</span></div>`).join('')+((rest>0&&i===tellerIn)?`<div class="brow meer">+${rest}</div>`:'')+`</div>`).join('')
+      +`</div>`;
   }
   const uitSpelers=uitLijst();
   if(uitSpelers.length){
@@ -2876,7 +2976,9 @@ function renderQuarter(q){
     }
   }
   if(keeper)veld+=`<div class="chip kpc" style="left:50%;top:93%"><div class="ball keeperball${keeper.id===capt?' capt':''}">${KEEPER_HELM}${keeper.id===capt?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(keeper.name)}</div></div>`;
-  veld+=`</div>${(CLOUD.on&&CLOUD.role==='viewer')?'':`<p class="hint" style="margin-top:10px">Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor ${toonBlok===0?'de start van dit kwart':'dit moment in het kwart'}.</p>`}</div>`;
+  veld+=`</div>`                                      // einde fieldwrap
+    +(isWide()?groteKlokHTML(benchIds.length)+`</div>`:'')   // klok over het veld, einde veldrij
+    +`${(CLOUD.on&&CLOUD.role==='viewer')?'':`<p class="hint" style="margin-top:10px">Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor ${toonBlok===0?'de start van dit kwart':'dit moment in het kwart'}.</p>`}</div>`;
   // Alles wat naast het veld komt te staan in de brede stand
   let tekst='';
   // Wissel bij start van kwart (t.o.v. vorige kwart)
@@ -2913,6 +3015,7 @@ function renderQuarter(q){
   }
   // Liggende tablet: veld links, wisselteksten rechts. Anders gewoon onder elkaar.
   html+=isWide()?`<div class="twocol"><div class="col-field">${veld}</div><div>${tekst}</div></div>`:veld+tekst;
+
   return html;
 }
 function wisselLines(d){
@@ -3348,7 +3451,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=127;
+const APP_VERSION=128;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
