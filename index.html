@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="129">
+<meta name="app-version" content="130">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -136,7 +136,10 @@ main{
   .twocol>div{min-width:0}
   /* Het veld blijft in beeld terwijl je de wisselteksten ernaast doorleest.
      Het wordt zo breed als past zonder hoger te worden dan het scherm. */
-  .twocol .col-field{position:sticky;top:0}
+  /* De klok steekt bewust buiten het veld; de kolom mag hem dus niet afkappen.
+     De ruimte tussen de kolommen is 16px, dus tot zo'n 60px oversteek blijft het
+     binnen de kolomruimte. */
+  .twocol .col-field{position:sticky;top:0;overflow:visible}
   /* De klok ligt deels óver het veld, rechtsboven. Zo blijft het veld op volle
      breedte en dekt de klok alleen het lege stuk naast de bank af: de twee
      kolommen wisselspelers links blijven zichtbaar. */
@@ -150,12 +153,14 @@ main{
     max-width:100%;margin:0 auto}
   /* Maat als deel van het veld, niet van het venster: anders dekt de klok bij een
      smal veld de bank af en zweeft hij bij een breed veld in het niets. */
-  .grklok{position:absolute;right:-7%;top:-4%;z-index:4;
-    width:37%;max-width:205px;min-width:104px;aspect-ratio:1;
+  /* Oversteek in procenten, maar begrensd op 44px: de ruimte tussen de kolommen is
+     smal, en op een grote iPad zou 12% van het veld de wisseltekst raken. */
+  .grklok{position:absolute;right:max(-12%,-44px);top:2%;z-index:4;
+    width:46%;max-width:240px;min-width:104px;aspect-ratio:1;
     filter:drop-shadow(0 6px 18px rgba(4,14,32,.5))}
   /* Veel wisselspelers: de bank groeit naar een derde rij en komt dan tegen de klok
      aan. Vandaar dat hij dan meekrimpt. */
-  .grklok.krap{width:26%;max-width:150px}
+  .grklok.krap{width:34%;max-width:210px}
   .grklok .gk-schijf{fill:rgba(6,16,34,.72)}
   /* In de zonstand valt de schijf deels buiten het groen; doorschijnend donker
      wordt daar vuilgrijs op wit. Dus dekkend donkerblauw. */
@@ -434,8 +439,8 @@ body.sun .brow.uit span{color:#7a1811}
 .benchlist{position:absolute;left:3.5%;top:5.5%;right:3.5%;z-index:3;display:flex;align-items:flex-start;gap:7px;max-height:32%}
 /* Naast de grote klok houdt de bank afstand, zodat namen er nooit onder verdwijnen.
    De klok beslaat 42% van de veldbreedte plus wat hij uitsteekt. */
-.twocol .col-field .benchlist{right:31%;padding-right:4px}
-.twocol .col-field .veldrij:has(.grklok.krap) .benchlist{right:20%}
+.twocol .col-field .benchlist{right:36%;padding-right:4px}
+.twocol .col-field .veldrij:has(.grklok.krap) .benchlist{right:24%}
 .benchcol{display:flex;flex-direction:column;gap:6px;min-width:0}
 .brow.meer{justify-content:center;font-weight:800;color:rgba(255,255,255,.8);padding:6px 12px}
 .brow{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border-radius:var(--r-pill);background:rgba(11,24,48,.58);border:1px solid rgba(255,255,255,.24);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
@@ -2399,7 +2404,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 88 &middot; 27 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 89 &middot; 27 augustus 2026</div>';
   return html;
 }
 
@@ -3488,7 +3493,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=129;
+const APP_VERSION=130;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
