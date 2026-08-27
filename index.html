@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="126">
+<meta name="app-version" content="127">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1394,7 +1394,8 @@ function koppelvensterOpen(){
   if(!CLOUD.ref||CLOUD.rol!=='eigenaar'){toast('Alleen de eigenaar kan een coach toelaten');return;}
   const tot=Date.now()+15*60*1000;
   CLOUD.ref.set({koppelTot:tot},{merge:true})
-    .then(()=>{CLOUD.koppelTot=tot;toast('Een kwartier lang kan een coach zich koppelen');render();})
+    .then(()=>{CLOUD.koppelTot=tot;cloudUpdateCard();render();
+      toast('Koppelen staat 15 minuten open — laat je mede-coach nu de app openen');})
     .catch(e=>{onthoudFout('koppelvenster',e);toast('Openen mislukt: '+(e.message||e));});
 }
 function cloudDisconnect(){
@@ -1461,6 +1462,13 @@ function cloudListen(){
     if(!snap.exists){ if(CLOUD.role==='editor')cloudPush(true); return; }
     const d=snap.data(); if(!d)return;
     CLOUD.koppelTot=Number(d.koppelTot||0);
+    // Sta je te wachten en zet de eigenaar het venster open, dan koppel je meteen.
+    // Zonder dit moest de mede-coach de app afsluiten en opnieuw openen, want de
+    // controle draaide alleen bij het verbinden.
+    if(CLOUD.rol==='wacht' && CLOUD.koppelTot>Date.now() && !CLOUD._koppelBezig){
+      CLOUD._koppelBezig=true;
+      cloudClaimOfKoppel().then(()=>{CLOUD._koppelBezig=false;cloudUpdateCard();render();});
+    }
     // Gedeelde klok: alleen toepassen als een ánder toestel hem bedient.
     if(d.klok){
       CLOUD.klok=d.klok;
@@ -1552,7 +1560,7 @@ function cloudUpdateCard(){
       t+='<br>'+ico('sleutel',16)+'Jij bent de eigenaar van dit team &middot; <button class="btn small" id="koppelBtn">Coach toelaten</button>';
       if(Number(CLOUD.koppelTot||0)>Date.now()){
         const min=Math.ceil((CLOUD.koppelTot-Date.now())/60000);
-        t+='<br>'+ico('klok',16)+'Koppelen staat nog '+min+' min open &mdash; laat je mede-coach nu de coach-link openen.';
+        t+='<br>'+ico('klok',16)+'Koppelen staat open, nog <b id="koppelTeller">'+min+':00</b> &mdash; laat je mede-coach nu de app openen.';
       }
     }else if(CLOUD.rol==='coach'){
       t+='<br>'+ico('sleutel',16)+'Je bent gekoppeld als coach.';
@@ -1575,6 +1583,27 @@ function cloudUpdateCard(){
     }
   }
   el.innerHTML=t;
+  // De knoppen hier koppelen en niet in bind(): deze kaart wordt bij elke binnenkomende
+  // wijziging opnieuw geschreven, en dan was de koppeling uit bind() al weg. Daardoor
+  // deed 'Coach toelaten' niets zodra er een keer iets was gesynchroniseerd.
+  const kb=el.querySelector('#koppelBtn'); if(kb)kb.onclick=koppelvensterOpen;
+  const ko=el.querySelector('#klokOver');  if(ko)ko.onclick=klokOvernemen;
+  koppelTellerBijwerken();
+}
+// Laat live zien hoeveel tijd het koppelvenster nog openstaat.
+let _koppelT=null;
+function koppelTellerBijwerken(){
+  clearInterval(_koppelT); _koppelT=null;
+  const el=document.getElementById('koppelTeller'); if(!el)return;
+  const tik=()=>{
+    const over=Number(CLOUD.koppelTot||0)-Date.now();
+    const e=document.getElementById('koppelTeller');
+    if(!e){clearInterval(_koppelT);return;}
+    if(over<=0){clearInterval(_koppelT);cloudUpdateCard();return;}
+    const m=Math.floor(over/60000), sec=Math.floor(over%60000/1000);
+    e.textContent=m+':'+String(sec).padStart(2,'0');
+  };
+  tik(); _koppelT=setInterval(tik,1000);
 }
 
 
@@ -2246,7 +2275,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 85 &middot; 27 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 86 &middot; 27 augustus 2026</div>';
   return html;
 }
 
@@ -3319,7 +3348,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=126;
+const APP_VERSION=127;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
