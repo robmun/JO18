@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="125">
+<meta name="app-version" content="126">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1549,15 +1549,15 @@ function cloudUpdateCard(){
     t+=' &middot; rol: '+(CLOUD.role==='viewer'?'Kijker (alleen lezen)':'Coach (mag wijzigen)');
     // Wat de database van dit toestel vindt — dat is bepalender dan de zelfgekozen rol.
     if(CLOUD.rol==='eigenaar'){
-      t+='<br>${ico("sleutel",16)}Jij bent de eigenaar van dit team &middot; <button class="btn small" id="koppelBtn">Coach toelaten</button>';
+      t+='<br>'+ico('sleutel',16)+'Jij bent de eigenaar van dit team &middot; <button class="btn small" id="koppelBtn">Coach toelaten</button>';
       if(Number(CLOUD.koppelTot||0)>Date.now()){
         const min=Math.ceil((CLOUD.koppelTot-Date.now())/60000);
-        t+='<br>&#9203; Koppelen staat nog '+min+' min open &mdash; laat je mede-coach nu de coach-link openen.';
+        t+='<br>'+ico('klok',16)+'Koppelen staat nog '+min+' min open &mdash; laat je mede-coach nu de coach-link openen.';
       }
     }else if(CLOUD.rol==='coach'){
-      t+='<br>${ico("sleutel",16)}Je bent gekoppeld als coach.';
+      t+='<br>'+ico('sleutel',16)+'Je bent gekoppeld als coach.';
     }else if(CLOUD.rol==='wacht'){
-      t+='<br>${ico("waarschuwing")}<b>Je bent nog niet gekoppeld.</b> Je kunt meelezen maar niet wijzigen. Vraag de hoofdcoach om op ‘Coach toelaten’ te tikken en open daarna deze app opnieuw.';
+      t+='<br>'+ico('waarschuwing')+'<b>Je bent nog niet gekoppeld.</b> Je kunt meelezen maar niet wijzigen. Vraag de hoofdcoach om op ‘Coach toelaten’ te tikken en open daarna deze app opnieuw.';
     }
     if(CLOUD.lastAt){
       const d=new Date(CLOUD.lastAt);
@@ -1566,12 +1566,12 @@ function cloudUpdateCard(){
     }
     if(CLOUD.status==='verbonden'&&CLOUD.role==='editor'){
       if(CLOUD.klokBaas&&CLOUD.klokBaas.id!==DEVICE_ID)
-        t+='<br>&#9201; '+(klokVerlaten()
+        t+='<br>'+ico('klok',16)+(klokVerlaten()
             ? 'Klok van '+esc(CLOUD.klokBaas.naam)+' reageert niet meer'
             : 'Klok wordt bediend door '+esc(CLOUD.klokBaas.naam))
           +' &middot; <button class="btn small" id="klokOver">Klok overnemen</button>';
       else if(CLOUD.klokBaas)
-        t+='<br>${ico("klok",16)}Jij bedient de klok';
+        t+='<br>'+ico('klok',16)+'Jij bedient de klok';
     }
   }
   el.innerHTML=t;
@@ -2246,7 +2246,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 84 &middot; 26 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 85 &middot; 27 augustus 2026</div>';
   return html;
 }
 
@@ -3319,7 +3319,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=125;
+const APP_VERSION=126;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
