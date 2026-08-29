@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="134">
+<meta name="app-version" content="135">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -2002,7 +2002,7 @@ function diagnoseProbleem(){
 }
 function diagnoseTekst(){
   const r=[];
-  r.push('app '+shownVer(APP_VERSION)+(timerMismatch!==null?' / timer '+shownVer(timerMismatch)+' (LOOPT ACHTER)':' / timer gelijk'));
+  r.push('app '+VERSIE_LABEL+(timerMismatch!==null?' / timer LOOPT ACHTER (intern '+timerMismatch+' tegen '+APP_VERSION+')':' / timer gelijk'));
   r.push('toestel '+DEVICE_ID+(CLOUD.uid?' · cloud-id '+CLOUD.uid:''));
   r.push('samenwerken: '+(CLOUD.on?(CLOUD.status+' · '+(CLOUD.rol||CLOUD.role)+' · team '+(CLOUD.team||'?')):'uit'));
   r.push('opslag: '+(opslagFout?('PROBLEEM ('+opslagFout+')'):'in orde')+' · schema: '+(schemaFout||'in orde'));
@@ -2040,7 +2040,7 @@ function globaleBanners(){
 function warnBoxesHTML(){
   let w='';
   if(timerMismatch!==null)
-    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">timer.html loopt achter: timer is versie ${shownVer(timerMismatch)}, de app is versie ${shownVer(APP_VERSION)}. Upload timer.html opnieuw naar GitHub.</div></div>`;
+    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">timer.html loopt achter op de app (versie ${VERSIE_LABEL}). Upload timer.html opnieuw naar GitHub.</div></div>`;
   w+=swapWarnings.map((t,i)=>`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(t)}</div><button class="wx" data-warnx="${i}" aria-label="Melding sluiten">&#10005;</button></div>`).join('');
   const inf=planInfo.map((t,i)=>`<div class="warnbox info"><div class="wi">${ico("info")}</div><div class="wt">${esc(t)}</div><button class="wx" data-infox="${i}" aria-label="Melding sluiten">&#10005;</button></div>`).join('');
   return w+inf;
@@ -2422,7 +2422,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 93 &middot; 29 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie '+VERSIE_LABEL+' &middot; 29 augustus 2026</div>';
   return html;
 }
 
@@ -3500,14 +3500,18 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=134;
-const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
-const shownVer=v=>v-SHOWN_OFFSET;
+// Twee nummers met elk hun eigen taak:
+//  APP_VERSION  — een oplopende teller, alleen voor de app zelf: hij bepaalt of er een
+//                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
+//                 stijgen, want er wordt op groter-dan vergeleken.
+//  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
+const APP_VERSION=135;
+const VERSIE_LABEL='26.8.1';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
   const _seen=Number(localStorage.getItem('wisselplanner_lastver')||0);
-  if(_seen&&_seen<APP_VERSION)setTimeout(()=>toast('Bijgewerkt naar versie '+shownVer(APP_VERSION)),900);
+  if(_seen&&_seen<APP_VERSION)setTimeout(()=>toast('Bijgewerkt naar versie '+VERSIE_LABEL),900);
   localStorage.setItem('wisselplanner_lastver',String(APP_VERSION));
 }catch(e){}
 async function checkForUpdate(){
@@ -3520,13 +3524,14 @@ async function checkForUpdate(){
     // moest met de hand worden bijgewerkt en liep daardoor jarenlang achter, waardoor
     // de melding nooit verscheen. Nu is er nog maar één plek waar het nummer staat.
     const m=t.match(/const APP_VERSION=(\d+)/) || t.match(/name="app-version" content="(\d+)"/);
-    if(m&&Number(m[1])>APP_VERSION)showUpdateBar(Number(m[1]));
+    const lab=t.match(/const VERSIE_LABEL='([^']+)'/);
+    if(m&&Number(m[1])>APP_VERSION)showUpdateBar(lab?lab[1]:String(m[1]));
   }catch(e){/* offline of file:// — stil overslaan */}
 }
 function showUpdateBar(v){
   const d=document.createElement('div');
   d.id='updBar';
-  d.innerHTML=`<div class="txt"><b>Nieuwe versie beschikbaar (v${shownVer(v)})</b>Tik op vernieuwen om de update te laden.</div>
+  d.innerHTML=`<div class="txt"><b>Nieuwe versie beschikbaar (${esc(String(v))})</b>Tik op vernieuwen om de update te laden.</div>
     <button class="upd">Vernieuwen</button><button class="dis" aria-label="Sluiten">&#10005;</button>`;
   d.querySelector('.upd').onclick=applyUpdate;
   d.querySelector('.dis').onclick=()=>{_updDismissed=true;d.remove();};
@@ -3749,7 +3754,7 @@ function toonZelftest(){
   document.getElementById('timerHost').classList.remove('show');
   document.getElementById('view').innerHTML=
     `<div class="card"><h2>Zelftest ${goed?'&#10003; alles in orde':'&#10007; '+fouten.length+' probleem'+(fouten.length>1?'en':'')}</h2>
-      <p class="hint">Versie ${shownVer(APP_VERSION)} &middot; ${gedaan.length} onderdelen in ${ms} ms</p>
+      <p class="hint">Versie ${VERSIE_LABEL} &middot; ${gedaan.length} onderdelen in ${ms} ms</p>
       ${gedaan.map(g=>`<div class="rule"><span>${g.ok?'&#10003;':'&#10007;'} ${esc(g.naam)}</span></div>`).join('')}
       ${fouten.length?'<h2 style="margin-top:14px">Wat er mis is</h2>'+fouten.map(f=>`<p class="hint" style="color:#ffb3a3">&bull; ${esc(f)}</p>`).join(''):''}
       <button class="btn ghost full" style="margin-top:14px" onclick="location.search=''">Terug naar de app</button>
