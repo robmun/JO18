@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="130">
+<meta name="app-version" content="131">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -439,8 +439,21 @@ body.sun .brow.uit span{color:#7a1811}
 .benchlist{position:absolute;left:3.5%;top:5.5%;right:3.5%;z-index:3;display:flex;align-items:flex-start;gap:7px;max-height:32%}
 /* Naast de grote klok houdt de bank afstand, zodat namen er nooit onder verdwijnen.
    De klok beslaat 42% van de veldbreedte plus wat hij uitsteekt. */
+/* Alleen de wisselspelers krijgen in de brede stand een kleinere letter en een
+   compacter balletje: naast de grote klok is de ruimte smal en werden namen als
+   'Boudewijn' afgekapt. De veldspelers en de klok blijven ongemoeid. */
+.twocol .col-field .benchlist .brow{gap:6px;padding:3px 9px 3px 3px}
+.twocol .col-field .benchlist .brow span{font-size:var(--fs-md)}
+.twocol .col-field .benchlist .brow .bball{width:27px;height:27px;font-size:var(--fs-xs)}
 .twocol .col-field .benchlist{right:36%;padding-right:4px}
 .twocol .col-field .veldrij:has(.grklok.krap) .benchlist{right:24%}
+/* Smallere liggende tablet (9,7 inch): daar is het veld zo'n 45 pixels smaller en
+   past 'Boudewijn' pas een maatje kleiner. */
+@media (orientation:landscape) and (max-width:1100px){
+  .twocol .col-field .benchlist .brow span{font-size:var(--fs-sm)}
+  .twocol .col-field .benchlist .brow{gap:5px;padding:3px 7px 3px 3px}
+  .twocol .col-field .benchlist .brow .bball{width:24px;height:24px}
+}
 .benchcol{display:flex;flex-direction:column;gap:6px;min-width:0}
 .brow.meer{justify-content:center;font-weight:800;color:rgba(255,255,255,.8);padding:6px 12px}
 .brow{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border-radius:var(--r-pill);background:rgba(11,24,48,.58);border:1px solid rgba(255,255,255,.24);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
@@ -2404,7 +2417,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 89 &middot; 27 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 90 &middot; 27 augustus 2026</div>';
   return html;
 }
 
@@ -3493,7 +3506,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=130;
+const APP_VERSION=131;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
