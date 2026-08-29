@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="133">
+<meta name="app-version" content="134">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -2422,7 +2422,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 92 &middot; 29 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 93 &middot; 29 augustus 2026</div>';
   return html;
 }
 
@@ -2568,42 +2568,6 @@ function regenerate(){
     toast(_pq===2?'Schema gemaakt — 1 wissel halverwege elk kwart'
                 :`Schema gemaakt — ${_pq-1} wisselmomenten per kwart (blokken van ${fmtMin(_bl)} min)`);
   }
-}
-function injuryDialog(){
-  if(!state.schedule){toast('Genereer eerst een opstelling');return;}
-  const perQ=state.schedule.perQ;
-  const veld=state.players.filter(p=>p.present && !p.uit && p.id!==state.keeperId);
-  const h=document.getElementById('modalHost');
-  h.innerHTML=`<div class="modal-back center" id="mback"><div class="modal" role="dialog" aria-modal="true" style="max-width:min(94vw,460px)">
-    <h3>${ico("blessure")}Speler geblesseerd</h3>
-    <p style="font-size:var(--fs-sm);color:var(--dim);margin:0 0 8px">Wie moet eruit, en vanaf wanneer? De rest van de wedstrijd wordt opnieuw eerlijk verdeeld, waarbij spelers die tot nu toe weinig speelden voorrang krijgen.</p>
-    <label class="clab">Speler</label>
-    <select id="ijP" class="cin sel">${veld.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select>
-    <label class="clab">Vanaf welk kwart</label>
-    <select id="ijQ" class="cin sel">${[0,1,2,3].map(q=>`<option value="${q}">Q${q+1}</option>`).join('')}</select>
-    <label class="clab">Moment in dat kwart</label>
-    <select id="ijH" class="cin sel">
-      <option value="0">Bij het begin</option>
-      <option value="half">Halverwege</option>
-    </select>
-    <div class="row" style="margin-top:12px">
-      <button class="btn ghost" id="mcancel">Annuleren</button>
-      <button class="btn" id="mok">Herplan</button>
-    </div>
-  </div></div>`;
-  const back=document.getElementById('mback');
-  back.onclick=e=>{if(e.target===back)closeModal();};
-  document.getElementById('mcancel').onclick=closeModal;
-  document.getElementById('mok').onclick=()=>{
-    const pid=document.getElementById('ijP').value;
-    const q=Number(document.getElementById('ijQ').value);
-    const hh=document.getElementById('ijH').value;
-    // blok-index: kwart-start + (halverwege? halve kwart in blokken)
-    let block=q*perQ;
-    if(hh==='half')block+=Math.floor(perQ/2)||(perQ===2?1:0); // perQ2: +1 (=halverwege), perQ3: +1
-    closeModal();
-    injuryReplan(pid,block);
-  };
 }
 // Keuzevenster bij een tik op een speler tijdens de wedstrijd.
 function spelerActies(pid,q){
@@ -2796,33 +2760,6 @@ function herplanVanafNu(label,vanafVolgende,gebeurtenis){
 }
 // Speler raakt geblesseerd op een bepaald moment; herplan de rest mét de al gespeelde minuten.
 // momentBlock = blokindex vanaf waar opnieuw wordt verdeeld (de geblesseerde speelt tot dan mee).
-function injuryReplan(playerId,momentBlock){
-  if(!state.schedule){toast('Genereer eerst een opstelling');return;}
-  const sch=state.schedule, perQ=sch.perQ, B=perQ*4;
-  momentBlock=Math.max(0,Math.min(B,momentBlock));
-  const byId2=Object.fromEntries(state.players.map(p=>[p.id,p]));
-  // reeds gespeelde blokken (per index) uit het huidige schema, en played-telling tot momentBlock
-  const fixedBlocks={}, playedSoFar={};
-  const pool=state.players.filter(p=>p.present && !p.uit && p.id!==state.keeperId);
-  pool.forEach(p=>playedSoFar[p.id]=0);
-  for(let b=0;b<momentBlock;b++){
-    const set=new Set(Object.values(sch.assignments[b]||{}));
-    fixedBlocks[b]=set;
-    set.forEach(pid=>{ if(playedSoFar[pid]!=null)playedSoFar[pid]++; });
-  }
-  // geblesseerde speler op afwezig zetten zodat hij vanaf momentBlock niet meer meedoet
-  const inj=byId2[playerId];
-  snapshot('blessure '+(inj?inj.name:''));
-  if(inj)inj.present=false;
-  // herplan met vast perQ, vaste voorgeschiedenis en meegewogen speelminuten
-  const fresh=buildSchedule(state,{forcePerQ:perQ,fromBlock:momentBlock,fixedBlocks,playedSoFar,
-    vastAssignments:sch.assignments});
-  state.schedule=fresh;
-  state.genHash=inputHash(state);
-  save();render();sendSwapTimesToTimer();
-  const minLabel=Math.round(momentBlock*(17.5/perQ));
-  toast((inj?inj.name:'Speler')+' eruit na ~'+minLabel+' min — rest eerlijk herverdeeld');
-}
 // Herplan vanaf een bepaald kwart met de spelers die nú aanwezig zijn.
 // De kwarten vóór 'fromQ' blijven exact staan; alleen 'fromQ' t/m Q4 worden opnieuw verdeeld.
 function replanFromQuarter(fromQ){
@@ -3119,8 +3056,6 @@ function renderQuarter(q){
     }else{
       tekst+=`<button class="btn gevaar full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
       if(q>0)tekst+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
-      // Vangnet als je vergeten bent de klok te starten: dan geef je het moment zelf op.
-      tekst+=`<button class="btn full" id="injuryBtn" style="margin-bottom:8px">${ico("blessure")}Speler geblesseerd &mdash; herplan met gespeelde minuten</button>`;
     }
   }
   // Liggende tablet: veld links, wisselteksten rechts. Anders gewoon onder elkaar.
@@ -3223,8 +3158,6 @@ function bind(v){
   if(vnb)vnb.onclick=()=>{ snapshot('wijziging verwerken'); herplanVanafNu('Wijziging verwerkt',true); };
   const rb=v.querySelector('#replanBtn');
   if(rb)rb.onclick=()=>replanFromQuarter(Number(rb.dataset.q));
-  const ijb=v.querySelector('#injuryBtn');
-  if(ijb)ijb.onclick=injuryDialog;
   const ub=v.querySelector('#undoBtn');
   if(ub)ub.onclick=doUndo;
   v.querySelectorAll('[data-goplayers]').forEach(b=>b.onclick=()=>{activeTab='spelers';render();document.getElementById('view').scrollTop=0;});
@@ -3567,7 +3500,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=133;
+const APP_VERSION=134;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
