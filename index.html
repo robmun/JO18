@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="131">
+<meta name="app-version" content="133">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -429,8 +429,6 @@ body.sun .zwklok{background:#0b2148;border-color:#0b2148}
 .veldklok.pauze{opacity:.82}
 .veldklok.pauze .vk-tijd{color:rgba(255,106,82,.72)}
 /* Spelers die even niet inzetbaar zijn: rechtsboven op het veld, aantikbaar om terug te halen */
-.uitlijst{position:absolute;right:3.5%;top:16%;z-index:3;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
-.uitlbl{font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#ffc9bd;text-shadow:0 1px 3px rgba(0,0,0,.5)}
 .brow.uit{background:rgba(150,30,20,.55);border:1px solid rgba(255,160,140,.5)}
 .brow.uit .bball{background:linear-gradient(160deg,#8e2b20,#5e1a12)}
 body.sun .brow.uit{background:#fdeae6;border-color:#b3241a}
@@ -568,6 +566,13 @@ body.with-a2hs main{padding-bottom:calc(230px + env(safe-area-inset-bottom))}
    letterschaal viel hij anders weg midden in dezelfde zin. */
 .wline .posname{color:var(--dim);font-size:inherit}
 .wbench{margin-top:7px;font-size:var(--fs-sm);color:var(--dim)}
+/* Wat er tussen de geplande momenten door gebeurde: valt op zonder te schreeuwen. */
+.wmoment.gebeurtenis .wtime{color:#ffb3a3}
+.wgeb{display:flex;align-items:flex-start;font-size:var(--fs-base);line-height:1.32;
+  color:var(--txt);background:rgba(255,120,100,.10);border-left:2.5px solid rgba(255,140,120,.6);
+  border-radius:var(--r-sm);padding:8px 10px}
+body.sun .wmoment.gebeurtenis .wtime{color:#a01a10}
+body.sun .wgeb{background:#fdeae6;border-left-color:#b3241a;color:#5c1410}
 .empty{font-size:var(--fs-md);color:var(--dim);font-style:italic}
 /* ---------- Timer-tab ---------- */
 #timerHost{display:none;position:fixed;left:0;right:0;z-index:5;
@@ -2417,7 +2422,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 90 &middot; 27 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie 92 &middot; 29 augustus 2026</div>';
   return html;
 }
 
@@ -2547,7 +2552,7 @@ function regenerate(){
   if(cloudViewerBlocked())return;
   if(!resolveKeeperOrWarn())return;
   snapshot('genereren');
-  wisUitStatus();                      // nieuw schema: blessurestatus vervalt
+  wisUitStatus(); wisGebeurtenissen(); // nieuw schema: blessures en gebeurtenissen vervallen
   state.schedule=buildSchedule(state);
   state.genHash=inputHash(state);
   const stuk=state.schedule?schemaKlopt(state.schedule):'geen schema';
@@ -2634,7 +2639,7 @@ function spelerActies(pid,q){
     if(act==='blessure'){
       snapshot('blessure '+p.name);
       p.uit=true;
-      if(!herplanVanafNu(p.name+' even niet inzetbaar')){delete p.uit;render();}
+      if(!herplanVanafNu(p.name+' even niet inzetbaar',false,{type:'blessure',pid:p.id})){delete p.uit;render();}
       return;
     }
     if(act==='weg'){
@@ -2642,7 +2647,7 @@ function spelerActies(pid,q){
       const wasUit=!!p.uit;
       delete p.uit; p.present=false;
       const gelukt = wedstrijdBezig()
-        ? herplanVanafNu(p.name+' vandaag niet meer')
+        ? herplanVanafNu(p.name+' vandaag niet meer',false,{type:'weg',pid:p.id})
         : herplanHeleWedstrijd(p.name+' afgemeld');
       if(!gelukt){p.present=true;if(wasUit)p.uit=true;render();}
       return;
@@ -2654,7 +2659,7 @@ function spelerActies(pid,q){
       // Stond hij nog in het blok dat in beeld staat (dat gebeurt als de klok is
       // gereset), dan halen we hem daar eerst uit.
       haalUitHuidigBlok(p.id);
-      if(!herplanVanafNu(p.name+' weer beschikbaar \u2014 op de bank',true)){p.uit=true;render();}
+      if(!herplanVanafNu(p.name+' weer beschikbaar \u2014 op de bank',true,{type:'terug',pid:p.id})){p.uit=true;render();}
       return;
     }
   });
@@ -2694,6 +2699,21 @@ function herplanHeleWedstrijd(label){
 // al gespeelde blokken per speler, zodat de resterende minuten eerlijk verdeeld worden.
 // Vergelijkt het oude en het nieuwe schema en vertelt in gewone taal wat er
 // veranderd is: eerst wat er nú op het veld gebeurt, daarna wat er verderop schuift.
+// Eén zin voor in het wisselschema: wie ging eruit, wie kwam ervoor in de plaats.
+function tekstVanGebeurtenis(g,oud,nieuw,vanaf){
+  const naam=pName(g.pid);
+  if(g.type==='terug')return naam+' is weer inzetbaar en zit op de bank.';
+  if(g.type==='weg')return naam+' is afgemeld voor de rest van de wedstrijd.';
+  const a=oud[vanaf]||{}, b=nieuw[vanaf]||{};
+  // Wie neemt zijn plek over? Dat is de speler die nu op zijn oude positie staat.
+  // Het herplannen verschuift vaak meer, maar dát is niet wat je hier wilt lezen.
+  const pos=Object.keys(a).find(k=>a[k]===g.pid);
+  const vervanger=pos?b[pos]:null;
+  if(!vervanger)return naam+' raakt geblesseerd en gaat eruit.';
+  const plek=POSMAP[pos]?POSMAP[pos].name.toLowerCase():'';
+  return naam+' raakt geblesseerd en wordt vervangen door '+pName(vervanger)
+    +(plek?' die op '+plek+' gaat spelen':'')+'.';
+}
 function beschrijfHerplan(oud,nieuw,vanaf,perQ,later){
   const posNaam=(asg,pid)=>{for(const k in asg)if(asg[k]===pid)return POSMAP[k]?POSMAP[k].name.toLowerCase():k;return null;};
   const a=oud[vanaf]||{}, b=nieuw[vanaf]||{};
@@ -2727,7 +2747,16 @@ function beschrijfHerplan(oud,nieuw,vanaf,perQ,later){
 // vanafVolgende=true: het lopende blok blijft ook vast, er wordt pas vanaf het
 // volgende wisselmoment opnieuw gepland. Zo komt een herstelde speler eerst op
 // de bank en pas bij de eerstvolgende wissel weer in het veld.
-function herplanVanafNu(label,vanafVolgende){
+// Wat er tijdens de wedstrijd tussendoor gebeurt — een blessure, een herstel — hoort
+// in het wisselschema te staan. Zonder dit zag je alleen de geplande momenten op 6 en
+// 12 minuten, en niet dat er op 8 minuten iemand van het veld ging.
+function gebeurtenissen(){ if(!Array.isArray(state.gebeurtenissen))state.gebeurtenissen=[]; return state.gebeurtenissen; }
+function noteerGebeurtenis(q,tekst){
+  const sec=(klok.q===q+1)?klok.sec:0;
+  gebeurtenissen().push({q,sec,min:Math.round(sec/60),tekst});
+}
+function wisGebeurtenissen(){ state.gebeurtenissen=[]; }
+function herplanVanafNu(label,vanafVolgende,gebeurtenis){
   if(!state.schedule){toast('Genereer eerst een opstelling');return false;}
   const sch=state.schedule, perQ=sch.perQ, B=perQ*4;
   const q=isQTab(activeTab)?Number(activeTab.slice(1)):(klok.q?klok.q-1:0);
@@ -2760,6 +2789,7 @@ function herplanVanafNu(label,vanafVolgende){
     : 'Q'+(q+1)+(min?' na '+min+' min':' vanaf de start');
   planInfo=[label+' \u2014 schema aangepast vanaf '+wanneer+'. '
     +beschrijfHerplan(oudAssign,fresh.assignments,vanaf,perQ,!!vanafVolgende)];
+  if(gebeurtenis)noteerGebeurtenis(q,tekstVanGebeurtenis(gebeurtenis,oudAssign,fresh.assignments,vanaf));
   save();render();sendSwapTimesToTimer();
   toast(label);
   return true;
@@ -2998,25 +3028,41 @@ function renderQuarter(q){
   let veld=`<div class="card tight"><h2>${kopTitel} <span class="sub">${kopSub}</span></h2>`
     +(isWide()?`<div class="veldrij">`:'')
     +`<div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>${isWide()?'':veldKlokHTML()}`;
-  if(benchIds.length){
+  // Geblesseerden staan gewoon in de banklijst, alleen rood. Ze hadden een eigen
+  // vak rechtsboven, maar dat kwam op de tablet onder de klok terecht en liep op de
+  // telefoon over de opstelling heen zodra het er een paar werden.
+  const uitIds=uitLijst().map(p=>p.id);
+  const bankIds=benchIds.concat(uitIds);
+  if(bankIds.length){
+    // Geblesseerden mogen nooit wegvallen achter de teller: zij zijn juist de
+    // uitzondering die je wilt zien. Zij krijgen hun plek eerst, de wisselspelers
+    // vullen aan tot de lijst vol is.
     // Bij een grote selectie liep de banklijst over de veldspelers heen. Twee kolommen
     // van hoogstens vier passen altijd; de rest wordt geteld in plaats van getoond.
     // Naast de klok passen twee kolommen van drie; bij een heel grote bank wordt dat
     // twee van twee plus een teller, anders loopt de onderste rij tegen de klok aan.
-    const MAX_BANK=isWide()?(benchIds.length>6?4:6):8;
-    const zichtbaar=benchIds.slice(0,MAX_BANK), rest=benchIds.length-zichtbaar.length;
-    const half=zichtbaar.length>3?Math.ceil(zichtbaar.length/2):zichtbaar.length;
-    const cols=[zichtbaar.slice(0,half),zichtbaar.slice(half)].filter(c=>c.length);
+    // Boven vier rijen loopt de lijst op een telefoon over de voorste linie heen;
+    // op de bredere stand is er meer ruimte naast de klok.
+    // Drie soorten ruimte: naast de grote klok (liggende tablet) is het krap, op een
+    // telefoon loopt de lijst boven zes rijen over de voorste linie, en een staande
+    // tablet heeft ruimte zat. De teller '+n' vangt de rest op, en geblesseerden gaan
+    // voor omdat zij de uitzondering zijn die je wilt zien.
+    const telefoon=window.innerWidth<600;
+    const MAX_BANK=isWide()?(bankIds.length>6?4:6):(telefoon?5:8);
+    const ruimteVoorBank=Math.max(1,MAX_BANK-uitIds.length);
+    const bankDeel=benchIds.slice(0,ruimteVoorBank);
+    // Ook de geblesseerden worden afgekapt als het er zoveel zijn dat de lijst
+    // over de opstelling zou vallen; de teller '+n' telt ze dan mee.
+    const uitDeel=uitIds.slice(0,Math.max(1,MAX_BANK-bankDeel.length));
+    const zichtbaar=bankDeel.concat(uitDeel);
+    const rest=bankIds.length-zichtbaar.length;
+    const perKol = zichtbaar.length>3 ? Math.ceil(zichtbaar.length/2) : zichtbaar.length;
+    const cols=[];
+    for(let i=0;i<zichtbaar.length;i+=perKol)cols.push(zichtbaar.slice(i,i+perKol));
     // De teller '+3' kreeg een eigen kolom en schoof daarmee onder de klok;
     // hij hoort onderaan de laatste bestaande kolom.
     const tellerIn=cols.length-1;
-    veld+=`<div class="benchlist">`+cols.map((col,i)=>`<div class="benchcol">`+col.map(id=>`<div class="brow ${selChip===id?'selected':''}" data-chip="${id}"><div class="bball${id===capt?' capt':''}">${pNum(id)}${id===capt?'<span class="cbadge">C</span>':''}</div><span>${esc(pName(id))}</span></div>`).join('')+((rest>0&&i===tellerIn)?`<div class="brow meer">+${rest}</div>`:'')+`</div>`).join('')
-      +`</div>`;
-  }
-  const uitSpelers=uitLijst();
-  if(uitSpelers.length){
-    veld+=`<div class="uitlijst"><div class="uitlbl">Niet inzetbaar</div>`
-      +uitSpelers.map(p=>`<div class="brow uit" data-chip="${p.id}"><div class="bball">${pNum(p.id)}</div><span>${esc(p.name)}</span></div>`).join('')
+    veld+=`<div class="benchlist${cols.length>2?' breed':''}">`+cols.map((col,i)=>`<div class="benchcol">`+col.map(id=>`<div class="brow ${uitIds.includes(id)?'uit ':''}${selChip===id?'selected':''}" data-chip="${id}"${uitIds.includes(id)?' title="Niet inzetbaar"':''}><div class="bball${id===capt?' capt':''}">${pNum(id)}${id===capt?'<span class="cbadge">C</span>':''}</div><span>${esc(pName(id))}</span></div>`).join('')+((rest>0&&i===tellerIn)?`<div class="brow meer">+${rest}</div>`:'')+`</div>`).join('')
       +`</div>`;
   }
   for(const pos of positionsOfQ(q)){
@@ -3047,7 +3093,17 @@ function renderQuarter(q){
   }
   // Wisselmomenten binnen het kwart
   tekst+=`<div class="card"><h2>Wissels in Q${q+1} <span class="sub">${perQ-1}&times; per kwart</span></h2>`;
-  for(const mo of kwartMomenten(q,sch)){
+  // Geplande wisselmomenten en wat er tussendoor gebeurde, op volgorde van de klok.
+  const regels=kwartMomenten(q,sch).map(mo=>({minuut:mo.minuut,soort:'wissel',mo}))
+    .concat(gebeurtenissen().filter(g=>g.q===q).map(g=>({minuut:g.min,soort:'gebeurtenis',g})))
+    .sort((a,b)=>a.minuut-b.minuut || (a.soort==='wissel'?-1:1));
+  for(const r of regels){
+    if(r.soort==='gebeurtenis'){
+      tekst+=`<div class="wmoment gebeurtenis"><div class="wtime">Na ${r.minuut} min</div>`
+        +`<p class="wgeb">${ico('blessure',16)}${esc(r.g.tekst)}</p></div>`;
+      continue;
+    }
+    const mo=r.mo;
     const kop=(q===1||q===3)?`Na ${mo.minuut} min in Q${q+1}, dus bij ${fmtMin(mo.minuut+17.5)} min`:`Na ${mo.minuut} min`;
     tekst+=`<div class="wmoment"><div class="wtime">${kop}</div>`;
     tekst+=chainsEmpty(mo.wissels)?'<p class="empty">Geen wissels op dit moment.</p>':wisselLines(mo.wissels);
@@ -3430,8 +3486,13 @@ function renderPrint(){
     const b0=q*perQ,asg0=sch.assignments[b0];
     const bench=benchOfBlock(sch,b0).map(pName).map(esc).join(', ')||'—';
     let w='';
-    for(const mo of kwartMomenten(q,sch)){
-      w+=`<div class="pw"><b>Na ${mo.minuut} min:</b><br>${chainsEmpty(mo.wissels)?'geen wissels':printChainText(mo.wissels)}</div>`;
+    const pRegels=kwartMomenten(q,sch).map(mo=>({minuut:mo.minuut,mo}))
+      .concat(gebeurtenissen().filter(g=>g.q===q).map(g=>({minuut:g.min,g})))
+      .sort((a,b)=>a.minuut-b.minuut || (a.mo?-1:1));
+    for(const r of pRegels){
+      w+= r.g
+        ? `<div class="pw"><b>Na ${r.minuut} min:</b><br>${esc(r.g.tekst)}</div>`
+        : `<div class="pw"><b>Na ${r.minuut} min:</b><br>${chainsEmpty(r.mo.wissels)?'geen wissels':printChainText(r.mo.wissels)}</div>`;
     }
     const pk=q>0?keeperOfQ(sch,q-1):null, ck=keeperOfQ(sch,q);
     const kw=(pk&&ck&&pk!==ck)?`<div class="pw"><b>Keeper:</b> ${esc(pName(ck))} (was ${esc(pName(pk))})</div>`:'';
@@ -3506,7 +3567,7 @@ function updateScrollUI(){
 })();
 
 /* ============ Nieuwe-versie-melding ============ */
-const APP_VERSION=131;
+const APP_VERSION=133;
 const SHOWN_OFFSET=41; // zichtbaar label loopt 40 achter op de interne teller (15 i.p.v. 55)
 const shownVer=v=>v-SHOWN_OFFSET;
 let _updDismissed=false;
@@ -3788,11 +3849,14 @@ async function shareQuarterImage(q){
   const blocks=[];
   const bench=benchOfBlock(sch,b0).map(pName);
   if(bench.length)blocks.push({head:'Bank bij start:',lines:wrapText(bench.join(', '),58)});
-  for(const mo of kwartMomenten(q,sch)){
-    const d=mo.wissels;
-    const naMin=mo.minuut;
+  const dRegels=kwartMomenten(q,sch).map(mo=>({minuut:mo.minuut,mo}))
+    .concat(gebeurtenissen().filter(g=>g.q===q).map(g=>({minuut:g.min,g})))
+    .sort((a,b)=>a.minuut-b.minuut || (a.mo?-1:1));
+  for(const r of dRegels){
+    const naMin=r.minuut;
     const kop=(q===1||q===3)?`Na ${naMin} min (bij ${fmtMin(naMin+17.5)} min):`:`Na ${naMin} min:`;
-    const lines=chainsEmpty(d)?['geen wissels']:plainChainText(d).flatMap(t=>wrapText('• '+t,58));
+    const lines = r.g ? wrapText('• '+r.g.tekst,58)
+      : (chainsEmpty(r.mo.wissels)?['geen wissels']:plainChainText(r.mo.wissels).flatMap(t=>wrapText('• '+t,58)));
     blocks.push({head:kop,lines});
   }
   let textH=0; blocks.forEach(b=>{textH+=44+b.lines.length*34+10;});
