@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="145">
+<meta name="app-version" content="146">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -854,7 +854,7 @@ function linesOf(p){
 function magInLinie(p,linie){return linesOf(p).includes(linie);}
 
 // Versie van de opgeslagen gegevens; zie migrateState() verderop.
-const STATE_V=3;
+const STATE_V=4;
 function defaultPlayers(){return [
   {id:'bob',     name:'Bob',     num:3,  prefs:['ra','la','lman'], present:true, guest:false, lines:['achter']},
   {id:'boudewijn',name:'Boudewijn',num:4,prefs:['mm','vs','rm'],  present:true, guest:false},
@@ -1327,7 +1327,29 @@ function wisselChains(prevA,newA){
 }
 function chainsEmpty(d){return !d.chains.length&&!d.looseOuts.length&&!d.looseMoves.length;}
 
+// Vingerafdruk van alles wat de planning bepaalt. Verandert die, dan is het
+// bestaande schema verouderd.
+//
+// Wél erin: wie er meedoet, hun voorkeursposities, in welke linies ze mogen spelen,
+// de keeper en de coachregels. De linies ontbraken: verander je iemand van 'alleen
+// achter' naar 'achter en midden', dan bleef het oude schema doorgaan voor actueel.
+// Andersom erger — een speler die nog op het middenveld stond terwijl dat net was
+// verboden, viel evenmin op.
+//
+// Níét erin: naam en rugnummer, want die veranderen de opstelling niet en maakten
+// het schema onnodig verouderd. Ook 'uit' en 'kaart' blijven erbuiten: dat zijn
+// tijdelijke toestanden tijdens de wedstrijd, die juist niet tot hergenereren
+// moeten leiden.
 function inputHash(state){
+  return JSON.stringify({
+    p:state.players.map(p=>[p.id,p.present,p.prefs,linesOf(p).slice().sort()]),
+    k:state.keeperId,
+    r:state.rules,
+  });
+}
+// De vingerafdruk zoals hij tot versie 3 werd berekend. Alleen nodig om bij het
+// bijwerken te zien of een bestaand schema toen actueel was.
+function inputHashV3(state){
   return JSON.stringify({
     p:state.players.map(p=>[p.id,p.present,p.num,p.prefs,p.name]),
     k:state.keeperId,
@@ -1378,6 +1400,13 @@ function migrateState(s){
   if(v>=STATE_V){s.v=STATE_V;return s;}
   if(v<2){ s.rules=migrateRules(s.rules); }
   if(v<3){ s.rules=migrateLines(s.players,s.rules); }
+  if(v<4){
+    // De vingerafdruk wordt anders berekend. Was het schema onder de oude formule
+    // nog actueel, dan is het dat nog steeds — herbereken de vingerafdruk zodat er
+    // geen valse melding 'spelers of regels zijn gewijzigd' verschijnt. Was het al
+    // verouderd, dan blijft dat zo.
+    if(s.schedule && s.genHash && s.genHash===inputHashV3(s))s.genHash=inputHash(s);
+  }
   s.v=STATE_V;
   return s;
 }
@@ -3693,8 +3722,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=145;
-const VERSIE_LABEL='26.8.11';
+const APP_VERSION=146;
+const VERSIE_LABEL='26.8.12';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
