@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="142">
+<meta name="app-version" content="143">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -446,8 +446,10 @@ body.sun .zwklok{background:#0b2148;border-color:#0b2148}
 .chip.kaartleeg .tag{font-variant-numeric:tabular-nums}
 .chip.kaartleeg.groen .tag{background:#1f7a3d;color:#fff}
 .chip.kaartleeg.geel .tag{background:#9a7a12;color:#fff}
-.brow .bball.ktel{font-variant-numeric:tabular-nums;font-size:var(--fs-xs);letter-spacing:-.3px}
-.brow .bball.ktel.klaar{font-size:var(--fs-sm)}
+.brow.kaart{padding-left:12px}
+.brow .ktel{margin-left:auto;padding-left:10px;font-variant-numeric:tabular-nums;
+  font-size:var(--fs-sm);font-weight:800;flex-shrink:0}
+.brow .ktel.klaar{letter-spacing:-.2px}
 body.sun .brow.kaart.groen{background:#e4f6e9;border-color:#1f7a3d}
 body.sun .brow.kaart.groen span,body.sun .brow.kaart.groen .ktel{color:#12572a}
 body.sun .brow.kaart.geel{background:#fdf3d8;border-color:#9a7a12}
@@ -2232,7 +2234,7 @@ function kaartenBijwerken(){
     const el=document.getElementById('kt-'+p.id);
     const rest=kaartResterend(p);
     if(el){
-      el.textContent = rest===0 ? 'nu' : kaartTijd(rest);
+      el.textContent = rest===0 ? 'nu terug' : kaartTijd(rest);
       el.classList.toggle('klaar',rest===0);
     }
     if(rest===0 && !_kaartGemeld[p.id]){
@@ -2290,9 +2292,8 @@ function kaartResterend(p){
   return Math.max(0,Math.round(p.kaart.terug-totaalSec()));
 }
 function kaartTijd(sec){
-  // Kort genoeg voor het bolletje: hele minuten, en in de laatste minuut seconden.
-  if(sec>=60)return Math.ceil(sec/60)+'m';
-  return sec+'s';
+  const m=Math.floor(sec/60), s2=sec%60;
+  return m+':'+String(s2).padStart(2,'0');
 }
 // Het blok dat nú bezig is in kwart q (of het startblok als de klok stilstaat).
 // De wedstrijd is bezig zodra de klok loopt of gepauzeerd op een tijd staat.
@@ -3115,7 +3116,11 @@ function renderQuarter(q){
     // linie. Met twee kolommen zijn dat er acht, min één voor de teller.
     // Op een telefoon hoogstens zes rijen inclusief de teller: de rechterkolom begint
     // lager (onder de klok) en zou anders over de voorste linie vallen.
-    const MAX_BANK=isWide()?(bankIds.length>6?4:6):(telefoon?5:8);
+    // Doorgemeten grens: drie rijen per kolom passen, vier lopen over de voorste linie.
+    // Past alles binnen die grens, dan tonen we alles en is er geen teller nodig;
+    // daarboven één rij minder om plaats te maken voor de '+n'.
+    const RUIMTE = isWide() ? 7 : (telefoon ? 6 : 8);
+    const MAX_BANK = bankIds.length<=RUIMTE ? RUIMTE : RUIMTE-1;
     const bijzonder=uitIds.concat(kaartIds);
     const ruimteVoorBank=Math.max(1,MAX_BANK-bijzonder.length);
     const bankDeel=benchIds.slice(0,ruimteVoorBank);
@@ -3141,10 +3146,14 @@ function renderQuarter(q){
         // Bij een kaart staat de resterende tijd in het bolletje in plaats van het
         // rugnummer. Achter de naam paste hij niet: in de smalle kolom naast de grote
         // klok drong hij namen als 'Boudewijn' weg.
-        const bal = kaart
-          ? `<div class="bball ktel${rest===0?' klaar':''}" id="kt-${id}">${rest===0?'nu':kaartTijd(rest)}</div>`
-          : `<div class="bball${id===capt?' capt':''}">${pNum(id)}${id===capt?'<span class="cbadge">C</span>':''}</div>`;
-        return `<div class="brow ${kl} ${selChip===id?'selected':''}" data-chip="${id}"${titel?' title="'+titel+'"':''}>${bal}<span>${esc(pName(id))}</span></div>`;
+        // Bij een kaart geen rugnummerbolletje: dat maakt de rij te breed. Naam plus
+        // de resterende straftijd is wat je op dat moment wilt zien.
+        if(kaart){
+          return `<div class="brow ${kl} ${selChip===id?'selected':''}" data-chip="${id}" title="${titel}">`
+            +`<span>${esc(pName(id))}</span>`
+            +`<b class="ktel${rest===0?' klaar':''}" id="kt-${id}">${rest===0?'nu terug':kaartTijd(rest)}</b></div>`;
+        }
+        return `<div class="brow ${kl} ${selChip===id?'selected':''}" data-chip="${id}"${titel?' title="'+titel+'"':''}><div class="bball${id===capt?' capt':''}">${pNum(id)}${id===capt?'<span class="cbadge">C</span>':''}</div><span>${esc(pName(id))}</span></div>`;
       }).join('')+((rest>0&&i===tellerIn)?`<div class="brow meer">+${rest}</div>`:'')+`</div>`).join('')
       +`</div>`;
   }
@@ -3661,8 +3670,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=142;
-const VERSIE_LABEL='26.8.8';
+const APP_VERSION=143;
+const VERSIE_LABEL='26.8.9';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
