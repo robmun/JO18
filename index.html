@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="146">
+<meta name="app-version" content="148">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -3653,7 +3653,16 @@ function renderPrint(){
 
 /* ============ Offline (service worker) ============ */
 if('serviceWorker' in navigator){
-  try{navigator.serviceWorker.register('sw.js');}catch(e){onthoudFout('service worker',e);}
+  try{
+    navigator.serviceWorker.register('sw.js');
+    // De service worker meldt het als een kernbestand niet in de cache kwam. Dan
+    // werkt offline niet, en daar was tot nu toe geen enkel spoor van.
+    navigator.serviceWorker.addEventListener('message',ev=>{
+      if(ev.data&&ev.data.ghcSwFout){
+        onthoudFout('offline-opslag',new Error('niet opgeslagen: '+ev.data.ghcSwFout.join(', ')));
+      }
+    });
+  }catch(e){onthoudFout('service worker',e);}
 }
 
 /* ============ Namen passend schalen ============ */
@@ -3722,8 +3731,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=146;
-const VERSIE_LABEL='26.8.12';
+const APP_VERSION=148;
+const VERSIE_LABEL='26.8.14';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
@@ -3731,16 +3740,40 @@ try{
   if(_seen&&_seen<APP_VERSION)setTimeout(()=>toast('Bijgewerkt naar versie '+VERSIE_LABEL),900);
   localStorage.setItem('wisselplanner_lastver',String(APP_VERSION));
 }catch(e){}
+// Elke minuut werd index.html opgehaald om er één versienummer uit te lezen — een
+// kwart megabyte per keer, en door de unieke ?upd= elke keer een nieuwe cache-kopie.
+// Over een wedstrijd liep dat op tot tientallen megabytes. Nu staat het nummer in
+// version.json, een bestandje van een paar tientallen bytes.
+let _versieTerugval=0;   // wanneer we voor het laatst op de oude manier keken
+let versieJsonMist=false;
 async function checkForUpdate(){
   if(_updDismissed||document.getElementById('updBar'))return;
+  try{
+    const r=await fetch('version.json?u='+Date.now(),{cache:'no-store'});
+    if(r.ok){
+      const d=await r.json();
+      versieJsonMist=false;
+      const nr=Number(d.version||0);
+      if(nr>APP_VERSION)showUpdateBar(d.label||String(nr));
+      // Staat version.json op een lager nummer dan de draaiende app, dan is dat
+      // bestand vergeten bij het uploaden. Zonder deze controle merk je dat nooit:
+      // er komt dan simpelweg nooit meer een updatemelding.
+      else if(nr<APP_VERSION && !versieJsonMist){
+        versieJsonMist=true;
+        onthoudFout('version.json',new Error('staat op '+nr+', app draait op '+APP_VERSION));
+      }
+      return;
+    }
+  }catch(e){/* offline, of version.json bestaat nog niet */}
+  // Terugval voor het geval version.json ontbreekt: dan toch de oude weg, maar
+  // hooguit eens per half uur in plaats van elke minuut.
+  if(Date.now()-_versieTerugval < 30*60*1000)return;
+  _versieTerugval=Date.now();
   try{
     const r=await fetch('index.html?upd='+Date.now(),{cache:'no-store'});
     if(!r.ok)return;
     const t=await r.text();
-    // Lees APP_VERSION rechtstreeks uit de opgehaalde broncode. Een aparte meta-tag
-    // moest met de hand worden bijgewerkt en liep daardoor jarenlang achter, waardoor
-    // de melding nooit verscheen. Nu is er nog maar één plek waar het nummer staat.
-    const m=t.match(/const APP_VERSION=(\d+)/) || t.match(/name="app-version" content="(\d+)"/);
+    const m=t.match(/const APP_VERSION=(\d+)/);
     const lab=t.match(/const VERSIE_LABEL='([^']+)'/);
     if(m&&Number(m[1])>APP_VERSION)showUpdateBar(lab?lab[1]:String(m[1]));
   }catch(e){/* offline of file:// — stil overslaan */}
