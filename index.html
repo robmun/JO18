@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="138">
+<meta name="app-version" content="141">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -2933,7 +2933,7 @@ function klokNaarTimer(stand){
       baas:CLOUD.klokBaas||null,
       verlaten:klokVerlaten(),
       stand:stand||null
-    }},'*');
+    }},location.origin);
   }catch(e){}
 }
 // Schrijft het ankerpunt van de klok weg. Alleen bij een actie, niet elke seconde.
@@ -3001,7 +3001,7 @@ function sendQuarterToTimer(q){
     const th=document.getElementById('timerHost');
     const ifr=th&&th.querySelector('iframe');
     if(!ifr||!ifr.contentWindow)return;
-    ifr.contentWindow.postMessage({ghcSetQuarter:q},'*');
+    ifr.contentWindow.postMessage({ghcSetQuarter:q},location.origin);
   }catch(e){}
 }
 function sendSwapTimesToTimer(){
@@ -3014,7 +3014,7 @@ function sendSwapTimesToTimer(){
     for(let q=0;q<4;q++){
       for(let m=1;m<perQ;m++){ times[q+1].push(Math.round(m*blockLen*60)); }
     }
-    ifr.contentWindow.postMessage({ghcSwapTimes:times},'*');
+    ifr.contentWindow.postMessage({ghcSwapTimes:times},location.origin);
   }catch(e){}
 }
 function fieldSVG(){
@@ -3634,8 +3634,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=138;
-const VERSIE_LABEL='26.8.4';
+const APP_VERSION=141;
+const VERSIE_LABEL='26.8.7';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
@@ -3667,7 +3667,12 @@ function showUpdateBar(v){
   document.body.appendChild(d);
 }
 async function applyUpdate(){
-  try{const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));}catch(e){onthoudFout('cache legen',e);}
+  // Alleen de eigen caches wissen. Deze herkomst wordt gedeeld met andere
+  // GitHub Pages-projecten; alles wissen zou hun offline-gegevens meenemen.
+  try{
+    const ks=await caches.keys();
+    await Promise.all(ks.filter(k=>k.startsWith('wisselplanner')).map(k=>caches.delete(k)));
+  }catch(e){onthoudFout('cache legen',e);}
   try{const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.update()));}catch(e){onthoudFout('sw vernieuwen',e);}
   location.reload();
 }
@@ -4019,6 +4024,11 @@ try{
 }catch(e){}
 
 window.addEventListener('message',e=>{
+  // Alleen berichten van onze eigen timer accepteren. App en timer draaien op dezelfde
+  // herkomst sinds de timer een eigen bestand is, dus dit is een harde controle.
+  if(e.origin!==location.origin)return;
+  const _ifr=document.querySelector('#timerHost iframe');
+  if(e.source!==window && (!_ifr || e.source!==_ifr.contentWindow))return;
   if(!e.data)return;
   // De timer meldt op welk kwart hij staat.
   if(e.data.ghcQuarter){
@@ -4153,7 +4163,7 @@ function zetZon(aan){
   // de timer heeft zijn eigen zonstand; die laten we meeschakelen
   try{
     const ifr=document.querySelector('#timerHost iframe');
-    if(ifr&&ifr.contentWindow)ifr.contentWindow.postMessage({ghcZon:!!aan},'*');
+    if(ifr&&ifr.contentWindow)ifr.contentWindow.postMessage({ghcZon:!!aan},location.origin);
   }catch(e){}
 }
 try{ if(localStorage.getItem('gw_zon')==='1')zetZon(true); }catch(e){}

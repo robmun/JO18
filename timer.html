@@ -585,7 +585,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
         
         <div class="ringCenter">
           <div id="time" class="time">00:00</div>
-          <div id="meta" class="meta">Gespeeld: <strong>00:00</strong> / 70:00</div>
+          <div id="meta" class="meta"></div>
         </div>
       </div>
     </div>
@@ -637,19 +637,35 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     let wakeLock = null;
 
     // ── sessionStorage: herstel toestand na page refresh ──
+    // ── Bewaren en terugvinden van de wedstrijdstand ──
+    // Stond in sessionStorage en zonder het ankerpunt: ruimde iOS de app op tijdens de
+    // rust, dan was de hele wedstrijdtijd weg en begon je weer op 00:00. Nu in
+    // localStorage, mét of de klok liep en sinds welk tijdstip, zodat de verstreken
+    // tijd na een herstart gewoon doorgerekend kan worden.
+    var BEWAARSLEUTEL = 'ghc-timer-state';
+    // swapDone wordt verderop pas aangemaakt; deze omweg voorkomt een fout als er
+    // eerder wordt opgeslagen dan dat die regel is uitgevoerd.
+    var _swapDoneRef = null;
+    function _swapDoneVoorOpslag(){ return _swapDoneRef; }
+    var MAX_HERSTEL = 10 * 60;   // zelfde grens als bij de gedeelde klok
     function _loadState() {
       try {
-        const raw = sessionStorage.getItem('ghc-timer-state');
+        var raw = localStorage.getItem(BEWAARSLEUTEL) || sessionStorage.getItem(BEWAARSLEUTEL);
         if (!raw) return null;
         return JSON.parse(raw);
       } catch(e) { return null; }
     }
     function _saveState() {
       try {
-        sessionStorage.setItem('ghc-timer-state', JSON.stringify({
+        localStorage.setItem(BEWAARSLEUTEL, JSON.stringify({
           currentQuarter,
           quarterTimes,
-          lastMinuteBeeped
+          lastMinuteBeeped,
+          swapDone: _swapDoneVoorOpslag(),
+          running,
+          runStartedAt,
+          runBaseElapsed,
+          bewaardOp: Date.now()
         }));
       } catch(e) {}
     }
@@ -666,6 +682,28 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     let rafId = null;
     let runStartedAt = null;
     let runBaseElapsed = 0;
+    // Welke hele seconde er nu op het scherm staat; -1 dwingt de eerste tekenbeurt af.
+    var _laatstGetekend = -1;
+
+    // Liep de klok toen de app werd weggehaald? Reken uit hoeveel er sindsdien
+    // verstreken is en zet de stand terug. Is dat onwaarschijnlijk veel — de app lag
+    // een uur stil — dan blijft de klok staan op de laatst bekende stand.
+    var _herstelLiep = false;
+    (function herstelStand(){
+      if (!_savedState || !_savedState.running || !_savedState.runStartedAt) return;
+      var basis = _savedState.runBaseElapsed || 0;
+      var extra = (Date.now() - _savedState.runStartedAt) / 1000;
+      if (extra < 0) extra = 0;
+      var totaal = basis + extra;
+      if (totaal > QLEN + MAX_HERSTEL) {
+        quarterTimes[currentQuarter] = Math.min(basis, QLEN + MAX_HERSTEL);
+        return;                       // te lang geleden: niet doorstarten
+      }
+      quarterTimes[currentQuarter] = totaal;
+      runBaseElapsed = basis;
+      runStartedAt = _savedState.runStartedAt;
+      _herstelLiep = true;            // verderop weer aanzetten, als alles klaarstaat
+    })();
 
     // ---- Ring geometry ----
     const R = 92;
@@ -884,6 +922,14 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     // ── Wisselmoment-melding (tril + geluid + banner) ──
     let swapTimes = { 1: [], 2: [], 3: [], 4: [] };   // wisselmomenten in seconden per kwart
     let swapDone  = { 1: [], 2: [], 3: [], 4: [] };
+    _swapDoneRef = swapDone;
+    // Al gepasseerde wisselmomenten terugzetten, anders gaat het signaal na een
+    // herstart alsnog af voor een moment van tien minuten geleden.
+    if (_savedState && _savedState.swapDone) {
+      try { Object.keys(swapDone).forEach(function(q){
+        if (Array.isArray(_savedState.swapDone[q])) swapDone[q] = _savedState.swapDone[q].slice();
+      }); } catch(e) {}
+    }
     function beepSwap() {
       try {
         ensureAudio();
@@ -925,6 +971,10 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     // Berichten van de hoofd-app: wisseltijden en kwartwissel
     var _qFromApp = false;   // voorkomt dat we een kwartwissel terugkaatsen
     window.addEventListener('message', function(e){
+      // Alleen berichten van de hoofd-app die dit venster bevat. Zelfde herkomst,
+      // dus dit sluit alles buiten de app af.
+      if (e.origin !== location.origin) return;
+      if (window.parent !== window && e.source !== window.parent) return;
       if (!e.data) return;
       if (e.data.ghcSwapTimes) {
         swapTimes = e.data.ghcSwapTimes;
@@ -989,8 +1039,8 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 138;
-    try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, '*'); } catch (e) {}
+    var TIMER_VERSION = 141;
+    try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
     // 'baas' = het toestel dat de klok bedient. Andere toestellen kijken alleen mee.
@@ -1006,7 +1056,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       try { parent.postMessage({ghcKlok: {
         q: currentQuarter, basis: quarterElapsed(currentQuarter),
         sinds: running ? Date.now() : null, loopt: running
-      }}, '*'); } catch (e) {}
+      }}, location.origin); } catch (e) {}
     }
     // Bovengrens voor een kwart dat vanaf een ander toestel wordt overgenomen.
     // Zonder deze grens telt een achtergelaten ankerpunt (toestel uitgezet, app
@@ -1041,17 +1091,22 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       var sleutel = q + ':' + Math.floor(sec) + ':' + (loopt ? 1 : 0);
       if (sleutel === _lastSent || window.parent === window) return;
       _lastSent = sleutel;
-      try { parent.postMessage({ghcStand: {q: q, sec: Math.floor(sec), loopt: !!loopt}}, '*'); } catch (e) {}
+      try { parent.postMessage({ghcStand: {q: q, sec: Math.floor(sec), loopt: !!loopt}}, location.origin); } catch (e) {}
     }
     function updateUI() {
       const elapsedQuarter = quarterElapsed(currentQuarter);
+      // Onthoud welke hele seconde er nu getekend wordt. Zo tekent tick() niet nog
+      // eens hetzelfde, en werkt een rechtstreekse aanroep — een druk op ±1 minuut,
+      // een kwartwissel, een stand van een ander toestel — altijd meteen.
+      _laatstGetekend = Math.floor(elapsedQuarter);
       const display = displayValue(currentQuarter);
       const totalElapsed = totalElapsedMatch();
       meldStand(currentQuarter, elapsedQuarter, running);
 
       timeEl.textContent = fmt(display);
-      metaEl.innerHTML = 'Gespeeld: <strong>' + fmt(totalElapsed) + '</strong> / ' + fmt(TOTAL_MATCH)
-        + (klokAan && klokBaas && klokBaas.id !== klokMijnId
+      // 'Gespeeld: x / 70:00' is eruit: de grote cijfers zeggen het al, en de totale
+      // wedstrijdtijd staat inmiddels in de app zelf. Alleen de klokbaas-melding blijft.
+      metaEl.innerHTML = (klokAan && klokBaas && klokBaas.id !== klokMijnId
             ? '<br><span style="opacity:.75">' + (klokVerlaten
                 ? 'Klok van ' + klokBaas.naam + ' reageert niet &mdash; tik om over te nemen'
                 : 'Klok wordt bediend door ' + klokBaas.naam + ' &mdash; tik om over te nemen') + '</span>'
@@ -1128,7 +1183,16 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
         _lastSaveTs = now;
       }
 
-      updateUI();
+      // Alleen naar het scherm schrijven als er iets te zien verandert. De cijfers
+      // wisselen één keer per seconde en de ring draait 0,34 graad per seconde; het
+      // had geen zin om dat veertig keer per seconde opnieuw te tekenen. Rekenen en
+      // signaleren gebeurt hierboven wél elk beeldje, zodat een wisselmoment nooit
+      // te laat komt.
+      var heleSeconde = Math.floor(nowElapsed);
+      if (heleSeconde !== _laatstGetekend) {
+        _laatstGetekend = heleSeconde;
+        updateUI();
+      }
       rafId = requestAnimationFrame(tick);
     }
 
@@ -1145,7 +1209,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     }
 
     function vraagOvernemen() {
-      try { parent.postMessage({ ghcKlokVraagOver: true }, '*'); } catch (e) {}
+      try { parent.postMessage({ ghcKlokVraagOver: true }, location.origin); } catch (e) {}
       if ('vibrate' in navigator) navigator.vibrate(20);
     }
     function toggleStartPause() {
@@ -1176,7 +1240,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       if ('vibrate' in navigator) navigator.vibrate(10);
       // Laat de opstelling in de hoofd-app hetzelfde kwart tonen
       if (!_qFromApp && window.parent !== window) {
-        try { parent.postMessage({ghcQuarter: q}, '*'); } catch(err) {}
+        try { parent.postMessage({ghcQuarter: q}, location.origin); } catch(err) {}
       }
     }
 
@@ -1205,6 +1269,16 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       applyTheme(cur === 'light' ? 'dark' : (cur === 'dark' ? 'sun' : 'light'));
     });
     qButtons.forEach(btn => btn.addEventListener('click', () => { if (!magBedienen()) { vraagOvernemen(); return; } changeQuarter(Number(btn.dataset.q)); meldKlok(); }));
+
+    // Liep de klok toen de app werd weggehaald, dan hier weer aanzetten: pas op dit
+    // punt bestaan startTimer en de knoppen.
+    if (_herstelLiep) {
+      running = true;
+      requestWakeLock();
+      rafId = requestAnimationFrame(tick);
+      updateUI();
+      meldKlok();
+    }
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && running) {
@@ -1307,7 +1381,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       sx = null;
       if (Math.abs(dx) < 65 || Math.abs(dy) > 55) return;
       if (e.target.closest && e.target.closest('button')) return;
-      try { parent.postMessage({ghcSwipe: dx < 0 ? 1 : -1}, '*'); } catch(err) {}
+      try { parent.postMessage({ghcSwipe: dx < 0 ? 1 : -1}, location.origin); } catch(err) {}
     }, {passive:true});
   })();
 </script>

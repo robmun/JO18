@@ -7,7 +7,11 @@
 // gaat immers voor — en het dwong je dit bestand bij elke release opnieuw te
 // uploaden. Nu is sw.js een vast bestand: eenmalig plaatsen en klaar. Oude
 // caches van vroegere versies worden bij de eerste activering opgeruimd.
-const CACHE = 'wisselplanner';
+// Alle caches van deze app beginnen met dit voorvoegsel. Belangrijk, want
+// robmun.github.io is één herkomst voor ál je GitHub Pages-projecten: zonder
+// voorvoegsel zou het opruimen ook de offline-gegevens van andere apps wissen.
+const CACHE_PREFIX = 'wisselplanner';
+const CACHE = CACHE_PREFIX;
 const ASSETS = ['./', './index.html', './timer.html', './icon-ghc-navy.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -23,7 +27,9 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys
+        .filter(k => k.startsWith(CACHE_PREFIX) && k !== CACHE)
+        .map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
