@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="136">
+<meta name="app-version" content="137">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -439,6 +439,13 @@ body.sun .zwklok{background:#0b2148;border-color:#0b2148}
 .brow.kaart.geel{background:rgba(245,205,45,.94);border:1.5px solid rgba(255,255,255,.85)}
 .brow.kaart.geel .bball{background:linear-gradient(160deg,#9a7a12,#5f4a08);border-color:rgba(255,255,255,.9)}
 .brow.kaart.geel span,.brow.kaart.geel .ktel{color:#3a2c00}
+/* Open plek op het veld zolang een kaart loopt: het team speelt met een man minder. */
+.chip.kaartleeg .ball{background:none;border-style:dashed;border-width:2px;font-size:var(--fs-sm);font-weight:800}
+.chip.kaartleeg.groen .ball{border-color:#2fae55;color:#8ff0b0}
+.chip.kaartleeg.geel .ball{border-color:#f0c419;color:#ffe89a}
+.chip.kaartleeg .tag{font-variant-numeric:tabular-nums}
+.chip.kaartleeg.groen .tag{background:#1f7a3d;color:#fff}
+.chip.kaartleeg.geel .tag{background:#9a7a12;color:#fff}
 .brow .ktel{margin-left:6px;font-variant-numeric:tabular-nums;font-size:var(--fs-sm);
   color:rgba(255,255,255,.85);flex-shrink:0}
 .brow .ktel.klaar{color:#fff;font-weight:800}
@@ -2210,8 +2217,7 @@ function zwevendeKlokBijwerken(){
 // zou de opstelling laten verspringen op een moment dat hij er niet naar kijkt.
 let _kaartGemeld={};
 function kaartenBijwerken(){
-  uitLijst().forEach(p=>{
-    if(!p.kaart)return;
+  kaartLijst().forEach(p=>{
     const el=document.getElementById('kt-'+p.id);
     const rest=kaartResterend(p);
     if(el){
@@ -2256,6 +2262,11 @@ function veldKlokBijwerken(){
 // Spelers die tijdens de wedstrijd even niet inzetbaar zijn (blessure).
 // Tijdelijke toestand: bij een volledig nieuw schema vervalt hij vanzelf.
 function uitLijst(){return state.players.filter(p=>p.present&&p.uit);}
+// Een kaart haalt de speler wél van het veld maar niet uit het schema: het team
+// speelt zolang met een man minder, en daarna staat hij weer op zijn eigen plek.
+// Daarom géén p.uit — dan zou de planner hem voor de rest van de wedstrijd overslaan.
+function kaartLijst(){return state.players.filter(p=>p.present&&p.kaart);}
+function heeftKaart(pid){const p=byId(pid);return !!(p&&p.kaart);}
 function wisUitStatus(){state.players.forEach(p=>{if(p.uit)delete p.uit;if(p.kaart)delete p.kaart;});}
 // ── Kaarten ──
 // Een groene kaart is twee minuten, een gele vijf. Dezelfde machinerie als een
@@ -2635,7 +2646,11 @@ function spelerActies(pid,q){
   const inVeld=Object.values(asg).includes(pid);
   const isKeeper=pid===((sch.keeperByQ&&sch.keeperByQ[q])||sch.keeperId);
   const knoppen=[];
-  if(p.uit){
+  if(p.kaart){
+    const k=KAARTEN[p.kaart.soort], rest=kaartResterend(p);
+    knoppen.push(['kaartterug',ico('vink')+(rest>0?'Nu al terug op het veld':'Terug op het veld')]);
+    knoppen.push(['weg',ico('verboden')+'Vandaag niet meer',true]);
+  }else if(p.uit){
     knoppen.push(['terug',ico('vink')+'Weer beschikbaar &mdash; op de bank']);
     knoppen.push(['weg',ico('verboden')+'Vandaag niet meer',true]);
   }else{
@@ -2681,10 +2696,29 @@ function spelerActies(pid,q){
     if(act==='groen'||act==='geel'){
       const k=KAARTEN[act];
       snapshot(p.name+' '+k.naam);
-      p.uit=true; p.kaart={soort:act,terug:totaalSec()+k.min*60};
-      if(!herplanVanafNu(p.name+' '+k.naam+' \u2014 '+k.min+' min eruit',false,{type:'kaart',pid:p.id,soort:act})){
-        delete p.uit; delete p.kaart; render();
-      }
+      // Geen herplanning: het team speelt de straftijd met een man minder en daarna
+      // staat hij weer op zijn eigen plek. Het wisselschema blijft dus ongemoeid.
+      p.kaart={soort:act,terug:totaalSec()+k.min*60};
+      noteerGebeurtenis(q, p.name+' krijgt een '+k.naam+' en staat '+k.min
+        +' minuten buiten het veld; het team speelt zolang met een man minder.');
+      save(); render();
+      toast(p.name+' \u2014 '+k.naam+', '+k.min+' minuten eruit');
+      return;
+    }
+    if(act==='kaartterug'){
+      snapshot(p.name+' terug na kaart');
+      const soort=p.kaart?KAARTEN[p.kaart.soort].naam:'kaart';
+      delete p.kaart;
+      // Hij stond nog gewoon in het schema, dus er valt niets te herplannen.
+      // Stond het wisselmoment tijdens zijn straftijd, dan is hij inmiddels gewisseld
+      // en komt hij op de bank terug in plaats van op zijn oude plek.
+      const a=state.schedule.assignments[q*state.schedule.perQ+huidigBlok(q)]||{};
+      const pos=Object.keys(a).find(k=>a[k]===p.id);
+      noteerGebeurtenis(q, pos&&POSMAP[pos]
+        ? p.name+' komt na zijn '+soort+' terug op '+POSMAP[pos].name.toLowerCase()+'.'
+        : p.name+' mag na zijn '+soort+' weer meedoen en volgt verder het wisselschema.');
+      save(); render();
+      toast(pos?p.name+' staat weer op het veld':p.name+' doet weer mee volgens het schema');
       return;
     }
     if(act==='terug'){
@@ -3048,7 +3082,8 @@ function renderQuarter(q){
   // vak rechtsboven, maar dat kwam op de tablet onder de klok terecht en liep op de
   // telefoon over de opstelling heen zodra het er een paar werden.
   const uitIds=uitLijst().map(p=>p.id);
-  const bankIds=benchIds.concat(uitIds);
+  const kaartIds=kaartLijst().map(p=>p.id);
+  const bankIds=benchIds.concat(uitIds,kaartIds);
   if(bankIds.length){
     // Geblesseerden mogen nooit wegvallen achter de teller: zij zijn juist de
     // uitzondering die je wilt zien. Zij krijgen hun plek eerst, de wisselspelers
@@ -3065,11 +3100,12 @@ function renderQuarter(q){
     // voor omdat zij de uitzondering zijn die je wilt zien.
     const telefoon=window.innerWidth<600;
     const MAX_BANK=isWide()?(bankIds.length>6?4:6):(telefoon?5:8);
-    const ruimteVoorBank=Math.max(1,MAX_BANK-uitIds.length);
+    const bijzonder=uitIds.concat(kaartIds);
+    const ruimteVoorBank=Math.max(1,MAX_BANK-bijzonder.length);
     const bankDeel=benchIds.slice(0,ruimteVoorBank);
-    // Ook de geblesseerden worden afgekapt als het er zoveel zijn dat de lijst
+    // Ook de bijzondere gevallen worden afgekapt als het er zoveel zijn dat de lijst
     // over de opstelling zou vallen; de teller '+n' telt ze dan mee.
-    const uitDeel=uitIds.slice(0,Math.max(1,MAX_BANK-bankDeel.length));
+    const uitDeel=bijzonder.slice(0,Math.max(1,MAX_BANK-bankDeel.length));
     const zichtbaar=bankDeel.concat(uitDeel);
     const rest=bankIds.length-zichtbaar.length;
     const perKol = zichtbaar.length>3 ? Math.ceil(zichtbaar.length/2) : zichtbaar.length;
@@ -3089,7 +3125,14 @@ function renderQuarter(q){
       +`</div>`;
   }
   for(const pos of positionsOfQ(q)){
-    const pid=asg0[pos.id];
+    let pid=asg0[pos.id];
+    // Speler met een kaart staat buiten het veld; zijn plek blijft open.
+    if(pid&&heeftKaart(pid)){
+      const p=byId(pid), rest=kaartResterend(p);
+      veld+=`<div class="chip kaartleeg ${p.kaart.soort}" style="left:${pos.x}%;top:${pos.y}%">
+        <div class="ball">${pos.kort}</div><div class="tag">${rest===0?'mag terug':kaartTijd(rest)}</div></div>`;
+      continue;
+    }
     if(pid){
       const isC=pid===capt;
       veld+=`<div class="chip ${selChip===pid?'selected':''}" data-chip="${pid}" style="left:${pos.x}%;top:${pos.y}%">
@@ -3591,8 +3634,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=136;
-const VERSIE_LABEL='26.8.2';
+const APP_VERSION=137;
+const VERSIE_LABEL='26.8.3';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
