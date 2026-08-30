@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="144">
+<meta name="app-version" content="145">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1736,11 +1736,27 @@ function koppelTellerBijwerken(){
 // ook een paar stappen terug kunnen.
 const UNDO_MAX=10;
 let _undoStack=[];
+// Een volledige momentopname van alles wat een actie kan wijzigen. Eerder werd
+// alleen het schema bewaard, maar een kaart of blessure zit op de speler zelf
+// (p.kaart, p.uit, p.present) en een gebeurtenis in state.gebeurtenissen. Na een
+// kaart draaide 'Ongedaan maken' daardoor alleen het schema terug en bleef de
+// kaart staan. Door de hele stand te bewaren werkt undo ook voor alles wat er
+// later nog bij komt.
 function snapshot(label){
   try{
-    _undoStack.push({schema:state.schedule?JSON.parse(JSON.stringify(state.schedule)):null,label:label||''});
+    _undoStack.push({
+      stand:JSON.stringify({
+        players:state.players,
+        schedule:state.schedule,
+        rules:state.rules,
+        keeperId:state.keeperId,
+        genHash:state.genHash,
+        gebeurtenissen:state.gebeurtenissen||[]
+      }),
+      label:label||''
+    });
     if(_undoStack.length>UNDO_MAX)_undoStack.shift();
-  }catch(e){}
+  }catch(e){ onthoudFout('momentopname maken',e); }
 }
 function canUndo(){return _undoStack.length>0;}
 function undoLabel(){return _undoStack.length?_undoStack[_undoStack.length-1].label:'';}
@@ -1748,7 +1764,15 @@ function doUndo(){
   if(cloudViewerBlocked())return;
   if(!_undoStack.length){toast('Niets om ongedaan te maken');return;}
   const stap=_undoStack.pop();
-  state.schedule=stap.schema?JSON.parse(JSON.stringify(stap.schema)):null;
+  try{
+    const oud=JSON.parse(stap.stand);
+    state.players       = oud.players;
+    state.schedule      = oud.schedule;
+    state.rules         = oud.rules;
+    state.keeperId      = oud.keeperId;
+    state.genHash       = oud.genHash;
+    state.gebeurtenissen= oud.gebeurtenissen||[];
+  }catch(e){ onthoudFout('ongedaan maken',e); toast('Terugdraaien lukt niet'); return; }
   selChip=null;save();render();sendSwapTimesToTimer();
   toast('Ongedaan gemaakt'+(_undoStack.length?' \u2014 nog '+_undoStack.length+' stap'+(_undoStack.length>1?'pen':'')+' terug mogelijk':''));
 }
@@ -3669,8 +3693,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=144;
-const VERSIE_LABEL='26.8.10';
+const APP_VERSION=145;
+const VERSIE_LABEL='26.8.11';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
