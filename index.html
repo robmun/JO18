@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="154">
+<meta name="app-version" content="155">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -942,9 +942,11 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
   const maxBlk={},minBlk={};
   for(const r of rules){
     if(r.type!=='minutes'||!ids.includes(r.p1))continue;
-    const blk=Math.round(r.min/blockMin);
-    if(r.mm==='max') maxBlk[r.p1]=Math.min(maxBlk[r.p1]??1e9, blk);
-    else             minBlk[r.p1]=Math.max(minBlk[r.p1]??0, blk);
+    // Naar boven afronden bij een minimum, naar beneden bij een maximum. Met
+    // afronden op het dichtstbijzijnde blok leverde 'minimaal 10 minuten' bij twee
+    // wissels per kwart 8,75 minuut op — de coach kreeg minder dan hij instelde.
+    if(r.mm==='max') maxBlk[r.p1]=Math.min(maxBlk[r.p1]??1e9, Math.floor(r.min/blockMin));
+    else             minBlk[r.p1]=Math.max(minBlk[r.p1]??0,  Math.ceil(r.min/blockMin));
   }
   // maximum verlaagt de beschikbaarheid (cap), zodat de eerlijke verdeling het meeneemt
   fieldPlayers.forEach(p=>{ if(maxBlk[p.id]!=null) caps[p.id]=Math.min(caps[p.id],maxBlk[p.id]); });
@@ -1084,6 +1086,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
       // met de meeste overtollige minuten eruit (die geen eigen minimum schendt)
       let done=false;
       for(let b=0;b<B&&!done;b++){
+        if(b<fromBlock)continue;   // reeds gespeelde blokken liggen vast
         if(blocks[b].has(id)||!elig[id][b])continue;
         const cand=[...blocks[b]].filter(x=>x!==id
           && (minBlk[x]==null || played[x]>Math.min(minBlk[x],caps[x]))
@@ -1098,6 +1101,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
   for(const r of apart){
     for(let pass=0;pass<3;pass++){
       for(let b1=0;b1<B;b1++){
+        if(b1<fromBlock)continue;   // reeds gespeelde blokken liggen vast
         if(q3like&&b1===q3Block)continue; // start Q3 blijft gelijk aan start Q1
         if(!(blocks[b1].has(r.p1)&&blocks[b1].has(r.p2)))continue;
         // Een vastgezet blok kan een speler bevatten die niet meer inzetbaar is;
@@ -1106,6 +1110,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
         let fixed=false;
         for(const mv of [r.p1,r.p2]){
           for(let b2=0;b2<B&&!fixed;b2++){
+            if(b2<fromBlock)continue;   // reeds gespeelde blokken liggen vast
             if(b2===b1||blocks[b2].has(mv)||!elig[mv][b2])continue;
             if(q3like&&b2===q3Block)continue;
             const other=mv===r.p1?r.p2:r.p1;
@@ -3919,8 +3924,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=154;
-const VERSIE_LABEL='26.8.20';
+const APP_VERSION=155;
+const VERSIE_LABEL='26.8.21';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
@@ -3940,8 +3945,8 @@ async function checkForUpdate(){
     const r=await fetch('version.json?u='+Date.now(),{cache:'no-store'});
     if(r.ok){
       const d=await r.json();
-      versieJsonMist=false;
       const nr=Number(d.version||0);
+      if(nr>=APP_VERSION)versieJsonMist=false;   // weer gelijk of nieuwer: opnieuw melden mag
       if(nr>APP_VERSION)showUpdateBar(d.label||String(nr));
       // Staat version.json op een lager nummer dan de draaiende app, dan is dat
       // bestand vergeten bij het uploaden. Zonder deze controle merk je dat nooit:
@@ -3982,7 +3987,16 @@ async function applyUpdate(){
     const ks=await caches.keys();
     await Promise.all(ks.filter(k=>k.startsWith('wisselplanner')).map(k=>caches.delete(k)));
   }catch(e){onthoudFout('cache legen',e);}
-  try{const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.update()));}catch(e){onthoudFout('sw vernieuwen',e);}
+  // Alleen de eigen service worker vernieuwen. robmun.github.io is één herkomst voor
+  // al je GitHub Pages-projecten; zonder filter werk je ook die van andere apps bij.
+  try{
+    const regs=await navigator.serviceWorker.getRegistrations();
+    const eigen=regs.filter(r=>{
+      const sc=r.scope||'';
+      return sc.startsWith(location.origin+location.pathname.replace(/[^/]*$/,''));
+    });
+    await Promise.all(eigen.map(r=>r.update()));
+  }catch(e){onthoudFout('sw vernieuwen',e);}
   location.reload();
 }
 setTimeout(checkForUpdate,2500);
@@ -4177,6 +4191,66 @@ function zelftest(){
       if(undoLabel()!=='stap 13')fout('bovenste stap is '+undoLabel()+' in plaats van stap 13');
     }finally{ _undoStack=bewaar; state.schedule=bewaarSchema; }
   });
+  test('Herplannen met regels laat het verleden staan',()=>{
+    // De hoofdronde sloeg gespeelde blokken al over, maar de correctierondes voor
+    // minimumminuten en 'liever niet samen' deden dat niet. Die konden een blok van
+    // tien minuten geleden alsnog omgooien. Deze test dekt precies die twee.
+    // Een krap minimum is nodig om de correctieronde echt aan het werk te zetten;
+    // met 40 minuten is er zoveel speelruimte dat hij het verleden niet aanraakt.
+    const gevallen=[
+      ['minimumminuten', st=>{ st.rules.push({id:'m',type:'minutes',p1:'p3',mm:'min',min:50}); }],
+      ['liever niet samen', st=>{ st.rules.push({id:'a',type:'apart',p1:'p0',p2:'p1'}); }],
+      ['allebei tegelijk', st=>{ st.rules.push({id:'m',type:'minutes',p1:'p3',mm:'min',min:50},
+                                               {id:'a',type:'apart',p1:'p0',p2:'p1'}); }],
+      ['sterkste slot', st=>{ st.rules.push({id:'e',type:'endstrong',p1:'p2',amt:'min10'}); }]
+    ];
+    for(const [naam,regels] of gevallen)
+    for(const aantal of [13,15,17]){
+      const st=ztTeam(aantal); regels(st);
+      const sch=buildSchedule(st); if(!sch){fout(naam+': geen schema');continue;}
+      st.schedule=sch;
+      // Herplan midden in Q3, zoals bij een blessure in de tweede helft.
+      const perQ=sch.perQ, vanaf=2*perQ+1;
+      const fixedBlocks={}, playedSoFar={};
+      st.players.filter(p=>p.id!=='k').forEach(p=>playedSoFar[p.id]=0);
+      for(let b=0;b<vanaf;b++){
+        const set=new Set(Object.values(sch.assignments[b]));
+        fixedBlocks[b]=set; set.forEach(id=>{if(playedSoFar[id]!=null)playedSoFar[id]++;});
+      }
+      const fresh=buildSchedule(st,{forcePerQ:perQ,fromBlock:vanaf,fixedBlocks,playedSoFar,
+        vastAssignments:sch.assignments});
+      if(!fresh){fout(naam+': herplannen leverde niets op');continue;}
+      for(let b=0;b<vanaf;b++){
+        if(JSON.stringify(fresh.assignments[b])!==JSON.stringify(sch.assignments[b]))
+          fout(naam+': blok '+(b+1)+' is achteraf gewijzigd');
+      }
+      // De opstelling van gespeelde blokken wordt letterlijk overgenomen, dus daar
+      // zie je een verstoorde blokverdeling niet aan. De minutentelling komt wél uit
+      // die verdeling: klopt hij niet met wat er werkelijk op het veld stond, dan is
+      // er in het verleden gerommeld.
+      const blokMin=17.5/perQ;
+      st.players.filter(p=>p.id!=='k').forEach(p=>{
+        let echt=0;
+        for(let b=0;b<perQ*4;b++)if(Object.values(fresh.assignments[b]).includes(p.id))echt++;
+        const geteld=Math.round((fresh.minutes[p.id]||0)/blokMin);
+        if(geteld!==echt)
+          fout(naam+': '+p.name+' telt '+geteld+' blokken maar staat er '+echt+' op het veld');
+      });
+      ztControleer(st,fresh,naam+' ('+(aantal+1)+' spelers)',fout);
+    }
+  });
+  test('Minuten worden niet naar beneden afgerond',()=>{
+    // 'minimaal 10 minuten' mag nooit minder dan 10 opleveren, en een maximum
+    // nooit meer dan is ingesteld.
+    for(const perQ of [2,3,4,5]){
+      const blokMin=17.5/perQ;
+      for(const wens of [5,10,15,20,35]){
+        const minBlok=Math.ceil(wens/blokMin), maxBlok=Math.floor(wens/blokMin);
+        if(minBlok*blokMin < wens-0.001)fout('minimum '+wens+' min bij '+perQ+' blokken geeft '+(minBlok*blokMin).toFixed(2));
+        if(maxBlok*blokMin > wens+0.001)fout('maximum '+wens+' min bij '+perQ+' blokken geeft '+(maxBlok*blokMin).toFixed(2));
+      }
+    }
+  });
   test('Wisselmomenten uit één bron',()=>{
     const st=ztTeam(15); st.schedule=buildSchedule(st);
     for(let q=0;q<4;q++){
@@ -4196,7 +4270,7 @@ function toonZelftest(){
   document.body.classList.remove('timermode');
   document.getElementById('timerHost').classList.remove('show');
   document.getElementById('view').innerHTML=
-    `<div class="card"><h2>Zelftest ${goed?'&#10003; alles in orde':'&#10007; '+fouten.length+' probleem'+(fouten.length>1?'en':'')}</h2>
+    `<div class="card"><h2>Zelftest ${goed?'&#10003; alles in orde':'&#10007; '+fouten.length+' probleem'+(fouten.length>1?'punten':'')}</h2>
       <p class="hint">Versie ${VERSIE_LABEL} &middot; ${gedaan.length} onderdelen in ${ms} ms</p>
       ${gedaan.map(g=>`<div class="rule"><span>${g.ok?'&#10003;':'&#10007;'} ${esc(g.naam)}</span></div>`).join('')}
       ${fouten.length?'<h2 style="margin-top:14px">Wat er mis is</h2>'+fouten.map(f=>`<p class="hint" style="color:#ffb3a3">&bull; ${esc(f)}</p>`).join(''):''}
