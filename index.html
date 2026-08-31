@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="150">
+<meta name="app-version" content="154">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -844,6 +844,11 @@ function subsRule(rules){
 }
 const LINES={voor:'voorste linie',midden:'middenlinie',achter:'achterste linie'};
 const LINE_IDS=['voor','midden','achter'];
+// Kaarten. Staat hier bij de andere vaste gegevens en niet verderop bij de
+// kaartfuncties: de stand wordt vroeg geladen en gecontroleerd, en die controle
+// gebruikt deze lijst. Stond hij lager, dan wierp het laden een fout die stil werd
+// opgevangen — met als gevolg dat de app terugviel op een leeg team.
+const KAARTEN={groen:{min:2,naam:'groene kaart'},geel:{min:5,naam:'gele kaart'}};
 // In welke linies mag een speler? Staat als p.lines bij de speler zelf.
 // Leeg of ontbrekend = alle drie, zodat bestaande teams niets merken.
 function linesOf(p){
@@ -1340,6 +1345,19 @@ function chainsEmpty(d){return !d.chains.length&&!d.looseOuts.length&&!d.looseMo
 // het schema onnodig verouderd. Ook 'uit' en 'kaart' blijven erbuiten: dat zijn
 // tijdelijke toestanden tijdens de wedstrijd, die juist niet tot hergenereren
 // moeten leiden.
+// Kleine foutenlijst voor als een coach belt met 'hij doet het niet'. Blijft in het
+// geheugen; te zien onderaan het spelerstabblad.
+//
+// Staat hier bovenaan en niet bij de diagnosekaart: de stand wordt al vroeg geladen
+// en gecontroleerd, en een lijst die dan nog niet bestaat slikt die eerste meldingen
+// stil op — precies de meldingen die je het hardst nodig hebt.
+const _fouten=[];
+function onthoudFout(waar,e){
+  try{
+    _fouten.unshift({t:new Date().toLocaleTimeString('nl-NL'),waar,wat:String(e&&e.message||e)});
+    if(_fouten.length>20)_fouten.pop();
+  }catch(x){}
+}
 function inputHash(state){
   return JSON.stringify({
     p:state.players.map(p=>[p.id,p.present,p.prefs,linesOf(p).slice().sort()]),
@@ -1842,7 +1860,9 @@ async function ghcInflate(u8){
 //
 // Wat er niet klopt wordt zo veel mogelijk gerepareerd in plaats van geweigerd:
 // een onbruikbaar schema gooien we weg (dat maak je opnieuw met één tik), een
-// onbekende regel of voorkeur laten we vallen. Alleen als de spelerslijst zelf
+// onbekende regel of voorkeur laten we vallen. Regels worden per soort gecontroleerd:
+// een onbekend type verdwijnt, en waarden binnen een bekende regel (positie,
+// speelvorm, kwart, aantal minuten) moeten kloppen. Alleen als de spelerslijst zelf
 // onbruikbaar is, geven we op.
 function valideerStand(s){
   const klachten=[];
@@ -1879,28 +1899,102 @@ function valideerStand(s){
   });
   if(!s.players.length)return {ok:false,klachten:['spelerslijst leeg na controle']};
 
-  // Regels die naar een verdwenen speler wijzen of een onbekend kwart noemen.
+  // Regels: per soort controleren wat hij nodig heeft. Een regel met een onbekend
+  // type of een onbruikbare waarde wordt weggegooid — hij zou toch niets doen, maar
+  // hij hoort niet in een gecontroleerde stand thuis en kan bij een volgende
+  // uitbreiding onverwacht gedrag geven.
   const ids=new Set(s.players.map(p=>p.id));
+  const kwarten=v=>Array.isArray(v)?[...new Set(v.map(Number).filter(q=>q>=1&&q<=4))]:[];
   s.rules=s.rules.filter(r=>{
-    if(!r||typeof r.type!=='string')return false;
-    if(r.p1&&!ids.has(r.p1)){klachten.push('regel verwijst naar onbekende speler');return false;}
-    if(r.p2&&!ids.has(r.p2)){klachten.push('regel verwijst naar onbekende speler');return false;}
-    if(r.qs!=null){
-      if(!Array.isArray(r.qs))return false;
-      r.qs=r.qs.map(Number).filter(q=>q>=1&&q<=4);
+    if(!r||typeof r.type!=='string'){klachten.push('regel zonder soort');return false;}
+    const weg=reden=>{klachten.push('regel \''+r.type+'\': '+reden);return false;};
+    // Spelers waar de regel naar wijst moeten bestaan.
+    if(r.p1!=null && !ids.has(r.p1))return weg('onbekende speler');
+    if(r.p2!=null && !ids.has(r.p2))return weg('onbekende speler');
+    switch(r.type){
+      case 'noq':        // niet spelen in bepaalde kwarten
+      case 'gk': {       // vervangkeeper in bepaalde kwarten
+        if(!r.p1)return weg('geen speler');
+        r.qs=kwarten(r.qs);
+        if(!r.qs.length)return weg('geen geldig kwart');
+        return true;
+      }
+      case 'form': {     // speelvorm per kwart
+        if(!FORMATIONS[r.form])return weg('onbekende speelvorm');
+        r.qs=kwarten(r.qs);
+        if(!r.qs.length)return weg('geen geldig kwart');
+        return true;
+      }
+      case 'pos':        // vaste positie
+      case 'condpos':    // positie als een andere speler er niet staat
+      case 'rotate': {   // wisselen van positie met een ander
+        if(!r.p1)return weg('geen speler');
+        if(!POSMAP[r.pos])return weg('onbekende positie');
+        if((r.type==='condpos'||r.type==='rotate') && !r.p2)return weg('tweede speler ontbreekt');
+        return true;
+      }
+      case 'apart': {    // twee spelers liever niet samen
+        if(!r.p1||!r.p2||r.p1===r.p2)return weg('twee verschillende spelers nodig');
+        return true;
+      }
+      case 'minutes': {  // minimum of maximum aantal minuten
+        if(!r.p1)return weg('geen speler');
+        if(r.mm!=='min'&&r.mm!=='max')return weg('geen minimum of maximum');
+        r.min=Number(r.min);
+        if(!isFinite(r.min)||r.min<0||r.min>70)return weg('aantal minuten onbruikbaar');
+        return true;
+      }
+      case 'start': {    // begint in de basis of op de bank
+        if(!r.p1)return weg('geen speler');
+        if(r.start!=='base'&&r.start!=='bench')return weg('onbekende startkeuze');
+        return true;
+      }
+      case 'endstrong': {// speelt zeker het einde
+        if(!r.p1)return weg('geen speler');
+        if(r.amt!=='min10'&&r.amt!=='q4')r.amt='q4';
+        return true;
+      }
+      case 'subs': {     // aantal wisselmomenten per kwart
+        r.n=Number(r.n);
+        if(!(r.n>=1&&r.n<=4))return weg('aantal wissels onbruikbaar');
+        return true;
+      }
+      case 'q3likeq1':   // Q3 begint als Q1
+        return true;
+      // Oude soorten die de migratie omzet; die mogen blijven tot dat gebeurd is.
+      case 'line': case 'noline': case 'half':
+        return true;
+      default:
+        return weg('onbekende soort');
     }
-    return true;
   });
 
   if(s.keeperId && !ids.has(s.keeperId)){ klachten.push('keeper bestaat niet meer'); s.keeperId=null; }
   if(!Array.isArray(s.gebeurtenissen))s.gebeurtenissen=[];
 
-  // Schema: alleen bruikbaar bij een geldig aantal wisselmomenten en kloppende blokken.
+  // Schema in twee stappen.
+  //
+  // Eerst de bouw: klopt het aantal wisselmomenten en het aantal blokken niet, dan
+  // valt er niets mee te tekenen en gooien we het weg.
+  //
+  // Daarna de inhoud, met dezelfde controle die de app ook na elke hertekening doet:
+  // dubbele spelers, onbekende spelers, te weinig plekken. Zo'n schema wordt wél
+  // bewaard. Het is namelijk nog steeds tekenbaar, en weggooien zou midden in een
+  // wedstrijd de hele wedstrijdplanning wissen — inclusief de al gespeelde kwarten,
+  // waar geen ongedaan-maken meer tegen helpt. De coach ziet de rode balk met de
+  // reden erin en beslist zelf of hij opnieuw genereert.
   if(s.schedule){
     const perQ=Number(s.schedule.perQ);
-    if(!(perQ>=2&&perQ<=5) || !Array.isArray(s.schedule.assignments) || s.schedule.assignments.length!==perQ*4){
-      klachten.push('wisselschema onbruikbaar — opnieuw genereren');
+    const blokkenGoed = Array.isArray(s.schedule.assignments)
+      && s.schedule.assignments.length===perQ*4
+      && s.schedule.assignments.every(a=>a&&typeof a==='object');
+    if(!(perQ>=2&&perQ<=5) || !blokkenGoed){
+      klachten.push('wisselschema onbruikbaar van bouw — opnieuw genereren');
       s.schedule=null; s.genHash=null;
+    }else{
+      let inhoud=null;
+      try{ inhoud=schemaKlopt(s.schedule,s); }catch(e){ inhoud='schema kon niet worden gecontroleerd'; }
+      if(inhoud)klachten.push('wisselschema: '+inhoud);
     }
   }
   return {ok:true,klachten};
@@ -2180,15 +2274,6 @@ function schemaKlopt(sch,st){
   }
   return null;   // in orde
 }
-// Kleine foutenlijst voor als een coach belt met 'hij doet het niet'. Blijft in het
-// geheugen; te zien onderaan het spelerstabblad.
-const _fouten=[];
-function onthoudFout(waar,e){
-  try{
-    _fouten.unshift({t:new Date().toLocaleTimeString('nl-NL'),waar,wat:String(e&&e.message||e)});
-    if(_fouten.length>20)_fouten.pop();
-  }catch(x){}
-}
 let schemaFout=null;
 function controleerSchema(){
   schemaFout = state.schedule ? schemaKlopt(state.schedule) : null;
@@ -2442,7 +2527,6 @@ function wisUitStatus(){state.players.forEach(p=>{if(p.uit)delete p.uit;if(p.kaa
 // Een groene kaart is twee minuten, een gele vijf. Dezelfde machinerie als een
 // blessure — speler eruit, schema herplannen — maar met een aftelling erbij, want
 // bij een kaart weet je van tevoren wanneer hij weer mag meedoen.
-const KAARTEN={groen:{min:2,naam:'groene kaart'},geel:{min:5,naam:'gele kaart'}};
 function totaalSec(){ return klok.q==null?0:((klok.q-1)*17.5*60+klok.sec); }
 function kaartResterend(p){
   if(!p||!p.kaart)return null;
@@ -3835,8 +3919,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=150;
-const VERSIE_LABEL='26.8.16';
+const APP_VERSION=154;
+const VERSIE_LABEL='26.8.20';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
