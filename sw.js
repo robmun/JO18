@@ -11,7 +11,10 @@
 // Alle caches van deze app beginnen met hetzelfde voorvoegsel. Belangrijk, want
 // robmun.github.io is één herkomst voor ál je GitHub Pages-projecten: zonder
 // voorvoegsel zou het opruimen ook de offline-gegevens van andere apps wissen.
-const CACHE_PREFIX = 'wisselplanner';
+// De demo staat in een submap maar deelt de herkomst met de echte app; zonder een
+// eigen cachenaam zouden ze elkaars bestanden serveren.
+const DEMO = /\/demo\/$/.test(new URL('./', self.location).pathname);
+const CACHE_PREFIX = 'wisselplanner' + (DEMO ? '-demo' : '');
 const CACHE = CACHE_PREFIX;
 
 // Zonder deze twee werkt de app offline niet; de rest is meegenomen.

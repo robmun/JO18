@@ -620,7 +620,10 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     // rust, dan was de hele wedstrijdtijd weg en begon je weer op 00:00. Nu in
     // localStorage, mét of de klok liep en sinds welk tijdstip, zodat de verstreken
     // tijd na een herstart gewoon doorgerekend kan worden.
-    var BEWAARSLEUTEL = 'ghc-timer-state';
+    // Zelfde demoschakelaar als de hoofdapp: het pad telt niet mee voor de
+    // browseropslag, dus zonder eigen sleutel overschrijft de demo de echte stand.
+    var DEMO = /\/demo(\/|$)/.test(location.pathname);
+    var BEWAARSLEUTEL = (DEMO?'demo_':'') + 'ghc-timer-state';
     // swapDone wordt verderop pas aangemaakt; deze omweg voorkomt een fout als er
     // eerder wordt opgeslagen dan dat die regel is uitgevoerd.
     var _swapDoneRef = null;
@@ -1030,7 +1033,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 156;
+    var TIMER_VERSION = 157;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
@@ -1238,7 +1241,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     function applyTheme(mode) {
       document.body.classList.toggle('dark', mode === 'dark');
       document.body.classList.toggle('sun',  mode === 'sun');
-      localStorage.setItem('ghc-theme', mode);
+      localStorage.setItem((DEMO?'demo_':'')+'ghc-theme', mode);
       // knop toont de VOLGENDE stand: normaal -> donker -> zon -> normaal
       themeToggle.textContent = mode === 'dark' ? 'Zon' : (mode === 'sun' ? 'Normaal' : 'Donker');
       updateRingColors();
@@ -1246,7 +1249,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     }
 
     function initTheme() {
-      const saved = localStorage.getItem('ghc-theme');
+      const saved = localStorage.getItem((DEMO?'demo_':'')+'ghc-theme');
       if (saved === 'dark' || saved === 'light' || saved === 'sun') applyTheme(saved);
       else applyTheme((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
     }
