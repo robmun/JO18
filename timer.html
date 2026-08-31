@@ -646,6 +646,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     // swapDone wordt verderop pas aangemaakt; deze omweg voorkomt een fout als er
     // eerder wordt opgeslagen dan dat die regel is uitgevoerd.
     var _swapDoneRef = null;
+    var _opslagStuk = false;   // maar één keer melden, anders loopt de diagnose vol
     function _swapDoneVoorOpslag(){ return _swapDoneRef; }
     var MAX_HERSTEL = 10 * 60;   // zelfde grens als bij de gedeelde klok
     function _loadState() {
@@ -667,7 +668,19 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
           runBaseElapsed,
           bewaardOp: Date.now()
         }));
-      } catch(e) {}
+        _opslagStuk = false;
+      } catch(e) {
+        // Niet stil laten mislukken: zonder deze opslag is er geen herstel na een
+        // crash of nadat iOS de app heeft opgeruimd — precies waar je hem nodig
+        // hebt. De timer zelf zegt niets (dat scherm moet leesbaar blijven vanaf
+        // de kant); de hoofdapp toont de melding en noteert hem in de diagnose.
+        if (!_opslagStuk) {
+          _opslagStuk = true;
+          try {
+            parent.postMessage({ ghcTimerOpslagFout: String(e && e.name || e) }, location.origin);
+          } catch (x) {}
+        }
+      }
     }
 
     const _savedState = _loadState();
@@ -1039,7 +1052,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 148;
+    var TIMER_VERSION = 149;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----

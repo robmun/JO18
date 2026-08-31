@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="148">
+<meta name="app-version" content="149">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -3731,8 +3731,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=148;
-const VERSIE_LABEL='26.8.14';
+const APP_VERSION=149;
+const VERSIE_LABEL='26.8.15';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
@@ -4165,6 +4165,13 @@ window.addEventListener('message',e=>{
       // Q1–Q4 gaat altijd voor.
       pendingQTab=tab;
     }
+    return;
+  }
+  if(e.data.ghcTimerOpslagFout){
+    // De timer kan zijn wedstrijdstand niet bewaren. Dezelfde melding als bij de
+    // opslag van de app zelf: je verliest niets nu, maar wel bij het afsluiten.
+    onthoudFout('timeropslag',new Error(e.data.ghcTimerOpslagFout));
+    if(!opslagFout){ opslagFout='geblokkeerd'; render(); }
     return;
   }
   if(e.data.ghcTimerVersie!=null){
