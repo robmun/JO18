@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="149">
+<meta name="app-version" content="150">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1426,7 +1426,10 @@ function loadState(){
     if(raw){
       const s=JSON.parse(raw);
       if(s&&Array.isArray(s.players)&&Array.isArray(s.rules)){
-        return migrateState(s);
+        // Eerst migreren, dan controleren: de migratie brengt oude gegevens in het
+        // huidige formaat, de controle vangt op wat daarna nog niet klopt.
+        migrateState(s);
+        if(neemStandOver(s,'uit de opslag'))return s;
       }
     }
   }catch(e){}
@@ -1650,8 +1653,9 @@ function cloudListen(){
     try{
       const incoming=JSON.parse(d.state);
       if(!incoming||!Array.isArray(incoming.players))return;
-      CLOUD.applying=true;
       migrateState(incoming);
+      if(!neemStandOver(incoming,'uit de cloud'))return;
+      CLOUD.applying=true;
       state=incoming;
       try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e){}
       CLOUD.applying=false;
@@ -1665,7 +1669,7 @@ function cloudPush(force){
   if(CLOUD.role!=='editor')return;              // kijkers schrijven nooit
   clearTimeout(CLOUD.writeT);
   CLOUD.writeT=setTimeout(()=>{
-    const nu=JSON.stringify(state);
+    const nu=JSON.stringify(serializeState());
     if(!force&&CLOUD.vorig===nu)return;        // niets veranderd: geen schrijfactie
     const wat=beschrijfWijziging(CLOUD.vorig,state)||'Gegevens bijgewerkt';
     CLOUD.vorig=nu; CLOUD.lastWhat=wat;
@@ -1826,9 +1830,105 @@ async function ghcInflate(u8){
   w.write(u8);w.close();
   return new Uint8Array(await out);
 }
+// Eén definitie van "een volledige stand", gebruikt door delen, back-up en de cloud.
+// Delen en back-up schreven hier los van elkaar hun eigen lijstje velden, met twee
+// gevolgen: ze zetten er 'v:1' bij terwijl het formaat inmiddels op 4 staat, en het
+// gebeurtenissenlog (blessures, kaarten) ontbrak. Een back-up terugzetten wiste dus
+// alles wat er tijdens de wedstrijd was gebeurd.
+// Controleert een stand die van buiten komt: uit de opslag, een deel-link, een
+// back-up of de cloud. Bewust beperkt tot wat tot een crash of een onzichtbare fout
+// leidt — een te strenge controle zou iemand buiten zijn eigen team sluiten, en dat
+// is erger dan de kwaal.
+//
+// Wat er niet klopt wordt zo veel mogelijk gerepareerd in plaats van geweigerd:
+// een onbruikbaar schema gooien we weg (dat maak je opnieuw met één tik), een
+// onbekende regel of voorkeur laten we vallen. Alleen als de spelerslijst zelf
+// onbruikbaar is, geven we op.
+function valideerStand(s){
+  const klachten=[];
+  if(!s||!Array.isArray(s.players)||!s.players.length)return {ok:false,klachten:['geen spelerslijst']};
+  if(!Array.isArray(s.rules))s.rules=[];
+
+  const posIds=POSITIONS.map(p=>p.id);
+  const gezien=new Set();
+  s.players=s.players.filter(p=>{
+    if(!p||typeof p.id!=='string'||!p.id){klachten.push('speler zonder kenmerk');return false;}
+    if(gezien.has(p.id)){klachten.push('dubbel spelerkenmerk '+p.id);return false;}
+    gezien.add(p.id);
+    if(typeof p.name!=='string')p.name=String(p.name||'');
+    p.present=!!p.present;
+    // Voorkeuren: altijd drie plekken, alleen bekende posities (of 'keeper' vooraan).
+    if(!Array.isArray(p.prefs))  { klachten.push(p.name+': voorkeuren onbruikbaar'); p.prefs=['','','']; }
+    p.prefs=[0,1,2].map(i=>{
+      const v=p.prefs[i];
+      if(v==='keeper'&&i===0)return v;
+      return posIds.includes(v)?v:'';
+    });
+    if(p.lines!=null){
+      if(!Array.isArray(p.lines)){klachten.push(p.name+': linies onbruikbaar');delete p.lines;}
+      else{
+        const geldig=p.lines.filter(x=>LINE_IDS.includes(x));
+        if(geldig.length!==p.lines.length)klachten.push(p.name+': onbekende linie');
+        p.lines=geldig;
+      }
+    }
+    if(p.kaart && !(p.kaart&&KAARTEN[p.kaart.soort]&&typeof p.kaart.terug==='number')){
+      klachten.push(p.name+': kaartgegevens onbruikbaar'); delete p.kaart;
+    }
+    return true;
+  });
+  if(!s.players.length)return {ok:false,klachten:['spelerslijst leeg na controle']};
+
+  // Regels die naar een verdwenen speler wijzen of een onbekend kwart noemen.
+  const ids=new Set(s.players.map(p=>p.id));
+  s.rules=s.rules.filter(r=>{
+    if(!r||typeof r.type!=='string')return false;
+    if(r.p1&&!ids.has(r.p1)){klachten.push('regel verwijst naar onbekende speler');return false;}
+    if(r.p2&&!ids.has(r.p2)){klachten.push('regel verwijst naar onbekende speler');return false;}
+    if(r.qs!=null){
+      if(!Array.isArray(r.qs))return false;
+      r.qs=r.qs.map(Number).filter(q=>q>=1&&q<=4);
+    }
+    return true;
+  });
+
+  if(s.keeperId && !ids.has(s.keeperId)){ klachten.push('keeper bestaat niet meer'); s.keeperId=null; }
+  if(!Array.isArray(s.gebeurtenissen))s.gebeurtenissen=[];
+
+  // Schema: alleen bruikbaar bij een geldig aantal wisselmomenten en kloppende blokken.
+  if(s.schedule){
+    const perQ=Number(s.schedule.perQ);
+    if(!(perQ>=2&&perQ<=5) || !Array.isArray(s.schedule.assignments) || s.schedule.assignments.length!==perQ*4){
+      klachten.push('wisselschema onbruikbaar — opnieuw genereren');
+      s.schedule=null; s.genHash=null;
+    }
+  }
+  return {ok:true,klachten};
+}
+// Voert de controle uit en meldt wat er is opgeschoond.
+function neemStandOver(s,herkomst){
+  const r=valideerStand(s);
+  if(!r.ok){ onthoudFout('stand '+herkomst,new Error(r.klachten.join('; '))); return false; }
+  if(r.klachten.length){
+    onthoudFout('stand '+herkomst,new Error(r.klachten.slice(0,4).join('; ')));
+    setTimeout(()=>toast('Enkele gegevens waren onbruikbaar en zijn hersteld'),300);
+  }
+  return true;
+}
+function serializeState(){
+  return {
+    v:STATE_V,
+    players:state.players,
+    keeperId:state.keeperId,
+    rules:state.rules,
+    schedule:state.schedule,
+    genHash:state.genHash,
+    gebeurtenissen:state.gebeurtenissen||[]
+  };
+}
 async function shareState(){
   try{
-    const payload=JSON.stringify({v:1,players:state.players,keeperId:state.keeperId,rules:state.rules,schedule:state.schedule,genHash:state.genHash});
+    const payload=JSON.stringify(serializeState());
     const raw=new TextEncoder().encode(payload);
     const comp=await ghcDeflate(raw);
     const url=location.origin+location.pathname+'#'+(comp?'s':'r')+'='+b64uEnc(comp||raw);
@@ -1860,8 +1960,12 @@ async function importShared(txt){
       body:present+' spelers aanwezig, '+nRules+' regel'+(nRules===1?'':'s')+(inc.schedule?', inclusief wisselschema':'')+'. De huidige stand op dit toestel wordt vervangen.',
       okLabel:'Overnemen',cancelLabel:'Annuleren',
       onOk:()=>{
-        state={v:Number(inc.v||0),players:inc.players,keeperId:inc.keeperId||'mauk',rules:Array.isArray(inc.rules)?inc.rules:[],schedule:inc.schedule||null,genHash:inc.genHash||null};
-        migrateState(state);
+        const nieuw={v:Number(inc.v||0),players:inc.players,keeperId:inc.keeperId||'mauk',
+          rules:Array.isArray(inc.rules)?inc.rules:[],schedule:inc.schedule||null,
+          genHash:inc.genHash||null,gebeurtenissen:Array.isArray(inc.gebeurtenissen)?inc.gebeurtenissen:[]};
+        migrateState(nieuw);
+        if(!neemStandOver(nieuw,'uit de deel-link')){toast('Deze gegevens zijn onbruikbaar');return;}
+        state=nieuw;
         save();selChip=null;activeTab='spelers';render();document.getElementById('view').scrollTop=0;
         toast('Gedeelde stand overgenomen');
       }
@@ -1893,7 +1997,7 @@ window.addEventListener('hashchange',checkIncomingShare);
 /* ============ Back-up: opslaan naar / herstellen uit bestand ============ */
 async function backupExport(){
   try{
-    const payload=JSON.stringify({v:1,players:state.players,keeperId:state.keeperId,rules:state.rules,schedule:state.schedule,genHash:state.genHash});
+    const payload=JSON.stringify(serializeState());
     const raw=new TextEncoder().encode(payload);
     const comp=await ghcDeflate(raw);
     const code=(comp?'s=':'r=')+b64uEnc(comp||raw);
@@ -3731,8 +3835,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=149;
-const VERSIE_LABEL='26.8.15';
+const APP_VERSION=150;
+const VERSIE_LABEL='26.8.16';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{

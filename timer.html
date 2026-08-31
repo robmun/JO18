@@ -31,33 +31,11 @@
   const _manifestBlob = new Blob([JSON.stringify(_manifest)], {type:'application/manifest+json'});
   document.getElementById('ghcManifest').href = URL.createObjectURL(_manifestBlob);
 
-  // ── Inline Service Worker ──
-  if ('serviceWorker' in navigator) {
-    const _swCode = `
-      const CACHE = 'ghc-timer-v1';
-      self.addEventListener('install', e => {
-        e.waitUntil(caches.open(CACHE).then(c => c.addAll(['/'])));
-        self.skipWaiting();
-      });
-      self.addEventListener('activate', e => {
-        e.waitUntil(caches.keys().then(keys =>
-          Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-        ));
-        self.clients.claim();
-      });
-      self.addEventListener('fetch', e => {
-        e.respondWith(
-          caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('/')))
-        );
-      });
-    `;
-    const _swBlob = new Blob([_swCode], {type:'application/javascript'});
-    const _swUrl  = URL.createObjectURL(_swBlob);
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register(_swUrl)
-        .catch(err => console.warn('SW registratie mislukt:', err));
-    });
-  }
+  // De inline service worker die hier stond is verwijderd. Hij wiste bij activering
+  // alle andere caches — dus ook die van de hoofdapp — en gebruikte cache-first met
+  // een terugval op '/', waardoor updates niet meer doorkwamen. De hoofdworker in
+  // sw.js bewaart timer.html al als kernbestand; een tweede cachebeheerder is
+  // overbodig en gevaarlijk.
 
   // ── Android / Chrome install prompt ──
   window._deferredInstallPrompt = null;
@@ -1052,7 +1030,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 149;
+    var TIMER_VERSION = 150;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
