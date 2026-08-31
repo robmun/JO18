@@ -623,6 +623,18 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     // Zelfde demoschakelaar als de hoofdapp: het pad telt niet mee voor de
     // browseropslag, dus zonder eigen sleutel overschrijft de demo de echte stand.
     var DEMO = /\/demo(\/|$)/.test(location.pathname);
+    // In de demo geen clubnaam, wapen of clubleuze: die versie gaat naar coaches
+    // van andere verenigingen.
+    if (DEMO) {
+      document.addEventListener('DOMContentLoaded', function(){
+        var t=document.querySelector('.brandTitle'); if(t)t.textContent='Wedstrijdtimer';
+        var sub=document.querySelector('.brandSub'); if(sub)sub.textContent='demoversie';
+        var lb=document.querySelector('.logoBox'); if(lb)lb.style.display='none';
+        var f=document.querySelector('.footer'); if(f)f.style.display='none';
+        var mid=document.getElementById('ringLogo');
+        if(mid)mid.style.display='none';
+      });
+    }
     var BEWAARSLEUTEL = (DEMO?'demo_':'') + 'ghc-timer-state';
     // swapDone wordt verderop pas aangemaakt; deze omweg voorkomt een fout als er
     // eerder wordt opgeslagen dan dat die regel is uitgevoerd.
@@ -1033,7 +1045,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 157;
+    var TIMER_VERSION = 159;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----

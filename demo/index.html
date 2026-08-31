@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="157">
+<meta name="app-version" content="159">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -4009,7 +4009,7 @@ function renderPrint(){
     const kw=(pk&&ck&&pk!==ck)?`<div class="pw"><b>Keeper:</b> ${esc(pName(ck))} (was ${esc(pName(pk))})</div>`:'';
     cells+=`<div class="pcell"><div class="ph">Q${q+1} <span>${q<2?'eerste':'tweede'} helft &middot; ${formOfQ(q)}</span></div>${printFieldSVG(asg0,ck,positionsOfQ(q))}${kw}<div class="pw"><b>Wissels bij start:</b> ${bench}</div>${w}</div>`;
   }
-  area.innerHTML=`<div class="phead"><b>Wisselschema HC Gooische</b> &nbsp;·&nbsp; ${ds}</div><div class="pgrid${perQ>=4?' dense':''}${perQ>=5?' dense5':''}">${cells}</div>`;
+  area.innerHTML=`<div class="phead"><b>Wisselschema ${DEMO?'demoteam':'HC Gooische'}</b> &nbsp;·&nbsp; ${ds}</div><div class="pgrid${perQ>=4?' dense':''}${perQ>=5?' dense5':''}">${cells}</div>`;
 }
 
 /* ============ Offline (service worker) ============ */
@@ -4092,8 +4092,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=157;
-const VERSIE_LABEL='26.8.23';
+const APP_VERSION=159;
+const VERSIE_LABEL='26.8.25';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
@@ -4758,6 +4758,8 @@ try{
 if(DEMO){
   // Neutrale naam: deze versie gaat naar coaches van andere clubs.
   const ot=document.getElementById('ondertitel'); if(ot)ot.textContent='demoversie';
+  // Clubwapen weg: deze versie gaat naar coaches van andere verenigingen.
+  const lb=document.querySelector('.logoBox'); if(lb)lb.style.display='none';
   document.title='opstelling & wissels — demo';
   const at=document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if(at)at.setAttribute('content','Wisselplanner demo');
