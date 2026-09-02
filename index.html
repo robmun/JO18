@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="167">
+<meta name="app-version" content="168">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -2396,6 +2396,14 @@ function toast(msg){
 
 /* ============ Dialoog: bevestigen & invoeren ============ */
 function closeModal(){const h=document.getElementById('modalHost');h.innerHTML='';}
+// Escape sluit het bovenste venster. Eén luisteraar voor alle vensters, want ze
+// worden allemaal in dezelfde plek getekend. Handig met een extern toetsenbord en
+// bij het testen; op een telefoon merk je er niets van.
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape')return;
+  const h=document.getElementById('modalHost');
+  if(h&&h.querySelector('.modal')){ e.preventDefault(); closeModal(); }
+});
 function confirmDialog(opts){
   // opts: {title, body, okLabel, cancelLabel, danger, onOk}
   const h=document.getElementById('modalHost');
@@ -4246,8 +4254,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=167;
-const VERSIE_LABEL='26.9.7';
+const APP_VERSION=168;
+const VERSIE_LABEL='26.9.8';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
