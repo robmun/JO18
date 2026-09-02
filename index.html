@@ -11,8 +11,12 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
+<!-- Een echt manifest, geen tijdelijke blob-URL. Android geeft alleen een
+     installatieprompt bij een volwaardig manifest met een gewone start_url. Elke
+     map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
+<link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="166">
+<meta name="app-version" content="167">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1899,6 +1903,13 @@ function demoOpSlot(){
   toast('De demonstratieperiode is voorbij — wijzigen kan niet meer');
   return true;
 }
+// Eén controle voor élke wijziging: kijkstand of een verlopen demo. Er waren twee
+// patronen door elkaar — cloudViewerBlocked() en een losse test op de kijkrol — en
+// daardoor glipten aanwezigheid, linies, aanvoerder, voorkeuren, gasten en regels
+// langs de vergrendeling van de demo.
+function wijzigenGeblokkeerd(){
+  return cloudViewerBlocked();
+}
 function cloudViewerBlocked(){
   if(demoOpSlot())return true; if(CLOUD.on&&CLOUD.role==='viewer'){toast(READONLY_MSG);return true;} return false; }
 function cloudUpdateCard(){
@@ -2450,7 +2461,7 @@ function cloudSetupDialog(){
     CLOUD.role=document.getElementById('roleIn').value;
     CLOUD.name=document.getElementById('nameIn').value.trim();
     cloudSaveSettings();
-    document.body.classList.toggle('viewer',CLOUD.on&&CLOUD.role==='viewer');
+    document.body.classList.toggle('viewer',CLOUD.role==='viewer');
     closeModal();
     toast('Instellingen bewaard');
     cloudUpdateCard();
@@ -3790,6 +3801,10 @@ let _lastTab=null;
 let zelftestModus=false;
 function render(){
   if(zelftestModus)return;   // de uitslag mag niet worden overschreven door een late hertekening
+  // Knoppen dimmen wanneer er niets te wijzigen valt: in de kijkstand, en bij een
+  // demo waarvan de termijn voorbij is. Stond eerder alleen in de cloudverbinding
+  // en werd dus nooit gezet bij een verlopen demo zonder samenwerken.
+  document.body.classList.toggle('viewer',(CLOUD.on&&CLOUD.role==='viewer')||(DEMO&&demoVerlopen()));
   if(DEMO)setTimeout(demoTips,0);
   controleerSchema();
   if(CLOUD.on&&CLOUD.role==='viewer'&&['timer','spelers','regels'].includes(activeTab)){activeTab='q0';}
@@ -3868,7 +3883,7 @@ function bind(v){
   if(ub)ub.onclick=doUndo;
   v.querySelectorAll('[data-goplayers]').forEach(b=>b.onclick=()=>{activeTab='spelers';render();document.getElementById('view').scrollTop=0;});
   v.querySelectorAll('[data-act="present"]').forEach(el=>el.onchange=e=>{
-    if(CLOUD.on&&CLOUD.role==='viewer'){ e.target.checked=!e.target.checked; toast(READONLY_MSG); return; }
+    if(wijzigenGeblokkeerd()){ e.target.checked=!e.target.checked; return; }
     const p=byId(el.dataset.id);p.present=e.target.checked;
     save();render();
   });
@@ -3884,7 +3899,7 @@ function bind(v){
   });
   v.querySelectorAll('[data-act="name"]').forEach(el=>el.onchange=e=>{if(cloudViewerBlocked()){render();return;}const p=byId(el.dataset.id);const v=e.target.value.trim();p.name=v||(p.guest?'Gast':p.name);save();render();});
   v.querySelectorAll('[data-act="line"]').forEach(el=>el.onchange=e=>{
-    if(CLOUD.on&&CLOUD.role==='viewer'){ e.target.checked=!e.target.checked; toast(READONLY_MSG); return; }
+    if(wijzigenGeblokkeerd()){ e.target.checked=!e.target.checked; return; }
     const p=byId(el.dataset.id), linie=el.dataset.line;
     let huidig=linesOf(p);
     if(e.target.checked){ if(!huidig.includes(linie))huidig.push(linie); }
@@ -3903,7 +3918,7 @@ function bind(v){
     save();render();
   });
   v.querySelectorAll('[data-act="captain"]').forEach(el=>el.onchange=e=>{
-    if(CLOUD.on&&CLOUD.role==='viewer'){ e.target.checked=!e.target.checked; toast(READONLY_MSG); return; }
+    if(wijzigenGeblokkeerd()){ e.target.checked=!e.target.checked; return; }
     const aan=e.target.checked;
     // Er kan er maar een aanvoerder zijn: bij aanzetten vervalt de rol bij de vorige.
     state.players.forEach(p=>{delete p.captain;});
@@ -3913,6 +3928,7 @@ function bind(v){
   });
   v.querySelectorAll('[data-act="expand"]').forEach(el=>el.onclick=()=>{expandedPlayer=expandedPlayer===el.dataset.id?null:el.dataset.id;render();});
   v.querySelectorAll('[data-act="delguest"]').forEach(el=>el.onclick=()=>{
+    if(wijzigenGeblokkeerd())return;
     const p=byId(el.dataset.id);
     confirmDialog({title:'Gastspeler verwijderen?',body:(p?esc(p.name):'Deze speler')+' wordt uit de selectie gehaald. Eventuele regels voor deze speler vervallen ook.',okLabel:'Verwijderen',danger:true,onOk:()=>{
       state.players=state.players.filter(x=>x.id!==el.dataset.id);
@@ -3921,6 +3937,7 @@ function bind(v){
     }});
   });
   v.querySelectorAll('[data-act="pref"]').forEach(el=>el.onchange=e=>{
+    if(wijzigenGeblokkeerd()){render();return;}
     const p=byId(el.dataset.id);const i=Number(el.dataset.i);
     const val=e.target.value;
     // 'Keeper' kan alleen als eerste voorkeur en maar bij één speler tegelijk.
@@ -3983,12 +4000,14 @@ function bind(v){
   cloudUpdateCard();
   const ag=v.querySelector('#addGuest');
   if(ag)ag.onclick=()=>{
+    if(wijzigenGeblokkeerd())return;
     const id='gast'+Date.now();
     state.players.push({id,name:'Gast',num:'',prefs:['','',''],present:true,guest:true});
     expandedPlayer=id;save();render();
   };
   // Regels
   v.querySelectorAll('[data-delrule]').forEach(el=>el.onclick=()=>{
+    if(wijzigenGeblokkeerd())return;
     const r=state.rules.find(x=>x.id===el.dataset.delrule);
     confirmDialog({title:'Regel verwijderen?',body:r?ruleSentence(r):'',okLabel:'Verwijderen',danger:true,onOk:()=>{
       state.rules=state.rules.filter(x=>x.id!==el.dataset.delrule);save();render();toast('Regel verwijderd');
@@ -3998,6 +4017,7 @@ function bind(v){
   if(nt)nt.onchange=e=>{newRule={type:e.target.value};const sc=document.getElementById('view');const y=sc.scrollTop;render();sc.scrollTop=y;};
   const ar=v.querySelector('#addRule');
   if(ar)ar.onclick=()=>{
+    if(wijzigenGeblokkeerd())return;
     const g=id=>{const el=v.querySelector(id);return el?el.value:undefined;};
     const _ty=g('#nrType');
     let r;
@@ -4226,8 +4246,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=166;
-const VERSIE_LABEL='26.9.6';
+const APP_VERSION=167;
+const VERSIE_LABEL='26.9.7';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
@@ -4917,6 +4937,9 @@ if(DEMO){
   // Ook het icoon op het beginscherm: iOS leest dit uit wanneer iemand 'Zet op
   // beginscherm' kiest, dus omzetten bij het laden volstaat.
   document.querySelectorAll('link[rel*="icon"]').forEach(l=>l.href=DEMO_ICOON);
+  // Eigen manifest voor de demo: andere naam, ander icoon, eigen kleuren.
+  const mf=document.querySelector('link[rel="manifest"]');
+  if(mf)mf.href='manifest-demo.webmanifest';
   const ah=document.querySelector('#a2hs img'); if(ah)ah.src=DEMO_ICOON;
   CLOUD.on=false;   // samenwerken bestaat niet in de demo
   // Tellen gebeurt op de achtergrond en nooit voordat het scherm er staat.

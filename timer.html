@@ -641,6 +641,12 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
         if(teksten.length)teksten[0].remove();
       });
     }
+    // Dezelfde service worker als de hoofdapp — niet een tweede. Wie de timer
+    // rechtstreeks opent zonder ooit de app te hebben geladen, had anders geen
+    // offline-werking. Beide pagina's delen daarna dezelfde worker en cache.
+    if ('serviceWorker' in navigator) {
+      try { navigator.serviceWorker.register('sw.js'); } catch (e) {}
+    }
     var BEWAARSLEUTEL = (DEMO?'demo_':'') + 'ghc-timer-state';
     // swapDone wordt verderop pas aangemaakt; deze omweg voorkomt een fout als er
     // eerder wordt opgeslagen dan dat die regel is uitgevoerd.
@@ -1051,7 +1057,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 166;
+    var TIMER_VERSION = 167;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
