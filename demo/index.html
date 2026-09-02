@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="163">
+<meta name="app-version" content="165">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -913,6 +913,47 @@ function demoTips(){
       +'Tik twee spelers aan en ze wisselen van plek — dat mag ook met iemand van de bank. '
       +'Zodra de wedstrijd loopt, verandert wat je met een tik kunt doen.');
   }
+}
+// ── Gebruiksteller voor de demo ──
+// Alleen optellen, niets herleidbaars: per dag hoe vaak iets gebeurde. Er wordt geen
+// kenmerk per toestel bewaard en niets over de bezoeker zelf. Zo weet je of de demo
+// wordt gebruikt zonder dat je gegevens van andermans coaches verzamelt.
+//
+// Eén uitzondering op 'alleen optellen': om een tweede bezoek te onderscheiden van
+// een eerste, onthoudt het toestel lokaal welke dag het laatst geteld is. Dat blijft
+// op het toestel staan en gaat nergens heen.
+const TELLER_COLL='demostats';
+let _tellerBezig=false;
+async function demoTel(wat){
+  if(!DEMO)return;
+  try{
+    const vandaag=new Date().toISOString().slice(0,10);
+    // 'opening' hoogstens één keer per dag per toestel, anders telt herladen mee.
+    if(wat==='opening'){
+      if(localStorage.getItem('demo_geteld')===vandaag)return;
+      localStorage.setItem('demo_geteld',vandaag);
+      if(!localStorage.getItem('demo_eerste')){
+        localStorage.setItem('demo_eerste',vandaag);
+      }else{
+        wat='terugkeer';   // niet de eerste dag: dit is iemand die terugkomt
+      }
+    }
+    if(_tellerBezig)return;
+    _tellerBezig=true;
+    if(typeof firebase==='undefined'||!firebase.apps){
+      await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+      await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js');
+      await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
+    }
+    if(!firebase.apps.length)firebase.initializeApp(FB_CONFIG);
+    if(!firebase.auth().currentUser)await firebase.auth().signInAnonymously();
+    const db=firebase.firestore();
+    const veld={};
+    veld[wat]=firebase.firestore.FieldValue.increment(1);
+    veld.laatst=Date.now();
+    await db.collection(TELLER_COLL).doc(vandaag).set(veld,{merge:true});
+    _tellerBezig=false;
+  }catch(e){ _tellerBezig=false; /* tellen mag nooit de app in de weg zitten */ }
 }
 function demoNietBeschikbaar(wat){
   confirmDialog({title:'Niet in de demo',
@@ -2295,6 +2336,44 @@ function benchOfBlock(sch,b){
   return (sch.fieldIds||[]).filter(id=>id!==kid&&!on.has(id)&&byId(id)&&byId(id).present);
 }
 function pName(id){const p=byId(id);return p?p.name:'?';}
+// Korte naam voor op het veld en de bank. Coaches vullen soms de volledige naam in,
+// en die plaatjes staan dicht op elkaar — 'Bob Munnichs' liep dan over de speler
+// ernaast heen. Alleen de voornaam dus.
+//
+// Komt een voornaam meer dan eens voor in de selectie, dan zou je niet meer weten
+// wie wie is; die krijgen er de eerste letter van hun achternaam bij: Bram J en
+// Bram P. Alleen de spelers die het betreft, de rest blijft gewoon de voornaam.
+let _kortCache=null, _kortBron='';
+function bouwKorteNamen(){
+  const bron=state.players.map(p=>p.id+':'+p.name).join('|');
+  if(_kortCache&&_kortBron===bron)return _kortCache;
+  const tel={};
+  state.players.forEach(p=>{
+    const v=String(p.name||'').trim().split(/\s+/)[0]||'';
+    tel[v.toLowerCase()]=(tel[v.toLowerCase()]||0)+1;
+  });
+  const uit={};
+  state.players.forEach(p=>{
+    const delen=String(p.name||'').trim().split(/\s+/).filter(Boolean);
+    const voor=delen[0]||'';
+    if(tel[voor.toLowerCase()]>1 && delen.length>1){
+      // Eerste letter van het laatste naamdeel; tussenvoegsels als 'van der' slaan
+      // we over, want die zijn zelden onderscheidend.
+      const achter=delen[delen.length-1];
+      uit[p.id]=voor+' '+achter.charAt(0).toUpperCase();
+    }else{
+      uit[p.id]=voor||String(p.name||'');
+    }
+  });
+  _kortCache=uit; _kortBron=bron;
+  return uit;
+}
+function pKort(id){
+  const k=bouwKorteNamen()[id];
+  if(k)return k;
+  const p=byId(id);
+  return p?(String(p.name||'').trim().split(/\s+/)[0]||p.name):'?';
+}
 function pNum(id){const p=byId(id);return p&&p.num!==''&&p.num!=null?p.num:'·';}
 function fmtMin(x){return (Math.round(x*100)/100).toString().replace('.',',');}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -2791,7 +2870,9 @@ function renderSpelers(){
       <button class="btn ghost full" id="demoSamen" style="margin-top:10px">Wat doet dit?</button></div>`;
     html+=`<div class="card"><h2>Demo</h2>
       <p class="hint">Deze demonstratieversie werkt nog <b>${demoDagenOver()} dag${demoDagenOver()===1?'':'en'}</b>.
-      Je gegevens staan alleen op dit toestel en worden nergens bewaard.</p>
+      Je opstelling en spelers staan alleen op dit toestel. Om te zien of de demo gebruikt
+      wordt, telt de app anoniem hoe vaak hij wordt geopend — zonder gegevens over jou of
+      je toestel.</p>
       <button class="btn ghost full" id="demoReset" style="margin-top:10px">${ico('vink')}Demo opnieuw beginnen</button>
       <p class="hint" style="margin-top:12px">Ontwikkeld door Robert Munnichs &middot;
       <a href="mailto:robertmunnichs@gmail.com" style="color:inherit">robertmunnichs@gmail.com</a></p></div>`;
@@ -3100,6 +3181,7 @@ function regenerate(){
   const conflicts=detectRuleConflicts().concat(formConflicts()).concat(nietGehaaldeRegels(state.schedule));
   save();render();
   sendSwapTimesToTimer();
+  demoTel('schema_gemaakt');
   if(conflicts.length){
     swapWarnings=conflicts;
     toast('Let op: sommige regels botsen — zie de melding');
@@ -3170,6 +3252,7 @@ function spelerActies(pid,q){
       // Geen herplanning: het team speelt de straftijd met een man minder en daarna
       // staat hij weer op zijn eigen plek. Het wisselschema blijft dus ongemoeid.
       p.kaart={soort:act,terug:totaalSec()+k.min*60};
+      demoTel('kaart');
       noteerGebeurtenis(q, p.name+' krijgt een '+k.naam+' en staat '+k.min
         +' minuten buiten het veld; het team speelt zolang met een man minder.');
       save(); render();
@@ -3241,14 +3324,14 @@ function herplanHeleWedstrijd(label){
 // veranderd is: eerst wat er nú op het veld gebeurt, daarna wat er verderop schuift.
 // Eén zin voor in het wisselschema: wie ging eruit, wie kwam ervoor in de plaats.
 function tekstVanGebeurtenis(g,oud,nieuw,vanaf){
-  const naam=pName(g.pid);
+  const naam=pKort(g.pid);
   if(g.type==='kaart'){
     const k=KAARTEN[g.soort]||{min:0,naam:'kaart'};
     const pos2=Object.keys(oud[vanaf]||{}).find(x=>(oud[vanaf]||{})[x]===g.pid);
     const verv=pos2?(nieuw[vanaf]||{})[pos2]:null;
     const plek2=pos2&&POSMAP[pos2]?POSMAP[pos2].name.toLowerCase():'';
     return naam+' krijgt een '+k.naam+' en staat '+k.min+' minuten buiten het veld'
-      +(verv?', vervangen door '+pName(verv)+(plek2?' die op '+plek2+' gaat spelen':''):'')+'.';
+      +(verv?', vervangen door '+pKort(verv)+(plek2?' die op '+plek2+' gaat spelen':''):'')+'.';
   }
   if(g.type==='terug')return naam+' is weer inzetbaar en zit op de bank.';
   if(g.type==='weg')return naam+' is afgemeld voor de rest van de wedstrijd.';
@@ -3259,7 +3342,7 @@ function tekstVanGebeurtenis(g,oud,nieuw,vanaf){
   const vervanger=pos?b[pos]:null;
   if(!vervanger)return naam+' raakt geblesseerd en gaat eruit.';
   const plek=POSMAP[pos]?POSMAP[pos].name.toLowerCase():'';
-  return naam+' raakt geblesseerd en wordt vervangen door '+pName(vervanger)
+  return naam+' raakt geblesseerd en wordt vervangen door '+pKort(vervanger)
     +(plek?' die op '+plek+' gaat spelen':'')+'.';
 }
 function beschrijfHerplan(oud,nieuw,vanaf,perQ,later){
@@ -3272,12 +3355,12 @@ function beschrijfHerplan(oud,nieuw,vanaf,perQ,later){
   const zinnen=[];
   if(erin.length||eruit.length){
     const delen=[];
-    if(erin.length) delen.push(erin.map(p=>pName(p)+' erin op '+posNaam(b,p)).join(', '));
-    if(eruit.length)delen.push(eruit.map(p=>pName(p)+' eruit').join(', '));
+    if(erin.length) delen.push(erin.map(p=>pKort(p)+' erin op '+posNaam(b,p)).join(', '));
+    if(eruit.length)delen.push(eruit.map(p=>pKort(p)+' eruit').join(', '));
     zinnen.push((later?'Bij de volgende wissel: ':'Nu meteen: ')+delen.join('; ')+'.');
   }
   if(schuif.length)
-    zinnen.push('Doorschuiven: '+schuif.map(p=>pName(p)+' naar '+posNaam(b,p)).join(', ')+'.');
+    zinnen.push('Doorschuiven: '+schuif.map(p=>pKort(p)+' naar '+posNaam(b,p)).join(', ')+'.');
   if(!zinnen.length)zinnen.push(later?'Bij de volgende wissel verandert er niets.':'Op het veld verandert er nu niets.');
   // wat er verderop nog verandert
   const anders=[];
@@ -3607,10 +3690,10 @@ function renderQuarter(q){
         // de resterende straftijd is wat je op dat moment wilt zien.
         if(kaart){
           return `<div class="brow ${kl} ${selChip===id?'selected':''}" data-chip="${id}" title="${titel}">`
-            +`<span>${esc(pName(id))}</span>`
+            +`<span>${esc(pKort(id))}</span>`
             +`<b class="ktel${rest===0?' klaar':''}" id="kt-${id}">${rest===0?'nu terug':kaartTijd(rest)}</b></div>`;
         }
-        return `<div class="brow ${kl} ${selChip===id?'selected':''}" data-chip="${id}"${titel?' title="'+titel+'"':''}><div class="bball${id===capt?' capt':''}">${pNum(id)}${id===capt?'<span class="cbadge">C</span>':''}</div><span>${esc(pName(id))}</span></div>`;
+        return `<div class="brow ${kl} ${selChip===id?'selected':''}" data-chip="${id}"${titel?' title="'+titel+'"':''}><div class="bball${id===capt?' capt':''}">${pNum(id)}${id===capt?'<span class="cbadge">C</span>':''}</div><span>${esc(pKort(id))}</span></div>`;
       }).join('')+((rest>0&&i===tellerIn)?`<div class="brow meer">+${rest}</div>`:'')+`</div>`).join('')
       +`</div>`;
   }
@@ -3629,7 +3712,7 @@ function renderQuarter(q){
     if(pid){
       const isC=pid===capt;
       veld+=`<div class="chip ${selChip===pid?'selected':''}" data-chip="${pid}" style="left:${pos.x}%;top:${pos.y}%">
-        <div class="ball${isC?' capt':''}"><span class="bk${pos.kort.length>=4?' long':''}">${pos.kort}</span>${isC?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(pName(pid))}</div></div>`;
+        <div class="ball${isC?' capt':''}"><span class="bk${pos.kort.length>=4?' long':''}">${pos.kort}</span>${isC?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(pKort(pid))}</div></div>`;
     }else{
       veld+=`<div class="chip" style="left:${pos.x}%;top:${pos.y}%;opacity:.45"><div class="ball" style="border-style:dashed;background:none">·</div><div class="pos">${pos.kort}</div></div>`;
     }
@@ -3646,7 +3729,7 @@ function renderQuarter(q){
     const prevK=keeperOfQ(sch,q-1), curK=keeperOfQ(sch,q);
     let kLine='';
     if(prevK&&curK&&prevK!==curK){
-      kLine=`<div class="wline"><span class="arr in">&#8645;</span><span><b class="pl-in">${esc(pName(curK))}</b> op doel &middot; <b class="pl-out">${esc(pName(prevK))}</b> uit het doel</span></div>`;
+      kLine=`<div class="wline"><span class="arr in">&#8645;</span><span><b class="pl-in">${esc(pKort(curK))}</b> op doel &middot; <b class="pl-out">${esc(pKort(prevK))}</b> uit het doel</span></div>`;
     }
     tekst+=`<div class="card"><h2>Bij start van Q${q+1}</h2>${kLine}${chainsEmpty(d)?(kLine?'':'<p class="empty">Geen wissels — zelfde elf als eind Q'+q+'.</p>'):wisselLines(d)}</div>`;
   }
@@ -3666,7 +3749,7 @@ function renderQuarter(q){
     const kop=(q===1||q===3)?`Na ${mo.minuut} min in Q${q+1}, dus bij ${fmtMin(mo.minuut+17.5)} min`:`Na ${mo.minuut} min`;
     tekst+=`<div class="wmoment"><div class="wtime">${kop}</div>`;
     tekst+=chainsEmpty(mo.wissels)?'<p class="empty">Geen wissels op dit moment.</p>':wisselLines(mo.wissels);
-    tekst+=`<div class="wbench"><b>Wissels daarna:</b> ${mo.bankNa.map(pName).map(esc).join(', ')||'—'}</div></div>`;
+    tekst+=`<div class="wbench"><b>Wissels daarna:</b> ${mo.bankNa.map(pKort).map(esc).join(', ')||'—'}</div></div>`;
   }
   tekst+=`</div>`;
   if(!(CLOUD.on&&CLOUD.role==='viewer')){
@@ -3688,16 +3771,16 @@ function renderQuarter(q){
 function wisselLines(d){
   let s='';
   for(const ch of d.chains){
-    let line=`<b class="pl-in">${esc(pName(ch.inP))}</b> erin op <span class="posname">${POSMAP[ch.pos].name}</span>`;
-    if(ch.outP)line+=` &middot; <b class="pl-out">${esc(pName(ch.outP))}</b> eruit`;
-    if(ch.moves.length)line+=`; daardoor schuift `+ch.moves.map(m=>`<b class="pl-mv">${esc(pName(m.pid))}</b> van ${POSMAP[m.from].name} naar ${POSMAP[m.to].name}`).join(' en ');
+    let line=`<b class="pl-in">${esc(pKort(ch.inP))}</b> erin op <span class="posname">${POSMAP[ch.pos].name}</span>`;
+    if(ch.outP)line+=` &middot; <b class="pl-out">${esc(pKort(ch.outP))}</b> eruit`;
+    if(ch.moves.length)line+=`; daardoor schuift `+ch.moves.map(m=>`<b class="pl-mv">${esc(pKort(m.pid))}</b> van ${POSMAP[m.from].name} naar ${POSMAP[m.to].name}`).join(' en ');
     s+=`<div class="wline"><span class="arr in">&#8645;</span><span>${line}</span></div>`;
   }
   for(const o of d.looseOuts){
-    s+=`<div class="wline"><span class="arr out">&#9660;</span><span><b class="pl-out">${esc(pName(o.pid))}</b> eruit <span class="posname">— ${POSMAP[o.pos].name}</span></span></div>`;
+    s+=`<div class="wline"><span class="arr out">&#9660;</span><span><b class="pl-out">${esc(pKort(o.pid))}</b> eruit <span class="posname">— ${POSMAP[o.pos].name}</span></span></div>`;
   }
   for(const m of d.looseMoves){
-    s+=`<div class="wline"><span class="arr mv">&#8594;</span><span><b class="pl-mv">${esc(pName(m.pid))}</b> schuift van ${POSMAP[m.from].name} naar ${POSMAP[m.to].name}</span></div>`;
+    s+=`<div class="wline"><span class="arr mv">&#8594;</span><span><b class="pl-mv">${esc(pKort(m.pid))}</b> schuift van ${POSMAP[m.from].name} naar ${POSMAP[m.to].name}</span></div>`;
   }
   return s;
 }
@@ -4015,7 +4098,7 @@ function printFieldSVG(asg,keeperId,POSLIST){
     const pid=asg[pos.id];if(!pid)continue;
     const x=pos.x,y=my(pos.y);
     s+=`<circle cx="${x}" cy="${y}" r="4.4" fill="#fff" stroke="#000" stroke-width="1"/><text x="${x}" y="${y+1.5}" text-anchor="middle" font-size="4.2" font-weight="700" fill="#000">${pNum(pid)}</text>
-    <text x="${x}" y="${y+8.4}" text-anchor="middle" font-size="3.6" font-weight="700" fill="#000">${POSMAP[pos.id].kort}&#160;${esc(pName(pid))}</text>`;
+    <text x="${x}" y="${y+8.4}" text-anchor="middle" font-size="3.6" font-weight="700" fill="#000">${POSMAP[pos.id].kort}&#160;${esc(pKort(pid))}</text>`;
     if(pid===capt)s+=captMark(x,y);
   }
   const k=byId(keeperId);
@@ -4030,12 +4113,12 @@ function printFieldSVG(asg,keeperId,POSLIST){
 function printChainText(d){
   const parts=[];
   for(const ch of d.chains){
-    let t=`<b>${esc(pName(ch.inP))}</b> erin op ${POSMAP[ch.pos].kort}${ch.outP?` &middot; <b>${esc(pName(ch.outP))}</b> eruit`:''}`;
-    if(ch.moves.length)t+=`; daardoor ${ch.moves.map(m=>`${esc(pName(m.pid))} ${POSMAP[m.from].kort}&#8594;${POSMAP[m.to].kort}`).join(', ')}`;
+    let t=`<b>${esc(pKort(ch.inP))}</b> erin op ${POSMAP[ch.pos].kort}${ch.outP?` &middot; <b>${esc(pKort(ch.outP))}</b> eruit`:''}`;
+    if(ch.moves.length)t+=`; daardoor ${ch.moves.map(m=>`${esc(pKort(m.pid))} ${POSMAP[m.from].kort}&#8594;${POSMAP[m.to].kort}`).join(', ')}`;
     parts.push(t);
   }
-  for(const o of d.looseOuts)parts.push(`<b>${esc(pName(o.pid))}</b> eruit (${POSMAP[o.pos].kort})`);
-  for(const m of d.looseMoves)parts.push(`${esc(pName(m.pid))} ${POSMAP[m.from].kort}&#8594;${POSMAP[m.to].kort}`);
+  for(const o of d.looseOuts)parts.push(`<b>${esc(pKort(o.pid))}</b> eruit (${POSMAP[o.pos].kort})`);
+  for(const m of d.looseMoves)parts.push(`${esc(pKort(m.pid))} ${POSMAP[m.from].kort}&#8594;${POSMAP[m.to].kort}`);
   return parts.join('<br>');
 }
 function renderPrint(){
@@ -4046,7 +4129,7 @@ function renderPrint(){
   let cells='';
   for(let q=0;q<4;q++){
     const b0=q*perQ,asg0=sch.assignments[b0];
-    const bench=benchOfBlock(sch,b0).map(pName).map(esc).join(', ')||'—';
+    const bench=benchOfBlock(sch,b0).map(pKort).map(esc).join(', ')||'—';
     let w='';
     const pRegels=kwartMomenten(q,sch).map(mo=>({minuut:mo.minuut,mo}))
       .concat(gebeurtenissen().filter(g=>g.q===q).map(g=>({minuut:g.min,g})))
@@ -4057,7 +4140,7 @@ function renderPrint(){
         : `<div class="pw"><b>Na ${r.minuut} min:</b><br>${chainsEmpty(r.mo.wissels)?'geen wissels':printChainText(r.mo.wissels)}</div>`;
     }
     const pk=q>0?keeperOfQ(sch,q-1):null, ck=keeperOfQ(sch,q);
-    const kw=(pk&&ck&&pk!==ck)?`<div class="pw"><b>Keeper:</b> ${esc(pName(ck))} (was ${esc(pName(pk))})</div>`:'';
+    const kw=(pk&&ck&&pk!==ck)?`<div class="pw"><b>Keeper:</b> ${esc(pKort(ck))} (was ${esc(pKort(pk))})</div>`:'';
     cells+=`<div class="pcell"><div class="ph">Q${q+1} <span>${q<2?'eerste':'tweede'} helft &middot; ${formOfQ(q)}</span></div>${printFieldSVG(asg0,ck,positionsOfQ(q))}${kw}<div class="pw"><b>Wissels bij start:</b> ${bench}</div>${w}</div>`;
   }
   area.innerHTML=`<div class="phead"><b>Wisselschema ${DEMO?'demoteam':'HC Gooische'}</b> &nbsp;·&nbsp; ${ds}</div><div class="pgrid${perQ>=4?' dense':''}${perQ>=5?' dense5':''}">${cells}</div>`;
@@ -4143,8 +4226,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=163;
-const VERSIE_LABEL='26.9.3';
+const APP_VERSION=165;
+const VERSIE_LABEL='26.9.5';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
@@ -4501,8 +4584,8 @@ function toonZelftest(){
 function plainChainText(d){
   const parts=[];
   for(const ch of d.chains){
-    let t=`${pName(ch.inP)} erin op ${POSMAP[ch.pos].kort}${ch.outP?` · ${pName(ch.outP)} eruit`:''}`;
-    if(ch.moves.length)t+=`; ${ch.moves.map(m=>`${pName(m.pid)} ${POSMAP[m.from].kort}→${POSMAP[m.to].kort}`).join(', ')}`;
+    let t=`${pKort(ch.inP)} erin op ${POSMAP[ch.pos].kort}${ch.outP?` · ${pKort(ch.outP)} eruit`:''}`;
+    if(ch.moves.length)t+=`; ${ch.moves.map(m=>`${pKort(m.pid)} ${POSMAP[m.from].kort}→${POSMAP[m.to].kort}`).join(', ')}`;
     parts.push(t);
   }
   return parts;
@@ -4521,7 +4604,7 @@ async function shareQuarterImage(q){
   const W=1080,pitchX=70,pitchY=210,pitchW=940,pitchH=940;
   // tekstregels onder het veld verzamelen
   const blocks=[];
-  const bench=benchOfBlock(sch,b0).map(pName);
+  const bench=benchOfBlock(sch,b0).map(pKort);
   if(bench.length)blocks.push({head:'Bank bij start:',lines:wrapText(bench.join(', '),58)});
   const dRegels=kwartMomenten(q,sch).map(mo=>({minuut:mo.minuut,mo}))
     .concat(gebeurtenissen().filter(g=>g.q===q).map(g=>({minuut:g.min,g})))
@@ -4556,7 +4639,7 @@ async function shareQuarterImage(q){
     svg+=`<circle cx="${cx}" cy="${cy}" r="40" fill="${isK?'#ffffff':'#16335f'}" stroke="${pid===capt?'#f2c94c':(isK?'#16335f':'#ffffff')}" stroke-width="${pid===capt?5:3.5}"/>
     <text x="${cx}" y="${cy+9}" text-anchor="middle" font-size="${pos.kort.length>=3?22:26}" font-weight="bold" fill="${isK?'#16335f':'#ff8a8a'}">${pos.kort}</text>
     <rect x="${cx-92}" y="${cy+50}" width="184" height="42" rx="21" fill="#ffffff"/>
-    <text x="${cx}" y="${cy+79}" text-anchor="middle" font-size="27" font-weight="bold" fill="#0e2247">${esc2(pName(pid))}</text>`;
+    <text x="${cx}" y="${cy+79}" text-anchor="middle" font-size="27" font-weight="bold" fill="#0e2247">${esc2(pKort(pid))}</text>`;
     if(pid===capt)svg+=captMarkImg(cx,cy);
   }
   // keeper apart (staat in eigen rol, niet in asg)
@@ -4675,6 +4758,7 @@ window.addEventListener('message',e=>{
     // De tips hangen aan de klok en niet aan het hertekenen: tijdens een wedstrijd
     // wordt er lang niet opnieuw getekend, en dan zou de uitleg nooit verschijnen.
     if(DEMO)demoTips();
+    if(DEMO&&st.loopt)demoTel('timer_gestart');
     return;
   }
   if(!e.data.ghcSwipe)return;
@@ -4831,6 +4915,12 @@ if(DEMO){
   document.querySelectorAll('link[rel*="icon"]').forEach(l=>l.href=DEMO_ICOON);
   const ah=document.querySelector('#a2hs img'); if(ah)ah.src=DEMO_ICOON;
   CLOUD.on=false;   // samenwerken bestaat niet in de demo
+  // Tellen gebeurt op de achtergrond en nooit voordat het scherm er staat.
+  setTimeout(()=>{
+    demoTel('opening');
+    const vanaf=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;
+    if(vanaf)demoTel('vanaf_beginscherm');
+  },1500);
 }
 if(CLOUD.on&&CLOUD.cfg&&CLOUD.team){ cloudConnect().then(ok=>{ if(!ok)CLOUD.on=false; }); }
 render();
