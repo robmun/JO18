@@ -1,0 +1,16 @@
+{
+  "name": "opstelling & wissels",
+  "short_name": "JO18-5",
+  "description": "Opstelling en wisselschema voor hockeycoaches, met wedstrijdtimer.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a1b36",
+  "theme_color": "#0a1b36",
+  "lang": "nl",
+  "icons": [
+    { "src": "icon-ghc-navy.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "opstelling & wissels — demo",
+  "short_name": "Hockeycoach",
+  "description": "Demonstratieversie: opstelling en wisselschema voor hockeycoaches.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1f45",
+  "theme_color": "#0b1f45",
+  "lang": "nl",
+  "icons": [
+    {
+      "src": "icon-demo.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

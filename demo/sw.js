@@ -31,7 +31,8 @@ function vanOns(k){
 
 // Zonder deze drie werkt de app offline niet; de rest is meegenomen.
 const KERN   = ['./', './index.html', './timer.html'];
-const EXTRA  = ['./icon-ghc-navy.png', './apple-touch-icon.png'];
+const EXTRA  = ['./icon-ghc-navy.png', './apple-touch-icon.png', './icon-demo.png',
+                DEMO ? './manifest-demo.webmanifest' : './manifest.webmanifest'];
 const ASSETS = KERN.concat(EXTRA);
 
 // De eigen map. De worker van de echte app heeft de hele site als bereik en zou
