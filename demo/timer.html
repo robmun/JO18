@@ -648,12 +648,24 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       try { navigator.serviceWorker.register('sw.js'); } catch (e) {}
     }
     var BEWAARSLEUTEL = (DEMO?'demo_':'') + 'ghc-timer-state';
-    // swapDone wordt verderop pas aangemaakt; deze omweg voorkomt een fout als er
-    // eerder wordt opgeslagen dan dat die regel is uitgevoerd.
-    var _swapDoneRef = null;
     var _opslagStuk = false;   // maar één keer melden, anders loopt de diagnose vol
-    function _swapDoneVoorOpslag(){ return _swapDoneRef; }
+    // Leest swapDone rechtstreeks. Er stond hier een aparte verwijzing omdat
+    // swapDone verderop in het bestand wordt aangemaakt, maar die bleef naar het
+    // óúde object wijzen zodra swapDone opnieuw werd toegewezen — bij nieuwe
+    // wisselmomenten dus. Na een herstart dacht de timer dan dat momenten al
+    // gepasseerd waren die nog moesten komen, en miste hij een wisselsignaal.
+    // De typeof-controle vangt af dat er wordt opgeslagen voordat de regel met
+    // 'let swapDone' is uitgevoerd.
+    function _swapDoneVoorOpslag(){
+      try { return typeof swapDone === 'undefined' ? null : swapDone; }
+      catch (e) { return null; }   // nog in de dode zone van let
+    }
     var MAX_HERSTEL = 10 * 60;   // zelfde grens als bij de gedeelde klok
+    function escHtml(s){
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+      });
+    }
     function _loadState() {
       try {
         var raw = localStorage.getItem(BEWAARSLEUTEL) || sessionStorage.getItem(BEWAARSLEUTEL);
@@ -940,7 +952,6 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     // ── Wisselmoment-melding (tril + geluid + banner) ──
     let swapTimes = { 1: [], 2: [], 3: [], 4: [] };   // wisselmomenten in seconden per kwart
     let swapDone  = { 1: [], 2: [], 3: [], 4: [] };
-    _swapDoneRef = swapDone;
     // Al gepasseerde wisselmomenten terugzetten, anders gaat het signaal na een
     // herstart alsnog af voor een moment van tien minuten geleden.
     if (_savedState && _savedState.swapDone) {
@@ -1057,7 +1068,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 167;
+    var TIMER_VERSION = 168;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
@@ -1126,8 +1137,10 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       // wedstrijdtijd staat inmiddels in de app zelf. Alleen de klokbaas-melding blijft.
       metaEl.innerHTML = (klokAan && klokBaas && klokBaas.id !== klokMijnId
             ? '<br><span style="opacity:.75">' + (klokVerlaten
-                ? 'Klok van ' + klokBaas.naam + ' reageert niet &mdash; tik om over te nemen'
-                : 'Klok wordt bediend door ' + klokBaas.naam + ' &mdash; tik om over te nemen') + '</span>'
+                // De naam komt uit wat een coach zelf invult en belandt in HTML;
+                // zonder ontsnappen kan '<b>' als opmaak in beeld komen.
+                ? 'Klok van ' + escHtml(klokBaas.naam) + ' reageert niet &mdash; tik om over te nemen'
+                : 'Klok wordt bediend door ' + escHtml(klokBaas.naam) + ' &mdash; tik om over te nemen') + '</span>'
             : '');
       updateButtons();
       updateWarning();
