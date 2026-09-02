@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="165">
+<meta name="app-version" content="166">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -4226,8 +4226,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=165;
-const VERSIE_LABEL='26.9.5';
+const APP_VERSION=166;
+const VERSIE_LABEL='26.9.6';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
@@ -4287,7 +4287,11 @@ async function applyUpdate(){
   // GitHub Pages-projecten; alles wissen zou hun offline-gegevens meenemen.
   try{
     const ks=await caches.keys();
-    await Promise.all(ks.filter(k=>k.startsWith('wisselplanner')).map(k=>caches.delete(k)));
+    // Alleen de eigen reeks: 'wisselplanner-main' of 'wisselplanner-demo'. Met een
+    // filter op 'wisselplanner' zou de echte app ook de cache van de demo wissen,
+    // want die naam begint er ook mee.
+    const eigen='wisselplanner-'+(DEMO?'demo':'main');
+    await Promise.all(ks.filter(k=>k===eigen||k.startsWith(eigen+'-')||(!DEMO&&k==='wisselplanner')).map(k=>caches.delete(k)));
   }catch(e){onthoudFout('cache legen',e);}
   // Alleen de eigen service worker vernieuwen. robmun.github.io is één herkomst voor
   // al je GitHub Pages-projecten; zonder filter werk je ook die van andere apps bij.
