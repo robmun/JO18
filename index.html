@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="172">
+<meta name="app-version" content="173">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -127,7 +127,7 @@ main{
   flex:1 1 auto;min-height:0;width:100%;
   overflow-y:auto;-webkit-overflow-scrolling:touch;
   overscroll-behavior-y:none;
-  padding:12px 5px calc(150px + env(safe-area-inset-bottom));
+  padding:12px 5px calc(96px + env(safe-area-inset-bottom));
   max-width:560px;margin:0 auto;
 }
 /* ══ Tablet in liggende stand: twee kolommen naast elkaar ══
@@ -239,7 +239,7 @@ body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
 .tabbar{
   position:fixed;left:0;right:0;bottom:0;z-index:50;
   display:flex;justify-content:space-around;align-items:stretch;
-  padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+  padding:4px 8px calc(4px + env(safe-area-inset-bottom));
   background:rgba(12,26,50,.62);
   backdrop-filter:blur(28px) saturate(180%);
   -webkit-backdrop-filter:blur(28px) saturate(180%);
@@ -248,10 +248,10 @@ body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
 .tab{
   flex:1;border:none;background:none;color:var(--dim);
   display:flex;flex-direction:column;align-items:center;gap:3px;
-  font-size:var(--fs-xs);font-weight:700;padding:6px 2px;border-radius:var(--r-md);
+  font-size:var(--fs-xs);font-weight:700;padding:3px 2px;border-radius:var(--r-md);
 }
 .tab .q{width:38px;height:38px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;font-size:var(--fs-h);font-weight:800;border:1.5px solid rgba(255,255,255,.25)}
-.tab svg{width:29px;height:29px;margin:4.5px 0}
+.tab svg{width:22px;height:22px;margin:1px 0}
 .tab.active{color:#fff}
 .tab.active .q{background:linear-gradient(135deg,#5b95e6,#3b6fc4);border-color:transparent;box-shadow:0 3px 10px rgba(70,120,210,.5)}
 /* ── Accordeon op het uitlegtabblad ── */
@@ -266,18 +266,28 @@ body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
 body.sun .accitem{background:#f4f7fc;border-color:#c9d6ea}
 body.sun .accitem.open{background:#eaf1fb}
 
-/* ── Kwartbolletjes in het wedstrijdtabblad ── */
-.qbar{display:flex;gap:10px;margin:0 0 12px}
-.qgroep{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;
-  padding:8px 4px;border-radius:14px;background:var(--card);border:1px solid var(--stroke)}
-.qduo{display:flex;gap:10px}
-.qpill{width:46px;height:46px;border-radius:50%;border:1px solid var(--stroke);
-  background:rgba(255,255,255,.06);color:var(--dim);font-size:15px;font-weight:800;
-  letter-spacing:.5px;display:grid;place-items:center;transition:transform .12s ease}
+/* ── Kwartbolletjes in het wedstrijdtabblad ──
+   Blijven bovenin staan bij het schuiven: tijdens een wedstrijd wil je van kwart
+   kunnen wisselen zonder eerst helemaal naar boven te scrollen. 'sticky' plakt aan
+   de bovenkant van het schuifgebied, net onder de kopbalk. */
+.qbar{position:sticky;top:-13px;z-index:30;display:flex;gap:8px;
+  margin:-12px -5px 10px;padding:8px 5px 7px;
+  background:rgba(10,27,54,.72);backdrop-filter:blur(18px) saturate(170%);
+  -webkit-backdrop-filter:blur(18px) saturate(170%);
+  border-bottom:1px solid rgba(255,255,255,.08)}
+body.sun .qbar{background:rgba(238,243,251,.88);border-bottom-color:#c9d6ea}
+.qgroep{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:5px 6px;border-radius:12px;background:var(--card);border:1px solid var(--stroke)}
+.qduo{display:flex;gap:7px}
+.qpill{width:34px;height:34px;border-radius:50%;border:1px solid var(--stroke);
+  background:rgba(255,255,255,.06);color:var(--dim);font-size:12.5px;font-weight:800;
+  letter-spacing:.3px;display:grid;place-items:center;transition:transform .12s ease}
 .qpill:active{transform:scale(.94)}
 .qpill.active{background:#fff;color:#12408f;border-color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.25)}
-.qpill.loopt::after{content:'';position:absolute;margin:30px 0 0 30px;width:8px;height:8px;
+.qpill.loopt::after{content:'';position:absolute;margin:22px 0 0 22px;width:7px;height:7px;
   border-radius:50%;background:#3ddc7f;box-shadow:0 0 6px #3ddc7f}
+.qbar .qlbl{font-size:8px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;
+  color:var(--dim);line-height:1.2;white-space:normal;text-align:left;flex:0 1 auto}
 .qpill{position:relative}
 body.sun .qgroep{background:#fff;border-color:#c9d6ea}
 body.sun .qpill{background:#eef3fb;color:#4a5568;border-color:#c9d6ea}
@@ -3840,8 +3850,8 @@ function renderQuarterPills(){
   const q=huidigQ();
   const bol=i=>`<button class="qpill${q===i?' active':''}${(klok.q===i+1&&klok.loopt)?' loopt':''}" data-q="${i}">Q${i+1}</button>`;
   return `<div class="qbar">
-    <div class="qgroep"><div class="qduo">${bol(0)}${bol(1)}</div><span class="qlbl">eerste helft</span></div>
-    <div class="qgroep"><div class="qduo">${bol(2)}${bol(3)}</div><span class="qlbl">tweede helft</span></div>
+    <div class="qgroep"><div class="qduo">${bol(0)}${bol(1)}</div><span class="qlbl">eerste<br>helft</span></div>
+    <div class="qgroep"><div class="qduo">${bol(2)}${bol(3)}</div><span class="qlbl">tweede<br>helft</span></div>
   </div>`;
 }
 function renderWedstrijd(){
@@ -4510,8 +4520,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=172;
-const VERSIE_LABEL='26.9.12';
+const APP_VERSION=173;
+const VERSIE_LABEL='26.9.13';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
