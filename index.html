@@ -3628,11 +3628,25 @@ function wisGebeurtenissen(){ state.gebeurtenissen=[]; }
 function herplanVanafNu(label,vanafVolgende,gebeurtenis){
   if(!state.schedule){toast('Genereer eerst een opstelling');return false;}
   const sch=state.schedule, perQ=sch.perQ, B=perQ*4;
+  // Het aantal wisselmomenten ligt vast zodra de wedstrijd loopt: de blokgrenzen
+  // zijn deels al gespeeld, en ze verschuiven zou de al verstreken speeltijd
+  // ongeldig maken. Vraagt de regel 'aantal wissels in een kwart' om een ander
+  // aantal, dan houden we de bestaande indeling aan — maar zeggen dat er ook bij.
+  // Eerder werd die regel hier stil overgeslagen terwijl er 'Wijziging verwerkt'
+  // verscheen én de waarschuwingsbalk verdween, zodat de coach nergens meer kon
+  // zien dat zijn regel niet was toegepast.
+  const _subsN = subsRule(state.rules);
+  const _subsWacht = _subsN && (_subsN + 1) !== perQ
+    ? 'Het aantal wisselmomenten blijft ' + (perQ - 1) + ' per kwart: dat verandert alleen '
+      + 'als het hele schema opnieuw wordt gemaakt, en dat kan pas als de klok op nul staat. '
+      + 'Je regel vraagt om ' + _subsN + '.'
+    : '';
   const q=huidigQ();
   let vanaf=q*perQ+huidigBlok(q);
   if(vanafVolgende)vanaf++;
   if(vanaf>=B){                       // laatste blok loopt al: niets meer te plannen
     planInfo=[label+' \u2014 het laatste blok van de wedstrijd loopt al, dus het schema verandert niet meer. Hij staat op de bank.'];
+    if(_subsWacht)planInfo.push(_subsWacht);
     save();render();
     toast(label);
     return true;
@@ -3658,6 +3672,7 @@ function herplanVanafNu(label,vanafVolgende,gebeurtenis){
     : 'Q'+(q+1)+(min?' na '+min+' min':' vanaf de start');
   planInfo=[label+' \u2014 schema aangepast vanaf '+wanneer+'. '
     +beschrijfHerplan(oudAssign,fresh.assignments,vanaf,perQ,!!vanafVolgende)];
+  if(_subsWacht)planInfo.push(_subsWacht);
   if(gebeurtenis)noteerGebeurtenis(q,tekstVanGebeurtenis(gebeurtenis,oudAssign,fresh.assignments,vanaf));
   save();render();sendSwapTimesToTimer();
   toast(label);
@@ -3867,7 +3882,28 @@ const UITLEG=[
    +'eigenaar en laat anderen toe via \u2018Coach toelaten\u2019, een venster dat een kwartier openstaat.']
 ];
 function renderUitleg(){
-  let h=`<div class="card"><h2>Zo werkt de app <span class="sub">in ${UITLEG.length} stappen</span></h2><div class="acc">`;
+  // Bovenaan, want het is nieuw en anders vindt niemand die knop. Bewust géén
+  // genummerde stap in de lijst hieronder: dat zijn de stappen om een wedstrijd
+  // op te zetten, en dit is een kijkvoorkeur die je één keer instelt.
+  let h=`<div class="card"><h2>Hoe de klok loopt <span class="sub">drie standen</span></h2>
+    <p class="hint" style="margin:0 0 10px">Op het tabblad <b>Timer</b> staat rechtsboven een knop met
+      cijfers erin. Die laat zien wat de klok nu doet; elke tik zet hem op de volgende stand.
+      Je keuze geldt voor de timer, voor het klokje op de veldtekening en voor de tijden bij
+      de wisselmomenten. Hij wordt per toestel bewaard, dus jij en je mede-coach mogen
+      verschillend kijken.</p>
+    <p class="hint" style="margin:0 0 6px"><b>0&ndash;35</b> &mdash; doorlopende wedstrijdtijd. Q1 en Q3
+      lopen van 0:00 naar 17:30, Q2 en Q4 tellen verder van 17:30 naar 35:00. Dit is de stand
+      waar de app mee begint; verander je niets, dan blijft alles zoals je gewend bent.</p>
+    <p class="hint" style="margin:0 0 6px"><b>0&ndash;17</b> &mdash; elk kwart begint opnieuw op 0:00 en
+      loopt op naar 17:30.</p>
+    <p class="hint" style="margin:0 0 10px"><b>17&ndash;0</b> &mdash; elk kwart telt af van 17:30 naar 0:00,
+      zoals een kookwekker. Na nul loopt hij negatief door (&minus;00:42), zodat je de blessuretijd
+      ziet staan.</p>
+    <p class="hint" style="margin:0">De ring om de cijfers loopt mee: bij een oplopende klok
+      wordt hij voller, bij een aflopende trekt de kleur juist weg. Bij de wisselmomenten past de
+      tekst zich aan &mdash; bij een aflopende klok staat er bijvoorbeeld
+      &lsquo;na 6 min, dus bij 11,5 min op de klok&rsquo;.</p></div>`;
+  h+=`<div class="card"><h2>Zo werkt de app <span class="sub">in ${UITLEG.length} stappen</span></h2><div class="acc">`;
   UITLEG.forEach(([id,titel,tekst],i)=>{
     const op=accOpen===id;
     h+=`<div class="accitem${op?' open':''}">
@@ -3973,14 +4009,21 @@ function renderQuarter(q){
   const capt=captainId();
   // Veld: eigen helft onderin, bank als lijstje op de helft van de tegenstander
   const kopTitel = toonBlok===0 ? `Start Q${q+1}, speelvorm ${formOfQ(q)}`
-                                : `Actuele opstelling Q${q+1}, speelvorm ${formOfQ(q)}`;
+                                : `Actueel Q${q+1}, speelvorm ${formOfQ(q)}`;
   const kopSub = toonBlok===0 ? `${q<2?'eerste':'tweede'} helft`
                               : `na ${Math.round(toonBlok*blockLen)} min`;
+  // In de titelbalk is maar 134 tot 205 pixels ruimte — twee icoonknoppen ernaast
+  // eten de rest op. Zelfs 'Actueel Q1, speelvorm 3-3-3-1 · na 13 min' viel daar
+  // met ruim honderd pixels buiten, dus die stond half afgekapt in beeld. Voor de
+  // balk dus een korte vorm zonder de woorden 'actueel' en 'speelvorm': het kwart,
+  // de speelvorm en het moment zeggen het samen ook. Op een breed scherm staat de
+  // kop boven het veld en is er wél ruimte voor de volledige zin.
+  const kopKort = `Q${q+1} \u00b7 ${formOfQ(q)} \u00b7 ${toonBlok===0?'start':`na ${Math.round(toonBlok*blockLen)} min`}`;
   // De kop staat op het wedstrijdtabblad in de titelbalk bovenaan, niet meer boven
   // het veld: dat scheelt een regel en het veld heeft alle ruimte nodig. 'eerste' of
   // 'tweede helft' is weggelaten, want dat staat al bij de kwartbolletjes.
   const inTitel = isQTab(activeTab) && !isWide();
-  if(inTitel)zetAppbarKop(kopTitel + (toonBlok===0?'':` \u00b7 ${kopSub}`));
+  if(inTitel)zetAppbarKop(kopKort);
   let veld=`<div class="card tight">${inTitel?'':`<h2>${kopTitel} <span class="sub">${kopSub}</span></h2>`}`
     +(isWide()?`<div class="veldrij">`:'')
     +`<div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>${isWide()?'':veldKlokHTML()}`;
