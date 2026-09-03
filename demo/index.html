@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="174">
+<meta name="app-version" content="175">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1527,6 +1527,28 @@ function kwartMomenten(q,sch){
   }
   return uit;
 }
+// ── Kop boven een wisselmoment ──
+// 'Na 6 min' is altijd de tijd binnen het kwart; daar rekent het schema mee. De
+// staart erachter vertaalt dat naar wat de coach op de klok ziet staan, in de
+// weergave die hij op de timer heeft gekozen. Zonder die vertaling staat hij langs
+// de lijn twee getallen van elkaar af te trekken.
+// Scherm en deel-afbeelding gebruiken allebei deze functie: ze liepen eerder al
+// een keer uit elkaar omdat ze het ieder zelf uitrekenden.
+// q is nulgebaseerd: q===1 is Q2.
+function wisselKop(q,minuut){
+  const na='Na '+fmtMin(minuut)+' min';
+  switch(tijdweergave()){
+    case 'aflopend':
+      // Aflopend telt elk kwart terug van 17,5 naar 0, dus 17,5 − 6 = 11,5.
+      return na+', dus bij '+fmtMin(17.5-minuut)+' min op de klok';
+    case 'oplopend':
+      // Elk kwart begint op nul: de klok wijst gewoon hetzelfde getal aan.
+      return na;
+    default:
+      // Doorlopend: Q2 en Q4 tellen verder vanaf 17:30.
+      return (q===1||q===3) ? na+' in Q'+(q+1)+', dus bij '+fmtMin(minuut+17.5)+' min' : na;
+  }
+}
 // Wissels als ketens: 'X erin voor Y — positie; daarmee schuift Z van A naar B'
 function wisselChains(prevA,newA){
   const pb={},nb={};
@@ -2831,12 +2853,36 @@ let klok={q:null,sec:0,loopt:false};
 let _getoond={q:null,blok:null};
 // Welk blok van kwart q is nu bezig? null = geen klok voor dit kwart, dan tonen we de start.
 // Wedstrijdtijd zoals de timer hem toont: Q2 en Q4 tellen door vanaf 17:30.
+// ── Hoe de klok loopt ──
+// De coach kiest dit op de timer zelf; die bewaart het in localStorage. App en
+// timer draaien op dezelfde herkomst, dus we lezen dezelfde sleutel. Geen regel:
+// dit zegt niets over het team, staat dus terecht buiten state.rules en buiten
+// inputHash — anders zou omschakelen een herplanning uitlokken.
+//   doorlopend  Q1/Q3 0:00→17:30, Q2/Q4 17:30→35:00 (zoals het altijd was)
+//   oplopend    elk kwart 0:00→17:30
+//   aflopend    elk kwart 17:30→0:00, daarna negatief door
+function tijdweergave(){
+  try{
+    const v=localStorage.getItem((DEMO?'demo_':'')+'ghc-tijdweergave');
+    if(v==='doorlopend'||v==='oplopend'||v==='aflopend')return v;
+  }catch(e){}
+  return 'doorlopend';
+}
+// Klok als mm:ss, met een minteken als de aflopende klok door nul is. Zelfde
+// afronding als de timer: aflopend naar boven, zodat 17:30 een hele seconde staat.
+function klokCijfers(tot){
+  const min=tot<0, a=Math.abs(Math.trunc(tot));
+  const m=Math.floor(a/60), s=a%60;
+  return (min?'-':'')+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
 function klokTekst(){
   const q=klok.q==null?1:klok.q, sec=klok.q==null?0:klok.sec, loopt=klok.q==null?false:klok.loopt;
-  const tot=sec+((q===2||q===4)?17.5*60:0);
-  const m=Math.floor(tot/60), s=Math.floor(tot%60);
-  return {tijd:String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'),
-          kwart:'Q'+q, loopt:loopt};
+  const w=tijdweergave();
+  let tot;
+  if(w==='oplopend')      tot=Math.floor(sec);
+  else if(w==='aflopend') tot=Math.ceil(17.5*60-sec);
+  else                    tot=Math.floor(sec+((q===2||q===4)?17.5*60:0));
+  return {tijd:klokCijfers(tot), kwart:'Q'+q, loopt:loopt};
 }
 // Grote ronde klok naast het veld, alleen in de liggende tabletstand. Bedoeld om
 // vanaf de bank leesbaar te zijn: spelers moeten kunnen zien hoeveel er gespeeld is.
@@ -2849,6 +2895,14 @@ function gespeeldTotaal(){
   const m=Math.floor(tot/60), s2=Math.floor(tot%60);
   return m+':'+String(s2).padStart(2,'0');
 }
+// Hoeveel van de ring is gekleurd. Loopt de klok af, dan is de ring vol bij de
+// aftrap en leeg aan het eind; de kleur trekt dus weg in plaats van vol te lopen.
+// Anders zou de ring voller worden terwijl de cijfers naar nul zakken.
+function klokBoogDeel(sec){
+  const QLEN=17.5*60;
+  const deel=Math.max(0,Math.min(1,sec/QLEN));
+  return tijdweergave()==='aflopend' ? 1-deel : deel;
+}
 function groteKlokHTML(bankAantal){
   const k=klokTekst(); if(!k)return '';
   // Twee kolommen bank passen naast de klok tot en met zes spelers; daarboven komt
@@ -2856,7 +2910,7 @@ function groteKlokHTML(bankAantal){
   const krap=(bankAantal||0)>5;
   const QLEN=17.5*60;
   const sec=klok.q==null?0:Math.min(klok.sec,QLEN);
-  const deel=sec/QLEN;
+  const deel=klokBoogDeel(sec);
   const laatst=sec>QLEN-120;                       // laatste twee minuten van het kwart
   return `<div class="grklok${krap?' krap':''}" id="grklok">
     <svg viewBox="0 0 200 200" width="100%" height="100%">
@@ -2945,7 +2999,7 @@ function veldKlokBijwerken(){
     const boog=document.getElementById('gkBoog');
     if(boog){
       const QLEN=17.5*60, sec=klok.q==null?0:Math.min(klok.sec,QLEN);
-      boog.setAttribute('stroke-dashoffset',(KLOK_OMTREK*(1-sec/QLEN)).toFixed(1));
+      boog.setAttribute('stroke-dashoffset',(KLOK_OMTREK*(1-klokBoogDeel(sec))).toFixed(1));
       boog.classList.toggle('laat',sec>QLEN-120);
     }
   }
@@ -4039,12 +4093,14 @@ function renderQuarter(q){
     .sort((a,b)=>a.minuut-b.minuut || (a.soort==='wissel'?-1:1));
   for(const r of regels){
     if(r.soort==='gebeurtenis'){
-      tekst+=`<div class="wmoment gebeurtenis"><div class="wtime">Na ${r.minuut} min</div>`
+      // Zelfde kop als bij een wisselmoment: ze staan op één tijdlijn onder elkaar,
+      // en twee verschillende manieren van tijd aanduiden leest voor geen meter.
+      tekst+=`<div class="wmoment gebeurtenis"><div class="wtime">${esc(wisselKop(q,r.minuut))}</div>`
         +`<p class="wgeb">${ico('blessure',16)}${esc(r.g.tekst)}</p></div>`;
       continue;
     }
     const mo=r.mo;
-    const kop=(q===1||q===3)?`Na ${mo.minuut} min in Q${q+1}, dus bij ${fmtMin(mo.minuut+17.5)} min`:`Na ${mo.minuut} min`;
+    const kop=wisselKop(q,mo.minuut);
     tekst+=`<div class="wmoment"><div class="wtime">${kop}</div>`;
     tekst+=chainsEmpty(mo.wissels)?'<p class="empty">Geen wissels op dit moment.</p>':wisselLines(mo.wissels);
     tekst+=`<div class="wbench"><b>Wissels daarna:</b> ${mo.bankNa.map(pKort).map(esc).join(', ')||'—'}</div></div>`;
@@ -4549,7 +4605,7 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=174;
+const APP_VERSION=175;
 const VERSIE_LABEL='26.9.14';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
@@ -4947,7 +5003,7 @@ async function shareQuarterImage(q){
     .sort((a,b)=>a.minuut-b.minuut || (a.mo?-1:1));
   for(const r of dRegels){
     const naMin=r.minuut;
-    const kop=(q===1||q===3)?`Na ${naMin} min (bij ${fmtMin(naMin+17.5)} min):`:`Na ${naMin} min:`;
+    const kop=wisselKop(q,naMin)+':';
     const lines = r.g ? wrapText('• '+r.g.tekst,58)
       : (chainsEmpty(r.mo.wissels)?['geen wissels']:plainChainText(r.mo.wissels).flatMap(t=>wrapText('• '+t,58)));
     blocks.push({head:kop,lines});
@@ -5079,6 +5135,13 @@ window.addEventListener('message',e=>{
     const tv=Number(e.data.ghcTimerVersie);
     timerMismatch = (tv===APP_VERSION) ? null : tv;
     render();
+    return;
+  }
+  if(e.data.ghcTijdweergave){
+    // De coach heeft op de timer een andere klokrichting gekozen. De stand zelf
+    // staat al in localStorage — die delen we — dus hier alleen opnieuw tekenen,
+    // zodat de veldklok en de wisselteksten meteen meelopen.
+    render(); veldKlokBijwerken();
     return;
   }
   if(e.data.ghcKlokVraagOver){ vraagKlokOvernemen(); return; }
