@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="169">
+<meta name="app-version" content="170">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1765,26 +1765,84 @@ async function cloudClaimOfKoppel(){
     if(!snap.exists){
       // Nieuw team: wie het aanmaakt is eigenaar.
       await CLOUD.ref.set({owner:CLOUD.uid,editors:[CLOUD.uid],rev:0},{merge:true});
-      CLOUD.rol='eigenaar'; return;
+      CLOUD.rol='eigenaar'; noteerCoach('aangemaakt'); return;
     }
     const d=snap.data()||{};
     if(!d.owner){
       // Bestaand team van vóór deze beveiliging: de eerste die hem opent, claimt hem.
       await CLOUD.ref.set({owner:CLOUD.uid,editors:[CLOUD.uid]},{merge:true});
-      CLOUD.rol='eigenaar'; toast('Je bent nu de eigenaar van dit team'); return;
+      CLOUD.rol='eigenaar'; noteerCoach('overgenomen');
+      toast('Je bent nu de eigenaar van dit team'); return;
     }
     const lijst=Array.isArray(d.editors)?d.editors:[];
-    if(lijst.includes(CLOUD.uid)){ CLOUD.rol=(d.owner===CLOUD.uid)?'eigenaar':'coach'; return; }
+    if(lijst.includes(CLOUD.uid)){
+      CLOUD.rol=(d.owner===CLOUD.uid)?'eigenaar':'coach';
+      noteerCoach();   // laatst actief bijwerken
+      return;
+    }
     if(CLOUD.role==='viewer'){ CLOUD.rol='kijker'; return; }
     // Coach die er nog niet bij staat: alleen binnen het koppelvenster toevoegen.
     if(Number(d.koppelTot||0)>Date.now()){
       try{
         await CLOUD.ref.update({editors:firebase.firestore.FieldValue.arrayUnion(CLOUD.uid)});
-        CLOUD.rol='coach'; toast('Je bent gekoppeld als coach'); return;
+        CLOUD.rol='coach'; noteerCoach('gekoppeld'); toast('Je bent gekoppeld als coach'); return;
       }catch(e){ onthoudFout('koppelen',e); }
     }
     CLOUD.rol='wacht';
   }catch(e){ onthoudFout('team openen',e); CLOUD.rol='wacht'; }
+}
+// Legt naast de lijst met kenmerken vast wíé dat kenmerk is. In Firestore zie je
+// anders alleen 'a7Kf9x…' en weet je niet welke regel bij Piet hoort — lastig als je
+// juist hem uit het team wilt halen. Het staat in een apart veld 'coaches', zodat de
+// lijst met rechten ('editors') onveranderd blijft en de bestaande regels blijven
+// gelden. Elk toestel schrijft alleen zijn eigen regel.
+// Overzicht voor de eigenaar: wie is er gekoppeld, sinds wanneer, en wanneer voor
+// het laatst actief. Met het kenmerk erbij, want dat heb je nodig als je iemand in
+// de Firebase-console uit 'editors' wilt halen.
+function coachOverzichtHTML(){
+  const c=CLOUD.coaches||{};
+  const ids=Object.keys(c);
+  if(!ids.length)return '';
+  const dag=t=>t?new Date(t).toLocaleDateString('nl-NL',{day:'numeric',month:'short'}):'—';
+  const gel=t=>{
+    if(!t)return '—';
+    const u=Math.round((Date.now()-t)/36e5);
+    if(u<1)return 'zojuist';
+    if(u<24)return u+' uur geleden';
+    return Math.round(u/24)+' dagen geleden';
+  };
+  let h='<br>'+ico('personen',16)+'<b>Gekoppelde toestellen</b>';
+  ids.sort((a,b)=>(c[b].laatst||0)-(c[a].laatst||0)).forEach(uid=>{
+    const r=c[uid]||{};
+    const ik=uid===CLOUD.uid?' (dit toestel)':'';
+    h+=`<div class="hint" style="margin:6px 0 0;padding-left:22px">
+      <b>${esc(r.naam||'coach zonder naam')}</b>${ik} &middot; ${r.rol==='eigenaar'?'eigenaar':'coach'}
+      <br>sinds ${dag(r.sinds)} &middot; actief ${gel(r.laatst)}
+      <br><span style="font-family:ui-monospace,monospace;font-size:11px;opacity:.75">${esc(uid)}</span></div>`;
+  });
+  h+='<div class="hint" style="margin:8px 0 0;padding-left:22px">Iemand verwijderen doe je in de Firebase-console: teams &rarr; jouw teamcode &rarr; het veld <b>editors</b>, en haal daar het kenmerk hierboven uit.</div>';
+  return h;
+}
+function noteerCoach(hoe){
+  if(!CLOUD.ref||!CLOUD.uid)return;
+  try{
+    const nu=Date.now();
+    const regel={
+      naam: CLOUD.name || 'coach zonder naam',
+      toestel: DEVICE_ID,
+      laatst: nu,
+      rol: CLOUD.rol || ''
+    };
+    if(hoe)regel.sinds=nu;          // alleen bij de eerste keer
+    const veld={}; veld['coaches.'+CLOUD.uid]=regel;
+    // update() met een puntpad raakt alleen deze ene regel; merge zou de hele
+    // coacheslijst overschrijven met wat dit toestel toevallig weet.
+    CLOUD.ref.update(veld).catch(async()=>{
+      // Bestaat het veld nog niet, dan eerst aanmaken.
+      try{ await CLOUD.ref.set({coaches:{[CLOUD.uid]:regel}},{merge:true}); }
+      catch(e){ onthoudFout('coach noteren',e); }
+    });
+  }catch(e){ onthoudFout('coach noteren',e); }
 }
 // Zet het koppelvenster een kwartier open zodat een mede-coach zich kan aanmelden.
 function koppelvensterOpen(){
@@ -1891,6 +1949,7 @@ function cloudListen(){
     CLOUD.rev=Math.max(binnenRev,CLOUD.rev||0);
     const zelfdeStand=(d.state===CLOUD.vorig);
     CLOUD.lastBy=d.updatedBy||''; CLOUD.lastAt=d.updatedAt||0; CLOUD.lastWhat=d.updatedWhat||'';
+    CLOUD.coaches=d.coaches||null;
     CLOUD.vorig=d.state;   // vergelijk je eigen volgende wijziging hiermee
     if(zelfdeStand){cloudUpdateCard();return;}   // alleen de klok wijzigde: niet hertekenen
     try{
@@ -1975,6 +2034,7 @@ function cloudUpdateCard(){
         const min=Math.ceil((CLOUD.koppelTot-Date.now())/60000);
         t+='<br>'+ico('klok',16)+'Koppelen staat open, nog <b id="koppelTeller">'+min+':00</b> &mdash; laat je mede-coach nu de app openen.';
       }
+      t+=coachOverzichtHTML();
     }else if(CLOUD.rol==='coach'){
       t+='<br>'+ico('sleutel',16)+'Je bent gekoppeld als coach.';
     }else if(CLOUD.rol==='wacht'){
@@ -4308,8 +4368,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=169;
-const VERSIE_LABEL='26.9.9';
+const APP_VERSION=170;
+const VERSIE_LABEL='26.9.10';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
