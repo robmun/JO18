@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="171">
+<meta name="app-version" content="172">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -254,6 +254,34 @@ body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
 .tab svg{width:29px;height:29px;margin:4.5px 0}
 .tab.active{color:#fff}
 .tab.active .q{background:linear-gradient(135deg,#5b95e6,#3b6fc4);border-color:transparent;box-shadow:0 3px 10px rgba(70,120,210,.5)}
+/* ── Accordeon op het uitlegtabblad ── */
+.acc{display:flex;flex-direction:column;gap:8px}
+.accitem{border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--stroke);overflow:hidden}
+.accitem.open{background:rgba(255,255,255,.08)}
+.acchead{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:14px 16px;background:none;border:0;color:var(--txt);font-size:15px;font-weight:700;text-align:left}
+.acchead i{font-style:normal;font-size:20px;font-weight:400;color:var(--dim);line-height:1}
+.accbody{padding:0 16px 14px;color:var(--dim);font-size:14px;line-height:1.55}
+.accbody b{color:var(--txt)}
+body.sun .accitem{background:#f4f7fc;border-color:#c9d6ea}
+body.sun .accitem.open{background:#eaf1fb}
+
+/* ── Kwartbolletjes in het wedstrijdtabblad ── */
+.qbar{display:flex;gap:10px;margin:0 0 12px}
+.qgroep{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:8px 4px;border-radius:14px;background:var(--card);border:1px solid var(--stroke)}
+.qduo{display:flex;gap:10px}
+.qpill{width:46px;height:46px;border-radius:50%;border:1px solid var(--stroke);
+  background:rgba(255,255,255,.06);color:var(--dim);font-size:15px;font-weight:800;
+  letter-spacing:.5px;display:grid;place-items:center;transition:transform .12s ease}
+.qpill:active{transform:scale(.94)}
+.qpill.active{background:#fff;color:#12408f;border-color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.qpill.loopt::after{content:'';position:absolute;margin:30px 0 0 30px;width:8px;height:8px;
+  border-radius:50%;background:#3ddc7f;box-shadow:0 0 6px #3ddc7f}
+.qpill{position:relative}
+body.sun .qgroep{background:#fff;border-color:#c9d6ea}
+body.sun .qpill{background:#eef3fb;color:#4a5568;border-color:#c9d6ea}
+body.sun .qpill.active{background:#12408f;color:#fff;border-color:#12408f}
 .qhalf{flex:2;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px;position:relative;min-width:0}
 .qhalf::before{content:'';position:absolute;inset:2px 3px;border:1px solid rgba(150,190,255,.20);border-radius:var(--r-md);pointer-events:none}
 .qhalf.hasactive::before{border-color:rgba(150,190,255,.42)}
@@ -1760,7 +1788,7 @@ async function cloudConnect(){
     CLOUD.status='verbonden';cloudUpdateCard();
     klokNaarTimer(null);   // timer moet weten dat samenwerken aanstaat, anders deelt hij niets
     document.body.classList.toggle('viewer',CLOUD.role==='viewer');
-    if(CLOUD.role==='viewer'&&['timer','spelers','regels'].includes(activeTab))activeTab='q0';
+    if(CLOUD.role==='viewer'&&['timer','spelers','regels'].includes(activeTab))activeTab='wedstrijd';
     return true;
   }catch(e){CLOUD.status='fout';cloudUpdateCard();toast('Verbinden mislukt: '+(e.message||e));return false;}
 }
@@ -2754,7 +2782,10 @@ function ruleSentence(r){
 }
 
 /* ============ Tabs ============ */
-const isQTab=t=>['q0','q1','q2','q3'].includes(t);
+// Was: vier aparte kwarttabbladen. Nu één tabblad 'wedstrijd' met bolletjes erin.
+// De naam blijft, zodat alle bestaande controles (wakelock, klokbalk, kijkstand)
+// ongewijzigd blijven werken.
+const isQTab=t=>t==='wedstrijd';
 // ── Scherm aan houden ──
 // De timer deed dit al voor zichzelf, maar alleen terwijl de klok liep en alleen
 // in zijn eigen venster. Langs de lijn kijk je juist naar de opstelling, dus doen
@@ -2842,7 +2873,7 @@ function veldKlokHTML(){
 // Klopt de getoonde opstelling nog met de klok? Zo niet: opnieuw tekenen.
 function beeldBijwerken(){
   if(!isQTab(activeTab)||!state.schedule)return;
-  const q=Number(activeTab.slice(1));
+  const q=huidigQ();
   const lb=levendBlok(q), moet=lb==null?0:lb;
   if(_getoond.q===q && _getoond.blok===moet)return;
   const v=document.getElementById('view'), y=v?v.scrollTop:0;
@@ -2951,8 +2982,17 @@ const TABS=[
   {id:'timer',label:'Timer'},
   {id:'spelers',label:'Spelers'},
   {id:'regels',label:'Regels'},
-  {id:'q0',label:'Q1'},{id:'q1',label:'Q2'},{id:'q2',label:'Q3'},{id:'q3',label:'Q4'},
+  {id:'wedstrijd',label:'Wedstrijd'},
+  {id:'uitleg',label:'Uitleg'},
 ];
+// Welk kwart toont het wedstrijdtabblad? Er is nog maar één tabblad, dus het kwart
+// is een aparte keuze geworden. Standaard volgt hij de wedstrijdklok; kiest de coach
+// zelf een kwart, dan gaat die keuze voor tot de klok naar een ander kwart springt.
+let toonQ=null;   // null = volg de klok
+function huidigQ(){
+  if(toonQ!=null)return toonQ;
+  return klok.q?klok.q-1:0;   // klok stil of niet gestart: Q1
+}
 function renderTabbar(){
   const el=document.getElementById('tabbar');
   const kijk=(CLOUD.on&&CLOUD.role==='viewer');
@@ -2962,17 +3002,12 @@ function renderTabbar(){
     if(t.id==='timer')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.8 1.8"/><path d="M9.5 2.5h5"/><path d="M12 2.5V6"/></svg>${t.label}</button>`;
     if(t.id==='spelers')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 19c.7-3.2 3.4-5 6.5-5s5.8 1.8 6.5 5"/><circle cx="17.5" cy="9.5" r="2.6"/><path d="M16 14.2c2.9.2 5 1.8 5.5 4.3"/></svg>${t.label}</button>`;
     if(t.id==='regels')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 4h14v17l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 9h6M9 13h6"/></svg>${t.label}</button>`;
-    return ''; // kwart-tabs worden hieronder gegroepeerd toegevoegd
+    if(t.id==='wedstrijd')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18M12 4v16"/><circle cx="12" cy="12" r="2.5"/></svg><span>Wedstrijd</span></button>`;
+    if(t.id==='uitleg')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a2.5 2.5 0 0 1 2 1 2.5 2.5 0 0 1 2-1h4.5A1.5 1.5 0 0 1 20 5.5V18a1 1 0 0 1-1 1h-5a2 2 0 0 0-2 1 2 2 0 0 0-2-1H5a1 1 0 0 1-1-1z"/><path d="M12 5v15"/></svg><span>Uitleg</span></button>`;
+    return '';
   }).join('');
-  const qbtn=(id,lbl)=>`<button class="tab qtab${activeTab===id?' active':''}" data-tab="${id}"><span class="q">${lbl}</span></button>`;
-  const half=(ids,lbls,naam)=>`<div class="qhalf${ids.includes(activeTab)?' hasactive':''}">
-    <div class="qpair">${qbtn(ids[0],lbls[0])}${qbtn(ids[1],lbls[1])}</div>
-    <span class="qlbl">${naam}</span></div>`;
-  el.innerHTML+=half(['q0','q1'],['Q1','Q2'],'eerste helft')+half(['q2','q3'],['Q3','Q4'],'tweede helft');
   el.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
     activeTab=b.dataset.tab;selChip=null;
-    const qi=['q0','q1','q2','q3'].indexOf(activeTab);
-    if(qi>=0){pendingQTab=null;sendQuarterToTimer(qi+1);} // eigen keuze gaat voor
     render();document.getElementById('view').scrollTop=0;});
 }
 
@@ -3442,7 +3477,7 @@ function spelerActies(pid,q){
 // het veld verschijnen in plaats van op de bank.
 function haalUitHuidigBlok(pid){
   const sch=state.schedule; if(!sch)return;
-  const q=isQTab(activeTab)?Number(activeTab.slice(1)):(klok.q?klok.q-1:0);
+  const q=huidigQ();
   const b=q*sch.perQ+huidigBlok(q);
   const asg=sch.assignments[b]; if(!asg)return;
   const pos=Object.keys(asg).find(k=>asg[k]===pid); if(!pos)return;
@@ -3539,7 +3574,7 @@ function wisGebeurtenissen(){ state.gebeurtenissen=[]; }
 function herplanVanafNu(label,vanafVolgende,gebeurtenis){
   if(!state.schedule){toast('Genereer eerst een opstelling');return false;}
   const sch=state.schedule, perQ=sch.perQ, B=perQ*4;
-  const q=isQTab(activeTab)?Number(activeTab.slice(1)):(klok.q?klok.q-1:0);
+  const q=huidigQ();
   let vanaf=q*perQ+huidigBlok(q);
   if(vanafVolgende)vanaf++;
   if(vanaf>=B){                       // laatste blok loopt al: niets meer te plannen
@@ -3735,6 +3770,82 @@ function fieldSVG(){
       <rect x="44" y="1.5" width="12" height="2.7" fill="rgba(255,255,255,.25)"/>
       <rect x="44" y="145.8" width="12" height="2.7" fill="rgba(255,255,255,.25)"/>
     </g></svg>`;
+}
+// Wedstrijdtabblad: vier bolletjes bovenin, daaronder de opstelling en het
+// wisselschema van het gekozen kwart. De bolletjes volgen dezelfde indeling als de
+// timer — twee helften naast elkaar — zodat de app op beide plekken hetzelfde leest.
+/* ============ Tab: Uitleg ============ */
+let accOpen='u1';   // eerste stap staat open, zoals in het voorbeeld
+const UITLEG=[
+  ['u1','Selectie klaarzetten',
+   'Tabblad <b>Spelers</b>: zet aan wie er is, vul rugnummers in en kies per speler '
+   +'maximaal drie voorkeursposities. Wie keept geef je \u2018Keeper\u2019 als eerste voorkeur. '
+   +'Per speler kun je ook aangeven in welke linies hij mag spelen \u2014 achter, midden, voor \u2014 '
+   +'en dat is een harde grens. Gastspelers voeg je onderaan toe.'],
+  ['u2','Coachregels',
+   'Tabblad <b>Regels</b>: leg vast wat er voor jouw team geldt. Hoeveel wisselmomenten per '
+   +'kwart, welke speelvorm, wie vast op een positie staat, wie liever niet samen spelen, '
+   +'minimum- of maximumminuten, wie in de basis begint en wie het einde speelt. '
+   +'Regels gaan v\u00f3\u00f3r voorkeuren; botsen er twee, dan zegt de app dat erbij.'],
+  ['u3','Opstelling genereren',
+   'Tabblad <b>Wedstrijd</b>: tik op \u2018Opstelling genereren\u2019 en er staat een schema voor alle '
+   +'vier de kwarten, met alle wisselmomenten uitgeschreven. Het uitgangspunt is dat iedereen '
+   +'zoveel mogelijk evenveel speelt. Lukt een regel niet, dan meldt de app dat met naam en '
+   +'getal erbij in plaats van er stilletjes onderdoor te gaan.'],
+  ['u4','Bijsturen',
+   'Niet tevreden over een detail? Tik twee spelers aan en ze ruilen van plek \u2014 ook met '
+   +'iemand van de bank. Schud je telefoon om de laatste actie ongedaan te maken; er worden '
+   +'tien stappen bewaard. Verandert er iets v\u00f3\u00f3r de wedstrijd, zet dan het schuifje om en '
+   +'kies \u2018Herplan vanaf dit kwart\u2019: gespeelde kwarten blijven staan.'],
+  ['u5','Tijdens de wedstrijd',
+   'Start de klok op het tabblad <b>Timer</b>. De opstelling volgt de klok: je ziet wie er '
+   +'n\u00fa op het veld staat. Met \u22121 en +1 minuut zet je de klok gelijk met de scheidsrechter. '
+   +'Tik een speler aan en je kunt hem spontaan wisselen, een blessure doorgeven, hem afmelden, '
+   +'of een groene of gele kaart registreren. Bij een kaart speelt het team met een man minder '
+   +'en blijft zijn plek open staan met een aftelling.'],
+  ['u6','Delen en printen',
+   'Van elk kwart maak je met het deelicoon een afbeelding voor de teamapp. Voor je co-coach '
+   +'is er een link met de complete stand, en voor spelers een kijk-link waarmee ze alleen '
+   +'meelezen. Met de printknop zet je de hele wedstrijd op \u00e9\u00e9n A4.'],
+  ['u7','Samenwerken met een tweede coach',
+   'Coach en teammanager kunnen live in dezelfde opstelling werken: wijzigingen verschijnen '
+   +'binnen een seconde bij de ander en de wedstrijdklok loopt mee. Wie een team aanmaakt is '
+   +'eigenaar en laat anderen toe via \u2018Coach toelaten\u2019, een venster dat een kwartier openstaat.']
+];
+function renderUitleg(){
+  let h=`<div class="card"><h2>Zo werkt de app <span class="sub">in ${UITLEG.length} stappen</span></h2><div class="acc">`;
+  UITLEG.forEach(([id,titel,tekst],i)=>{
+    const op=accOpen===id;
+    h+=`<div class="accitem${op?' open':''}">
+      <button class="acchead" data-acc="${id}"><span>${i+1}. ${esc(titel)}</span><i>${op?'\u2212':'+'}</i></button>
+      ${op?`<div class="accbody">${tekst}</div>`:''}
+    </div>`;
+  });
+  h+=`</div></div>`;
+  h+=`<div class="card"><h2>App op je telefoon <span class="sub">iPhone &amp; Android</span></h2>
+    <p class="hint" style="margin:0 0 8px"><b>iPhone \u00b7 Safari:</b> tik onderin op het deelicoon
+      (vierkantje met pijl omhoog), kies \u2018Zet op beginscherm\u2019 en daarna \u2018Voeg toe\u2019.</p>
+    <p class="hint" style="margin:0 0 8px"><b>Android \u00b7 Chrome:</b> tik rechtsboven op de drie puntjes
+      en kies \u2018App installeren\u2019.</p>
+    <p class="hint" style="margin:0">Daarna opent de app schermvullend, zonder adresbalk, en werkt hij
+      ook zonder internet \u2014 handig op een sportpark met slecht bereik.</p></div>`;
+  h+=`<div class="card"><h2>Goed om te weten</h2>
+    <p class="hint" style="margin:0 0 8px">De namen van je spelers staan alleen op dit toestel. Er is geen
+      account en geen inlog. Zonder samenwerken gaat er niets naar internet.</p>
+    <p class="hint" style="margin:0">De app gaat uit van een elftal met vier kwarten van 17,5 minuut.
+      Achttal, zestal en zaalhockey worden niet ondersteund.</p></div>`;
+  return h;
+}
+function renderQuarterPills(){
+  const q=huidigQ();
+  const bol=i=>`<button class="qpill${q===i?' active':''}${(klok.q===i+1&&klok.loopt)?' loopt':''}" data-q="${i}">Q${i+1}</button>`;
+  return `<div class="qbar">
+    <div class="qgroep"><div class="qduo">${bol(0)}${bol(1)}</div><span class="qlbl">eerste helft</span></div>
+    <div class="qgroep"><div class="qduo">${bol(2)}${bol(3)}</div><span class="qlbl">tweede helft</span></div>
+  </div>`;
+}
+function renderWedstrijd(){
+  return renderQuarterPills()+renderQuarter(huidigQ());
 }
 function renderQuarter(q){
   let html='';
@@ -3945,12 +4056,12 @@ function render(){
   document.body.classList.toggle('viewer',(CLOUD.on&&CLOUD.role==='viewer')||(DEMO&&demoVerlopen()));
   if(DEMO)setTimeout(demoTips,0);
   controleerSchema();
-  if(CLOUD.on&&CLOUD.role==='viewer'&&['timer','spelers','regels'].includes(activeTab)){activeTab='q0';}
+  if(CLOUD.on&&CLOUD.role==='viewer'&&['timer','spelers','regels'].includes(activeTab)){activeTab='wedstrijd';}
   wakeLockBijwerken();
   const _sc=document.getElementById('view');
   const _keepY=(_lastTab===activeTab&&_sc)?_sc.scrollTop:null;
   // richting van de tabwissel bepalen voor de schuif-animatie
-  const _order=['timer','spelers','regels','q0','q1','q2','q3'];
+  const _order=['timer','spelers','regels','wedstrijd','uitleg'];
   let _slide='';
   if(_lastTab!==activeTab){
     const a=_order.indexOf(_lastTab), b=_order.indexOf(activeTab);
@@ -3993,7 +4104,8 @@ function render(){
   try{
     if(activeTab==='spelers')v.innerHTML=alarm+renderSpelers();
     else if(activeTab==='regels')v.innerHTML=alarm+renderRegels();
-    else v.innerHTML=alarm+renderQuarter(Number(activeTab.slice(1)));
+    else if(activeTab==='uitleg')v.innerHTML=renderUitleg();
+    else v.innerHTML=alarm+renderWedstrijd();
   }catch(err){
     onthoudFout('tekenen '+activeTab,err);
     v.innerHTML=alarm+`<div class="card"><h2>${ico("waarschuwing")}Er ging iets mis bij het tekenen</h2>
@@ -4010,6 +4122,20 @@ function render(){
   requestAnimationFrame(()=>{updateScrollUI();fitNames();zwevendeKlokBijwerken();});
 }
 function bind(v){
+  // Kwartbolletjes. Een eigen keuze gaat voor op de klok, en gaat mee naar de timer
+  // zodat beide hetzelfde kwart tonen.
+  v.querySelectorAll('.qpill').forEach(b=>b.onclick=()=>{
+    toonQ=Number(b.dataset.q); selChip=null;
+    pendingQTab=null; sendQuarterToTimer(toonQ+1);
+    render(); document.getElementById('view').scrollTop=0;
+  });
+  // Accordeon op het uitlegtabblad: één open tegelijk, zoals dichtklappen ook werkt.
+  v.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{
+    const id=b.dataset.acc;
+    accOpen=(accOpen===id)?null:id;
+    const y=document.getElementById('view').scrollTop;
+    render(); document.getElementById('view').scrollTop=y;
+  });
   v.querySelectorAll('[data-regen]').forEach(b=>b.onclick=regenerate);
   const vnb=v.querySelector('#verwerkNuBtn');
   // vanafVolgende: het blok dat nu op het veld staat blijft staan; de herverdeling
@@ -4204,8 +4330,8 @@ function bind(v){
 // Tik op een speler: tijdens de wedstrijd een keuzevenster, daarvoor gewoon ruilen.
 function chipTap(pid){
   if(cloudViewerBlocked())return;
-  if(!activeTab.startsWith('q')||!state.schedule)return;
-  const q=Number(activeTab.slice(1));
+  if(!isQTab(activeTab)||!state.schedule)return;
+  const q=huidigQ();
   const sp=byId(pid);
   // Een speler op de blessurelijst moet je altijd kunnen aantikken om hem weer
   // beschikbaar te maken — ook als de klok stilstaat of net gereset is. Anders zit
@@ -4384,8 +4510,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=171;
-const VERSIE_LABEL='26.9.11';
+const APP_VERSION=172;
+const VERSIE_LABEL='26.9.12';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
@@ -4920,6 +5046,10 @@ window.addEventListener('message',e=>{
   if(e.data.ghcKlok){ klokPush(e.data.ghcKlok); return; }
   if(e.data.ghcStand){
     const st=e.data.ghcStand;
+    // Springt de klok naar een ander kwart, dan volgt het wedstrijdtabblad weer
+    // vanzelf. Een eigen keuze is bedoeld om even vooruit te kijken, niet om het
+    // beeld voorgoed vast te zetten — anders sta je in Q4 nog naar Q1 te kijken.
+    if(klok.q!==st.q)toonQ=null;
     klok={q:st.q,sec:st.sec,loopt:st.loopt};
     veldKlokBijwerken();
     // Niet elke seconde hertekenen, maar wel zodra het beeld niet meer klopt met de klok.
@@ -4965,7 +5095,7 @@ window.addEventListener('message',e=>{
   document.getElementById('tabbar').addEventListener('click',hide,{once:true});
 })();
 document.getElementById('shareTopBtn').onclick=()=>{
-  if(activeTab.startsWith('q'))shareQuarterImage(Number(activeTab.slice(1)));
+  if(isQTab(activeTab))shareQuarterImage(huidigQ());
 };
 // ── Schudden om ongedaan te maken ──
 // Zoals in Mail: even schudden en je krijgt de vraag of je de laatste actie terug wilt.
@@ -5067,7 +5197,7 @@ try{
     if(!CLOUD.name)CLOUD.name=CLOUD.role==='viewer'?'speler':'coach';
     CLOUD.on=true; cloudSaveSettings();
     document.body.classList.toggle('viewer',CLOUD.role==='viewer');
-    if(CLOUD.role==='viewer')activeTab='q0'; // spelers starten op Q1
+    if(CLOUD.role==='viewer')activeTab='wedstrijd'; // spelers starten op de wedstrijd
     // schone URL (parameters weghalen) zodat de code niet blijft rondslingeren
     try{history.replaceState(null,'',location.pathname);}catch(e){}
   }
