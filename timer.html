@@ -150,6 +150,15 @@ html.ghc-embed .app { padding-top:10px !important; }
   box-shadow:inset 0 1px 0 rgba(255,255,255,0.18);
 }
 .themeToggle::before { content:"🌙"; font-size:0.88rem; }
+/* Twee knoppen in de derde kolom van de kopbalk. Ze blijven altijd naast elkaar;
+   is de ruimte krap, dan worden ze smaller (zie de media-query onderaan) in plaats
+   van dat de clubnaam ernaast wordt weggedrukt. */
+.hdrBtns { display:flex; gap:6px; align-items:center; justify-content:flex-end; }
+/* De weergaveknop toont met cijfers wat de klok dóet (0–35, 0–17 of 17–0). Geen
+   pictogram ervoor: dat kost breedte die er op een telefoon niet is. */
+.themeToggle.wg { padding:6px 10px; letter-spacing:0.06em; }
+.themeToggle.wg::before { content:none; }
+body.sun .themeToggle.wg::before, body.dark .themeToggle.wg::before { content:none; }
 
 /* ── KWARTEN — glas card ── */
 .quarters {
@@ -267,6 +276,10 @@ html.ghc-embed .app { padding-top:10px !important; }
   text-shadow:0 0 30px rgba(255,255,255,0.55), 0 2px 8px rgba(0,0,0,0.50);
   transition:color .3s ease;
 }
+/* Een aflopende klok gaat na het kwart negatief door en heeft dan een teken extra:
+   '-00:42' in plaats van '00:42'. Zonder deze stap loopt dat de wijzerplaat uit,
+   juist tijdens de blessuretijd waarin je goed wilt kunnen aflezen. */
+.time.lang { font-size:clamp(2.0rem,23cqw,11.5rem); }
 .time.warn { color:#ff4040!important; text-shadow:0 2px 20px rgba(255,60,60,0.65); }
 @keyframes blink-warn { 0%,100%{opacity:1;} 50%{opacity:0.22;} }
 .time.blink { animation:blink-warn 0.75s ease-in-out infinite; }
@@ -337,6 +350,19 @@ button { border:none; border-radius:16px; padding:0 16px; font:inherit; font-wei
   .qbtn { width:clamp(62px,8.5vw,104px); height:clamp(62px,8.5vw,104px);
     font-size:clamp(1.05rem,2.2vw,1.7rem); }
   .time { font-size:clamp(2.0rem,26cqw,12rem); }
+}
+
+/* ── Kopbalk als de ruimte krap is ──
+   Twee knoppen mét woord passen niet naast de clubnaam: op een smalle telefoon
+   niet, en in de smalle linkerkolom van de liggende tablet evenmin. Daar viel de
+   naam eerder al af te kappen met een ellipsis, en met een knop erbij werd dat
+   erger. Hier vervalt het wóórd bij de themaknop; het pictogram geeft de volgende
+   stand net zo goed aan. De weergaveknop houdt zijn cijfers — die zíjn de
+   boodschap. Staat na het liggende blok, zodat het beide gevallen dekt. */
+@media (max-width:400px), (orientation:landscape) and (min-width:760px) {
+  .themeToggle { font-size:0; gap:0; padding:6px 9px; }
+  .themeToggle::before { font-size:1.0rem; }
+  .themeToggle.wg { font-size:0.62rem; padding:6px 8px; }
 }
 
 /* ── PWA INSTALL BANNER ── */
@@ -444,7 +470,10 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       <h1 class="brandTitle">HC Gooische</h1>
       <div class="brandSub">Wedstrijdtimer</div>
     </div>
-    <button id="themeToggle" class="themeToggle" type="button">Dark</button>
+    <div class="hdrBtns">
+      <button id="weergaveToggle" class="themeToggle wg" type="button" title="Hoe de klok loopt">0&ndash;35</button>
+      <button id="themeToggle" class="themeToggle" type="button">Dark</button>
+    </div>
   </header>
   <section class="quarters">
     <div class="half">
@@ -648,6 +677,32 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       try { navigator.serviceWorker.register('sw.js'); } catch (e) {}
     }
     var BEWAARSLEUTEL = (DEMO?'demo_':'') + 'ghc-timer-state';
+
+    // ── Hoe de klok loopt ──
+    // Drie standen, alle drie op dezelfde verstreken tijd gebaseerd; alleen de
+    // weergave verschilt. 'doorlopend' is hoe het altijd was en blijft de
+    // beginstand, zodat een coach die niets instelt niets ziet veranderen.
+    //   doorlopend  Q1/Q3 0:00→17:30, Q2/Q4 17:30→35:00
+    //   oplopend    elk kwart 0:00→17:30
+    //   aflopend    elk kwart 17:30→0:00, daarna negatief door
+    // Geen coachregel: een regel gaat over het team en zit in de vingerafdruk van
+    // het schema (inputHash), waardoor omschakelen een herplanning zou uitlokken.
+    // Dit is een kijkvoorkeur, en mag per toestel verschillen.
+    var WEERGAVE_SLEUTEL = (DEMO?'demo_':'') + 'ghc-tijdweergave';
+    var WEERGAVEN = ['doorlopend', 'oplopend', 'aflopend'];
+    var WEERGAVE_KNOP = { doorlopend:'0\u201335', oplopend:'0\u201317', aflopend:'17\u20130' };
+    var WEERGAVE_UITLEG = {
+      doorlopend: 'Klok loopt door: Q2 en Q4 tellen verder vanaf 17:30',
+      oplopend:   'Elk kwart loopt op van 0:00 naar 17:30',
+      aflopend:   'Elk kwart telt af van 17:30 naar 0:00'
+    };
+    var weergave = (function(){
+      try {
+        var v = localStorage.getItem(WEERGAVE_SLEUTEL);
+        if (WEERGAVEN.indexOf(v) >= 0) return v;
+      } catch (e) {}
+      return 'doorlopend';
+    })();
     var _opslagStuk = false;   // maar één keer melden, anders loopt de diagnose vol
     // Leest swapDone rechtstreeks. Er stond hier een aparte verwijzing omdat
     // swapDone verderop in het bestand wordt aangemaakt, maar die bleef naar het
@@ -740,7 +795,9 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     const CX = 100, CY = 100;
     const CIRCUMFERENCE = 2 * Math.PI * R;
 
-    function buildTicks(isQ2Q4) {
+    // Leest 'weergave' en 'currentQuarter' zelf uit, zodat elke aanroep vanzelf
+    // de juiste cijfers zet — ook die na een omschakeling.
+    function buildTicks() {
       const cx=100, cy=100;
       const N = 60;
       const rInner = 88.5;
@@ -784,20 +841,24 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       const ringLabels = document.getElementById('ringLabels');
       ringLabels.innerHTML='';
 
-      // tick 0: witte driehoek (nulpunt / start)
-      // overige: afgeronde minuten
-      // Q1/Q3: 0→3→6→9→12→15  |  Q2/Q4: 17→20→23→26→29→32
-      // 17.5 min per kwart → afronden: tick*17.5/60
-      // offset = 17.5 min voor Q2/Q4
-      const baseMin = isQ2Q4 ? 17.5 : 0;
-      const labelData = [
-        {tick: 0,  text: null},
-        {tick: 10, text: String(Math.round(baseMin +  3))},
-        {tick: 20, text: String(Math.round(baseMin +  6))},
-        {tick: 30, text: String(Math.round(baseMin +  9))},
-        {tick: 40, text: String(Math.round(baseMin + 12))},
-        {tick: 50, text: String(Math.round(baseMin + 15))},
-      ];
+      // tick 0: witte driehoek (nulpunt / start), de overige: hele minuten.
+      //   doorlopend Q1/Q3: 3→6→9→12→15   Q2/Q4: 20→23→26→29→32
+      //   oplopend  elk kwart: 3→6→9→12→15
+      //   aflopend  elk kwart: 15→12→9→6→3 — de spiegeling, want een tick op 1/6
+      //             van de ring is 2,9 min ver en dus 14,6 min vóór het eind.
+      // Eén keer afronden, aan het eind. Dat ging eerder mis bij Q2/Q4: die telde
+      // 17,5 op bij de al afgeronde 3 en kwam op 21 uit, terwijl die tick op
+      // 20,4 minuten staat. De ronde getallen wezen dus net niet naar hun plek.
+      const minutenOpTick = t => t * 17.5 / 60;
+      const isQ2Q4 = (currentQuarter === 2 || currentQuarter === 4);
+      let labelData = [{tick: 0, text: null}];
+      [10, 20, 30, 40, 50].forEach(function (t) {
+        let min;
+        if (weergave === 'aflopend')      min = 17.5 - minutenOpTick(t);
+        else if (weergave === 'oplopend') min = minutenOpTick(t);
+        else                              min = (isQ2Q4 ? 17.5 : 0) + minutenOpTick(t);
+        labelData.push({tick: t, text: String(Math.round(min))});
+      });
 
       labelData.forEach(({tick, text}) => {
         const angle = (tick/N)*2*Math.PI;
@@ -835,7 +896,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
         }
       });
     }
-    buildTicks(currentQuarter === 2 || currentQuarter === 4);  // herstel correct kwart bij laden
+    buildTicks();   // zet meteen de juiste cijfers voor kwart én weergavestand
 
     function updateRingColors() {
       // Submariner-stijl: verstreken=rood, resterend=onzichtbaar (ticks tonen resterende tijd)
@@ -859,18 +920,31 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       const elapsedLen = elapsedFrac  * CIRCUMFERENCE;
       const remainLen  = remainFrac   * CIRCUMFERENCE;
 
-      // --- BLAUW arc: verstreken tijd --- groeit met klok mee vanaf 12 uur
-      // Bij start: elapsed=0 → blauw=0, rood=vol
-      // Na verloop: blauw groeit rechts, rood krimpt
-      ringArc.setAttribute('stroke', blueColor);
-      ringArc.setAttribute('stroke-dasharray', elapsedLen + ' ' + CIRCUMFERENCE);
-      ringArc.setAttribute('stroke-dashoffset', '0');
-
-      // --- ROOD arc: resterende tijd --- begint waar blauw eindigt, krimpt
+      // De ring volgt de cijfers. Tellen die op, dan groeit de rode boog mee vanaf
+      // 12 uur; tellen ze af, dan krimpt hij en trekt de rode kleur weg. Andersom
+      // zou het niet kloppen: dan zie je iets voller worden terwijl de tijd opraakt.
       const ringElapsed = document.getElementById('ringElapsed');
-      ringElapsed.setAttribute('stroke', redColor);
-      ringElapsed.setAttribute('stroke-dasharray', remainLen + ' ' + CIRCUMFERENCE);
-      ringElapsed.setAttribute('stroke-dashoffset', -elapsedLen);
+      if (weergave === 'aflopend') {
+        // Gekleurde boog = resterende tijd: begint waar de klok nu staat en loopt
+        // door tot het eind van de ring. De staart schuift mee, dus de kleur
+        // verdwijnt vanaf 12 uur. Blijft op ringArc staan, want daar hangt de glow aan.
+        ringArc.setAttribute('stroke', blueColor);
+        ringArc.setAttribute('stroke-dasharray', remainLen + ' ' + CIRCUMFERENCE);
+        ringArc.setAttribute('stroke-dashoffset', -elapsedLen);
+        ringElapsed.setAttribute('stroke', 'none');
+        ringElapsed.setAttribute('stroke-dasharray', '0 ' + CIRCUMFERENCE);
+        ringElapsed.setAttribute('stroke-dashoffset', '0');
+      } else {
+        // --- Gekleurde arc: verstreken tijd --- groeit met klok mee vanaf 12 uur
+        ringArc.setAttribute('stroke', blueColor);
+        ringArc.setAttribute('stroke-dasharray', elapsedLen + ' ' + CIRCUMFERENCE);
+        ringArc.setAttribute('stroke-dashoffset', '0');
+
+        // --- Resterend arc (onzichtbaar) --- begint waar de kleur eindigt
+        ringElapsed.setAttribute('stroke', redColor);
+        ringElapsed.setAttribute('stroke-dasharray', remainLen + ' ' + CIRCUMFERENCE);
+        ringElapsed.setAttribute('stroke-dashoffset', -elapsedLen);
+      }
 
       // Add a bright glow on the leading edge of the red arc
       // (achieved via filter in CSS — no extra JS needed)
@@ -1031,16 +1105,27 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       }
     });
 
+    // Klemt niet meer op nul: bij een aflopende klok gaat de tijd na het kwart
+    // negatief door, en dan hoort er '-00:42' te staan.
     function fmt(seconds) {
-      seconds = Math.max(0, Math.floor(seconds));
+      const min = seconds < 0;
+      seconds = Math.floor(Math.abs(seconds));
       const m = Math.floor(seconds / 60);
       const s = seconds % 60;
-      return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+      return (min ? '-' : '') + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
     }
 
     function displayValue(q) {
       const e = quarterElapsed(q);
-      return (q === 2 || q === 4) ? e + Q2Q4OFFSET : e;
+      if (weergave === 'oplopend') return Math.floor(e);
+      if (weergave === 'aflopend') {
+        // Ceil, niet floor: met nog 17:29,9 te gaan hoort er 17:30 te staan, net
+        // zoals een kookwekker doet. Met floor zou 17:30 een tiende seconde in
+        // beeld staan. Na nul wordt dit vanzelf negatief — dat is de bedoeling,
+        // de timer loopt in alle standen gewoon door.
+        return Math.ceil(QLEN - e);
+      }
+      return Math.floor((q === 2 || q === 4) ? e + Q2Q4OFFSET : e);
     }
 
     function updateButtons() {
@@ -1068,7 +1153,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 174;
+    var TIMER_VERSION = 175;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
@@ -1094,7 +1179,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     function zetKlok(k) {
       _klokVanBuiten = true;
       if (running) { running = false; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } releaseWakeLock(); }
-      if (k.q >= 1 && k.q <= 4 && k.q !== currentQuarter) { currentQuarter = k.q; buildTicks(k.q === 2 || k.q === 4); }
+      if (k.q >= 1 && k.q <= 4 && k.q !== currentQuarter) { currentQuarter = k.q; buildTicks(); }
       var basis = k.basis || 0;
       var verstreken = basis;
       var verdacht = false;
@@ -1132,7 +1217,9 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       const totalElapsed = totalElapsedMatch();
       meldStand(currentQuarter, elapsedQuarter, running);
 
-      timeEl.textContent = fmt(display);
+      const tijdTekst = fmt(display);
+      timeEl.textContent = tijdTekst;
+      timeEl.classList.toggle('lang', tijdTekst.length > 5);
       // 'Gespeeld: x / 70:00' is eruit: de grote cijfers zeggen het al, en de totale
       // wedstrijdtijd staat inmiddels in de app zelf. Alleen de klokbaas-melding blijft.
       metaEl.innerHTML = (klokAan && klokBaas && klokBaas.id !== klokMijnId
@@ -1265,7 +1352,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     function changeQuarter(q) {
       stopTimer();
       currentQuarter = q;
-      buildTicks(q === 2 || q === 4);
+      buildTicks();
       _saveState();
       updateUI();
       if ('vibrate' in navigator) navigator.vibrate(10);
@@ -1295,6 +1382,33 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     document.getElementById('minusMin').addEventListener('click', function () { nudgeMinute(-60); });
     startBtn.addEventListener('click', toggleStartPause);
     resetBtn.addEventListener('click', function(){ if (!magBedienen()) { vraagOvernemen(); return; } resetCurrentQuarter(); meldKlok(); });
+    // ── Weergaveknop ──
+    // Draait door de drie standen. De knop toont wat de klok nú doet, niet de
+    // volgende stand: bij cijfers is 'wat staat er straks' niet af te lezen.
+    const weergaveToggle = document.getElementById('weergaveToggle');
+    function zetWeergave(m) {
+      if (WEERGAVEN.indexOf(m) < 0) m = 'doorlopend';
+      weergave = m;
+      try { localStorage.setItem(WEERGAVE_SLEUTEL, m); } catch (e) {}
+      weergaveToggle.textContent = WEERGAVE_KNOP[m];
+      weergaveToggle.title = WEERGAVE_UITLEG[m];
+      buildTicks();
+      updateUI();
+      // De app toont dezelfde tijd op de veldklok en schrijft de wisselmomenten
+      // uit; die moet mee omschakelen. De stand staat al in localStorage — dat
+      // deelt de app met ons — dit bericht is alleen het sein om te hertekenen.
+      if (window.parent !== window) {
+        try { parent.postMessage({ ghcTijdweergave: m }, location.origin); } catch (e) {}
+      }
+      if ('vibrate' in navigator) navigator.vibrate(10);
+    }
+    weergaveToggle.addEventListener('click', function () {
+      zetWeergave(WEERGAVEN[(WEERGAVEN.indexOf(weergave) + 1) % WEERGAVEN.length]);
+    });
+    // Beginstand op de knop zetten zonder te melden of te trillen.
+    weergaveToggle.textContent = WEERGAVE_KNOP[weergave];
+    weergaveToggle.title = WEERGAVE_UITLEG[weergave];
+
     themeToggle.addEventListener('click', () => {
       const cur = document.body.classList.contains('sun') ? 'sun' : (document.body.classList.contains('dark') ? 'dark' : 'light');
       applyTheme(cur === 'light' ? 'dark' : (cur === 'dark' ? 'sun' : 'light'));
