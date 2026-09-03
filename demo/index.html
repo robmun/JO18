@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="173">
+<meta name="app-version" content="174">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -2897,12 +2897,16 @@ function zwevendeKlokBijwerken(){
   const zw=document.getElementById('zwevendeKlok'); if(!zw)return;
   const veldk=document.getElementById('veldklok');
   const bar=document.querySelector('.appbar');
-  const onder=bar?bar.getBoundingClientRect().bottom:0;
+  // De kwartbolletjes plakken onder de titelbalk. Zonder die erbij te tellen hing de
+  // klok er precies overheen en waren de bolletjes niet meer te bedienen.
+  const qbar=document.querySelector('.qbar');
+  const onderBar=bar?bar.getBoundingClientRect().bottom:0;
+  const onder=Math.max(onderBar, qbar?qbar.getBoundingClientRect().bottom:0);
   const toon = !isWide() && isQTab(activeTab) && !!veldk
     && veldk.getBoundingClientRect().bottom < onder + 4;
   zw.classList.toggle('toon',toon);
   if(!toon)return;
-  zw.style.top=(onder+10)+'px';
+  zw.style.top=(onder+8)+'px';
   const k=klokTekst(); if(!k)return;
   const t=document.getElementById('zwTijd'); if(t)t.textContent=k.tijd;
   const sub=document.getElementById('zwSub'); if(sub)sub.textContent=k.kwart+(k.loopt?'':' · pauze');
@@ -3088,20 +3092,6 @@ function renderSpelers(){
     <button class="btn ghost full" id="cloudShareCoach" style="margin-top:8px">${ico("persoon")}Deel coach-link (mag wijzigen)</button>
     <p class="hint" style="margin-top:10px">De kijk-link geeft spelers alleen leesrechten; ze zien altijd de laatste stand, maar kunnen niets wijzigen. De coach-link is voor je mede-coach.</p>
   </div>`;
-  html+=`<div class="card"><h2>Back-up</h2>
-    <button class="btn ghost full" id="backupExport">${ico("opslaan")}Opslaan als back-upbestand</button>
-    <button class="btn ghost full" id="backupImport" style="margin-top:8px">${ico("map")}Herstel uit back-up&#8230;</button>
-    <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p></div>`;
-  // Schudden vraagt op iOS eenmalig toestemming. Wordt die geweigerd of gemist, dan
-  // komt die vraag nooit meer vanzelf terug — vandaar deze knop.
-  html+=diagnoseKaart();
-  html+=`<div class="card"><h2>Schudden om ongedaan te maken</h2>
-    <p class="hint" style="margin-bottom:10px">${
-      _schudStatus==='aan'?'&#10003; Staat aan. Schud je telefoon om de laatste actie terug te draaien.'
-      :_schudStatus==='geweigerd'?ico("kruis",16)+'Je hebt de bewegingssensor geweigerd. Tik hieronder om het opnieuw te vragen; lukt dat niet, zet dan Bewegen en ori&#235;ntatie aan bij Instellingen &rarr; Safari.'
-      :_schudStatus==='kan niet'?'Dit toestel heeft geen bruikbare bewegingssensor.'
-      :'Nog niet aangezet. iOS vraagt eenmalig toestemming voor de bewegingssensor.'}</p>
-    <button class="btn ghost full" id="schudBtn">${ico("telefoon")}Schudden ${_schudStatus==='aan'?'opnieuw instellen':'aanzetten'}</button></div>`;
   if(isWide())html+=`</div></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Keeper instellen? Geef &#233;&#233;n speler &#39;Keeper&#39; als eerste voorkeur via &#9662;. Daar zet je ook de aanvoerder aan &mdash; die krijgt een goud randje in de opstelling. Alles wordt automatisch bewaard op dit toestel.</p>`;
   return html;
@@ -3839,12 +3829,45 @@ function renderUitleg(){
       en kies \u2018App installeren\u2019.</p>
     <p class="hint" style="margin:0">Daarna opent de app schermvullend, zonder adresbalk, en werkt hij
       ook zonder internet \u2014 handig op een sportpark met slecht bereik.</p></div>`;
+  // Back-up, diagnose en schudden horen bij 'hoe werkt het', niet bij het beheren
+  // van de selectie. Ze stonden onderaan het spelerstabblad, waar je ze pas vond na
+  // langs zestien spelers te scrollen.
+  h+=`<div class="card"><h2>Back-up</h2>
+    <button class="btn ghost full" id="backupExport">${ico("opslaan")}Opslaan als back-upbestand</button>
+    <button class="btn ghost full" id="backupImport" style="margin-top:8px">${ico("map")}Herstel uit back-up&#8230;</button>
+    <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p></div>`;
+  // Schudden vraagt op iOS eenmalig toestemming. Wordt die geweigerd of gemist, dan
+  // komt die vraag nooit meer vanzelf terug — vandaar deze knop.
+  h+=diagnoseKaart();
+  h+=`<div class="card"><h2>Schudden om ongedaan te maken</h2>
+    <p class="hint" style="margin-bottom:10px">${
+      _schudStatus==='aan'?'&#10003; Staat aan. Schud je telefoon om de laatste actie terug te draaien.'
+      :_schudStatus==='geweigerd'?ico("kruis",16)+'Je hebt de bewegingssensor geweigerd. Tik hieronder om het opnieuw te vragen; lukt dat niet, zet dan Bewegen en ori&#235;ntatie aan bij Instellingen &rarr; Safari.'
+      :_schudStatus==='kan niet'?'Dit toestel heeft geen bruikbare bewegingssensor.'
+      :'Nog niet aangezet. iOS vraagt eenmalig toestemming voor de bewegingssensor.'}</p>
+    <button class="btn ghost full" id="schudBtn">${ico("telefoon")}Schudden ${_schudStatus==='aan'?'opnieuw instellen':'aanzetten'}</button></div>`;
   h+=`<div class="card"><h2>Goed om te weten</h2>
     <p class="hint" style="margin:0 0 8px">De namen van je spelers staan alleen op dit toestel. Er is geen
       account en geen inlog. Zonder samenwerken gaat er niets naar internet.</p>
     <p class="hint" style="margin:0">De app gaat uit van een elftal met vier kwarten van 17,5 minuut.
       Achttal, zestal en zaalhockey worden niet ondersteund.</p></div>`;
   return h;
+}
+// Vult de titelbalk met de kop van het kwart. Op andere tabbladen staat daar weer
+// gewoon de naam van de app.
+function zetAppbarKop(tekst){
+  const h1=document.querySelector('.appbar h1');
+  if(!h1)return;
+  const sm=h1.querySelector('small');
+  h1.childNodes[0].nodeValue=tekst;
+  if(sm)sm.style.display='none';
+}
+function herstelAppbarKop(){
+  const h1=document.querySelector('.appbar h1');
+  if(!h1)return;
+  h1.childNodes[0].nodeValue='opstelling & wissels';
+  const sm=h1.querySelector('small');
+  if(sm)sm.style.display='';
 }
 function renderQuarterPills(){
   const q=huidigQ();
@@ -3899,7 +3922,12 @@ function renderQuarter(q){
                                 : `Actuele opstelling Q${q+1}, speelvorm ${formOfQ(q)}`;
   const kopSub = toonBlok===0 ? `${q<2?'eerste':'tweede'} helft`
                               : `na ${Math.round(toonBlok*blockLen)} min`;
-  let veld=`<div class="card tight"><h2>${kopTitel} <span class="sub">${kopSub}</span></h2>`
+  // De kop staat op het wedstrijdtabblad in de titelbalk bovenaan, niet meer boven
+  // het veld: dat scheelt een regel en het veld heeft alle ruimte nodig. 'eerste' of
+  // 'tweede helft' is weggelaten, want dat staat al bij de kwartbolletjes.
+  const inTitel = isQTab(activeTab) && !isWide();
+  if(inTitel)zetAppbarKop(kopTitel + (toonBlok===0?'':` \u00b7 ${kopSub}`));
+  let veld=`<div class="card tight">${inTitel?'':`<h2>${kopTitel} <span class="sub">${kopSub}</span></h2>`}`
     +(isWide()?`<div class="veldrij">`:'')
     +`<div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>${isWide()?'':veldKlokHTML()}`;
   // Geblesseerden staan gewoon in de banklijst, alleen rood. Ze hadden een eigen
@@ -4079,6 +4107,7 @@ function render(){
   }
   if(_lastTab!==activeTab){swapWarnings=[];planInfo=[];_lastTab=activeTab;}
   document.body.classList.toggle('timermode',activeTab==='timer');
+  if(!(isQTab(activeTab)&&!isWide()))herstelAppbarKop();
   const stb=document.getElementById('shareTopBtn');
   if(stb)stb.hidden=!activeTab.startsWith('q')||!state.schedule;
   renderTabbar();
@@ -4520,8 +4549,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=173;
-const VERSIE_LABEL='26.9.13';
+const APP_VERSION=174;
+const VERSIE_LABEL='26.9.14';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
