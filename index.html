@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="170">
+<meta name="app-version" content="171">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1571,6 +1571,9 @@ const LS_KEY=SLEUTEL('wisselplanner_v1');
 //
 // Elke naam wordt lui opgevraagd: een const of let die nog niet is uitgevoerd werpt
 // een fout bij het aanraken, ook binnen typeof. Zo vinden we precies dát geval.
+// Moet vóór de controle én vóór loadState() staan: loadState zet dit veld bij een
+// codefout, en de controle hieronder kijkt of het bestaat.
+let opslagFout=null;
 function _bestaat(fn){ try{ fn(); return true; }catch(e){ return false; } }
 const NODIG_BIJ_START=[
   ['POSITIONS',   ()=>POSITIONS],
@@ -1582,7 +1585,8 @@ const NODIG_BIJ_START=[
   ['DEMO',        ()=>DEMO],
   ['LS_KEY',      ()=>LS_KEY],
   ['MAX_SPELERS', ()=>MAX_SPELERS],
-  ['_fouten',     ()=>_fouten]
+  ['_fouten',     ()=>_fouten],
+  ['opslagFout',  ()=>opslagFout]
 ];
 function controleerStartvolgorde(){
   return NODIG_BIJ_START.filter(([,fn])=>!_bestaat(fn)).map(([naam])=>naam);
@@ -1692,12 +1696,23 @@ function cleanupGkRules(){
 // Opslagfout mag nooit stil blijven: dan denkt de coach dat zijn team bewaard is
 // terwijl het bij de volgende start weg is. Safari blokkeert opslag in privémodus,
 // en iOS ruimt gegevens van zelden gebruikte websites op.
-let opslagFout=null;
+//
+// De declaratie staat hierboven, vóór het laden van de stand: loadState() zet dit
+// veld bij een codefout, en stond hij hier dan wierp juist die foutafhandeling zelf
+// een nieuwe fout — de app viel dan helemaal om, precies in de situatie waarin hij
+// de selectie moest beschermen.
 function save(){
+  // Kon de opgeslagen stand niet worden gelezen door een fout in de app, dan draait
+  // de app op de standaardselectie. Die dan wegschrijven zou het echte team van de
+  // coach overschrijven — en juist dat wilden we voorkomen. Niets doen dus, tot de
+  // fout verholpen is; het team staat dan nog gewoon in de opslag.
+  if(opslagFout==='codefout')return;
   cleanupGkRules();
   try{
     localStorage.setItem(LS_KEY,JSON.stringify(state));
-    if(opslagFout){opslagFout=null;render();}
+    // 'codefout' hoort hier niet gewist te worden — die verdwijnt pas na een
+    // herstart met werkende code.
+    if(opslagFout&&opslagFout!=='codefout'){opslagFout=null;render();}
   }catch(e){
     const nieuw=(e&&e.name==='QuotaExceededError')?'vol':'geblokkeerd';
     if(opslagFout!==nieuw){opslagFout=nieuw;setTimeout(render,0);}
@@ -1966,6 +1981,7 @@ function cloudListen(){
   }, err=>{ CLOUD.status='fout'; toast('Sync-fout: '+(err.message||err)); cloudUpdateCard(); });
 }
 function cloudPush(force){
+  if(opslagFout==='codefout')return;         // draait op de standaardselectie: niets delen
   if(CLOUD.on&&CLOUD.rol==='wacht')return;   // nog niet gekoppeld: niets wegschrijven
   if(!CLOUD.on||CLOUD.applying||!CLOUD.ref)return;
   if(CLOUD.role!=='editor')return;              // kijkers schrijven nooit
@@ -4368,8 +4384,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=170;
-const VERSIE_LABEL='26.9.10';
+const APP_VERSION=171;
+const VERSIE_LABEL='26.9.11';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
