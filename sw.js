@@ -81,13 +81,26 @@ self.addEventListener('fetch', e => {
   if (url.origin !== self.location.origin) return;   // Firebase e.d. niet via de cache
 
   // Verzoeken met een queryreeks krijgen elk een eigen sleutel in de cache. De
-  // updatecontrole gebruikte een unieke ?upd=<tijd>, waardoor er elke minuut een
-  // nieuwe kopie van de hele app bij kwam. Zulke verzoeken slaan we niet op; voor
-  // timer.html?v=165 is dat prima, want de fallback zoekt zonder queryreeks.
-  const nietBewaren = url.search !== ''
+  // updatecontrole gebruikt een unieke ?upd=<tijd>; zonder maatregel kwam er dus
+  // elke minuut een nieuwe kopie van de hele app bij.
+  //
+  // Ze helemaal niet bewaren ging te ver. De app laadt de timer als
+  // 'timer.html?v=175' om een oude kopie uit de browsercache te weren, en daardoor
+  // belandde timer.html na de installatie nooit meer in de cache. Mislukte die ene
+  // installatie, dan stond hij er dus helemaal niet — en viel het verzoek terug op
+  // de regel hieronder. Nu bewaren we zulke documenten onder hun schone adres: één
+  // sleutel die telkens wordt overschreven, en die de fallback ook vindt.
+  const isDocument = /\/(index|timer)\.html$/.test(url.pathname) || url.pathname.endsWith('/');
+  const bewaarAls = (isDocument && url.search !== '') ? url.origin + url.pathname : null;
+  const nietBewaren = (url.search !== '' && !bewaarAls)
     || url.pathname.endsWith('/version.json')
     || !inEigenMap(url.pathname);
   const isNavigatie = e.request.mode === 'navigate';
+  // Een iframe telt ook als navigatie, en de timer ís een iframe. Dat onderscheid
+  // hebben we verderop nodig. 'destination' kent niet elke browser, dus vangen we
+  // het geval dat we hier echt kennen er apart bij op.
+  const isIframe = e.request.destination === 'iframe'
+    || /\/timer\.html$/.test(url.pathname);
 
   e.respondWith(
     fetch(e.request)
@@ -100,7 +113,7 @@ self.addEventListener('fetch', e => {
           // vóór het teruggeven van het antwoord zou de gebruiker onnodig laten
           // wachten op een schrijfactie naar de opslag.
           e.waitUntil(
-            caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {})
+            caches.open(CACHE).then(c => c.put(bewaarAls || e.request, copy)).catch(() => {})
           );
         }
         return r;
@@ -112,7 +125,22 @@ self.addEventListener('fetch', e => {
           // Alleen bij het openen van een pagina terugvallen op index.html. Deden
           // we dat altijd, dan kreeg een ontbrekende afbeelding of een script
           // 250 KB HTML terug — een kapotte afbeelding, of een parseerfout.
-          if (isNavigatie) return caches.match('./index.html');
+          //
+          // En nooit voor een iframe. De timer is een iframe, dus die kreeg bij een
+          // onbereikbare timer.html de héle app terug en laadde die in zichzelf: een
+          // leeg scherm met drie tabbalken onder elkaar, zonder één aanwijzing wat
+          // er scheelde. Een nette melding is oneindig veel bruikbaarder.
+          if (isNavigatie && !isIframe) return caches.match('./index.html');
+          if (isNavigatie) return new Response(
+            '<!doctype html><html lang="nl"><meta charset="utf-8">'
+            + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            + '<body style="margin:0;display:grid;place-items:center;min-height:100vh;'
+            + 'background:#091e48;color:#fff;font:15px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;'
+            + 'text-align:center;padding:24px;box-sizing:border-box">'
+            + '<div><p style="font-weight:800;margin:0 0 8px">De timer kon niet worden geladen.</p>'
+            + '<p style="margin:0;opacity:.75">Het bestand <b>timer.html</b> is niet bereikbaar. '
+            + 'Staat het wel op de server, naast index.html? De rest van de app werkt gewoon.</p></div>',
+            { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
           return new Response('', { status: 504, statusText: 'Offline' });
         })
       )
