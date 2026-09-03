@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="168">
+<meta name="app-version" content="169">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -989,6 +989,15 @@ const LINE_IDS=['voor','midden','achter'];
 // gebruikt deze lijst. Stond hij lager, dan wierp het laden een fout die stil werd
 // opgevangen — met als gevolg dat de app terugviel op een leeg team.
 const KAARTEN={groen:{min:2,naam:'groene kaart'},geel:{min:5,naam:'gele kaart'}};
+// Grenzen voor wat er van buiten binnenkomt. Een normale stand is zo'n 5 KB en een
+// gecomprimeerde deel-link 1,3 KB; deze marges zijn ruim genoeg voor een selectie van
+// veertig spelers met een lange wedstrijdgeschiedenis, en voorkomen dat een beschadigd
+// of opgeblazen bestand de app laat vastlopen tijdens het uitpakken.
+//
+// Staan hier bovenaan omdat de controle van binnenkomende gegevens ze al gebruikt
+// vóórdat de stand wordt geladen.
+const MAX_CODE=200*1024, MAX_UITGEPAKT=2*1024*1024,
+      MAX_SPELERS=60, MAX_REGELS=200, MAX_GEBEURTENISSEN=500;
 // In welke linies mag een speler? Staat als p.lines bij de speler zelf.
 // Leeg of ontbrekend = alle drie, zodat bestaande teams niets merken.
 function linesOf(p){
@@ -1553,6 +1562,37 @@ function inputHashV3(state){
 
 /* ============ App-staat & opslag ============ */
 const LS_KEY=SLEUTEL('wisselplanner_v1');
+// ── Startvolgorde ──
+// Dit bestand is één lange lap; alles wat hierboven staat moet klaar zijn voordat
+// de stand wordt geladen. Ging dat mis — een lijst die pas verderop werd aangemaakt
+// maar hierboven al werd gebruikt — dan wierp het laden een fout die in de
+// try/catch verdween, en viel de app stil terug op een leeg team. De coach was dan
+// zijn hele selectie kwijt zonder dat iets vertelde waarom.
+//
+// Elke naam wordt lui opgevraagd: een const of let die nog niet is uitgevoerd werpt
+// een fout bij het aanraken, ook binnen typeof. Zo vinden we precies dát geval.
+function _bestaat(fn){ try{ fn(); return true; }catch(e){ return false; } }
+const NODIG_BIJ_START=[
+  ['POSITIONS',   ()=>POSITIONS],
+  ['POSMAP',      ()=>POSMAP],
+  ['FORMATIONS',  ()=>FORMATIONS],
+  ['LINE_IDS',    ()=>LINE_IDS],
+  ['KAARTEN',     ()=>KAARTEN],
+  ['STATE_V',     ()=>STATE_V],
+  ['DEMO',        ()=>DEMO],
+  ['LS_KEY',      ()=>LS_KEY],
+  ['MAX_SPELERS', ()=>MAX_SPELERS],
+  ['_fouten',     ()=>_fouten]
+];
+function controleerStartvolgorde(){
+  return NODIG_BIJ_START.filter(([,fn])=>!_bestaat(fn)).map(([naam])=>naam);
+}
+const _startFout=controleerStartvolgorde();
+if(_startFout.length){
+  // Niet stil doorgaan: dit is een programmeerfout, geen beschadigde stand.
+  try{ onthoudFout('startvolgorde',new Error('nog niet klaar bij het laden: '+_startFout.join(', '))); }catch(e){}
+  try{ console.error('opstelling & wissels — startvolgorde klopt niet:',_startFout); }catch(e){}
+}
 let state=loadState();
 let activeTab='timer';
 let expandedPlayer=null;
@@ -1625,7 +1665,17 @@ function loadState(){
         if(neemStandOver(s,'uit de opslag'))return s;
       }
     }
-  }catch(e){}
+  }catch(e){
+    // Onderscheid maken tussen beschadigde gegevens en een fout in de app zelf.
+    // Het eerste is te verwachten en vangen we op; het tweede kost de coach zijn
+    // selectie en moet dus zichtbaar zijn.
+    const codefout = (e instanceof ReferenceError) || (e instanceof TypeError);
+    try{ onthoudFout(codefout?'stand laden (codefout)':'stand laden',e); }catch(x){}
+    if(codefout){
+      try{ console.error('opstelling & wissels — laden mislukt door een codefout:',e); }catch(x){}
+      opslagFout='codefout';
+    }
+  }
   return defaultState();
 }
 function cleanupGkRules(){
@@ -2239,12 +2289,6 @@ async function shareState(){
     toast('Link gekopieerd \u2014 plak hem in de coachgroep');
   }catch(e){toast('Delen lukte niet');}
 }
-// Grenzen voor wat er van buiten binnenkomt. Een normale stand is zo'n 5 KB en een
-// gecomprimeerde deel-link 1,3 KB; deze marges zijn ruim genoeg voor een selectie van
-// veertig spelers met een lange wedstrijdgeschiedenis, en voorkomen dat een
-// beschadigd of opgeblazen bestand de app laat vastlopen tijdens het uitpakken.
-const MAX_CODE=200*1024, MAX_UITGEPAKT=2*1024*1024,
-      MAX_SPELERS=60, MAX_REGELS=200, MAX_GEBEURTENISSEN=500;
 async function importShared(txt){
   const m=(txt||'').match(/#([sr])=([A-Za-z0-9_\-]+)/);
   if(!m){toast('Geen geldige deel-link gevonden');return;}
@@ -2586,7 +2630,17 @@ function globaleBanners(){
   if(botsing){
     h+=`<div class="banner err">${ico("waarschuwing")}<span>${esc(botsing.wie)} wijzigde op hetzelfde moment iets. Eén van de twee wijzigingen is overschreven &mdash; controleer de opstelling en de spelerslijst.</span><button class="btn small" id="botsingOk">Begrepen</button></div>`;
   }
-  if(opslagFout){
+  if(_startFout&&_startFout.length){
+    h+=`<div class="banner err">${ico("waarschuwing")}<span><b>De app is niet goed opgestart.</b>
+      Je opgeslagen team kon daardoor niet worden geladen. Sluit de app helemaal af en open hem
+      opnieuw; blijft dit staan, stuur dan het diagnoseblok door.</span></div>`;
+  }
+  if(opslagFout==='codefout'){
+    h+=`<div class="banner err">${ico("waarschuwing")}<span><b>Je opgeslagen team kon niet worden geladen.</b>
+      Dit is een fout in de app, niet in jouw gegevens. Wijzig nog niets en stuur het diagnoseblok
+      onderaan het spelerstabblad door — dan is je team terug te halen.</span></div>`;
+  }
+  if(opslagFout&&opslagFout!=='codefout'){
     h+=`<div class="banner err">${ico("waarschuwing")}<span>Opslaan op dit toestel lukt niet (${opslagFout==='vol'?'geheugen vol':'geblokkeerd door de browser'}). Je wijzigingen zijn er nu wél, maar zijn na het sluiten van de app weg. Maak een back-up via Spelers &rarr; Back-up.</span></div>`;
   }
   return h;
@@ -4254,8 +4308,8 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=168;
-const VERSIE_LABEL='26.9.8';
+const APP_VERSION=169;
+const VERSIE_LABEL='26.9.9';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
@@ -4524,6 +4578,15 @@ function zelftest(){
       if(_undoStack.length!==UNDO_MAX)fout('stapel is '+_undoStack.length+' diep in plaats van '+UNDO_MAX);
       if(undoLabel()!=='stap 13')fout('bovenste stap is '+undoLabel()+' in plaats van stap 13');
     }finally{ _undoStack=bewaar; state.schedule=bewaarSchema; }
+  });
+  test('Startvolgorde klopt',()=>{
+    // Vangt de fout die deze maand drie keer is gemaakt: iets bovenin gebruiken dat
+    // pas onderin wordt aangemaakt. Het laden van de stand liep daardoor stuk en de
+    // app viel stil terug op een leeg team.
+    const ontbreekt=controleerStartvolgorde();
+    if(ontbreekt.length)fout('deze staan te laat in het bestand: '+ontbreekt.join(', '));
+    // De stand is bij het opstarten geladen; is dat misgegaan, dan is dat hier te zien.
+    if(_startFout&&_startFout.length)fout('bij het opstarten ontbrak: '+_startFout.join(', '));
   });
   test('Herplannen met regels laat het verleden staan',()=>{
     // De hoofdronde sloeg gespeelde blokken al over, maar de correctierondes voor
