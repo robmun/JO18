@@ -150,15 +150,6 @@ html.ghc-embed .app { padding-top:10px !important; }
   box-shadow:inset 0 1px 0 rgba(255,255,255,0.18);
 }
 .themeToggle::before { content:"🌙"; font-size:0.88rem; }
-/* Twee knoppen in de derde kolom van de kopbalk. Ze blijven altijd naast elkaar;
-   is de ruimte krap, dan worden ze smaller (zie de media-query onderaan) in plaats
-   van dat de clubnaam ernaast wordt weggedrukt. */
-.hdrBtns { display:flex; gap:6px; align-items:center; justify-content:flex-end; }
-/* De weergaveknop toont met cijfers wat de klok dóet (0–35, 0–17 of 17–0). Geen
-   pictogram ervoor: dat kost breedte die er op een telefoon niet is. */
-.themeToggle.wg { padding:6px 10px; letter-spacing:0.06em; }
-.themeToggle.wg::before { content:none; }
-body.sun .themeToggle.wg::before, body.dark .themeToggle.wg::before { content:none; }
 
 /* ── KWARTEN — glas card ── */
 .quarters {
@@ -352,18 +343,6 @@ button { border:none; border-radius:16px; padding:0 16px; font:inherit; font-wei
   .time { font-size:clamp(2.0rem,26cqw,12rem); }
 }
 
-/* ── Kopbalk als de ruimte krap is ──
-   Twee knoppen mét woord passen niet naast de clubnaam: op een smalle telefoon
-   niet, en in de smalle linkerkolom van de liggende tablet evenmin. Daar viel de
-   naam eerder al af te kappen met een ellipsis, en met een knop erbij werd dat
-   erger. Hier vervalt het wóórd bij de themaknop; het pictogram geeft de volgende
-   stand net zo goed aan. De weergaveknop houdt zijn cijfers — die zíjn de
-   boodschap. Staat na het liggende blok, zodat het beide gevallen dekt. */
-@media (max-width:400px), (orientation:landscape) and (min-width:760px) {
-  .themeToggle { font-size:0; gap:0; padding:6px 9px; }
-  .themeToggle::before { font-size:1.0rem; }
-  .themeToggle.wg { font-size:0.62rem; padding:6px 8px; }
-}
 
 /* ── PWA INSTALL BANNER ── */
 #installBanner {
@@ -470,10 +449,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       <h1 class="brandTitle">HC Gooische</h1>
       <div class="brandSub">Wedstrijdtimer</div>
     </div>
-    <div class="hdrBtns">
-      <button id="weergaveToggle" class="themeToggle wg" type="button" title="Hoe de klok loopt">0&ndash;35</button>
-      <button id="themeToggle" class="themeToggle" type="button">Dark</button>
-    </div>
+    <button id="themeToggle" class="themeToggle" type="button">Dark</button>
   </header>
   <section class="quarters">
     <div class="half">
@@ -690,12 +666,6 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     // Dit is een kijkvoorkeur, en mag per toestel verschillen.
     var WEERGAVE_SLEUTEL = (DEMO?'demo_':'') + 'ghc-tijdweergave';
     var WEERGAVEN = ['doorlopend', 'oplopend', 'aflopend'];
-    var WEERGAVE_KNOP = { doorlopend:'0\u201335', oplopend:'0\u201317', aflopend:'17\u20130' };
-    var WEERGAVE_UITLEG = {
-      doorlopend: 'Klok loopt door: Q2 en Q4 tellen verder vanaf 17:30',
-      oplopend:   'Elk kwart loopt op van 0:00 naar 17:30',
-      aflopend:   'Elk kwart telt af van 17:30 naar 0:00'
-    };
     var weergave = (function(){
       try {
         var v = localStorage.getItem(WEERGAVE_SLEUTEL);
@@ -1094,6 +1064,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
         if (e.data.ghcKlokInfo.stand) zetKlok(e.data.ghcKlokInfo.stand);
         updateUI();   // ook de regel 'Klok wordt bediend door ...' verversen
       }
+      if (e.data.ghcTijdweergave) zetWeergave(String(e.data.ghcTijdweergave));
       if (e.data.ghcSetQuarter) {
         var q = Number(e.data.ghcSetQuarter);
         // Loopt de klok, dan blijft die staan: de coach bekijkt alleen een ander kwart.
@@ -1153,7 +1124,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 177;
+    var TIMER_VERSION = 178;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
@@ -1382,32 +1353,19 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     document.getElementById('minusMin').addEventListener('click', function () { nudgeMinute(-60); });
     startBtn.addEventListener('click', toggleStartPause);
     resetBtn.addEventListener('click', function(){ if (!magBedienen()) { vraagOvernemen(); return; } resetCurrentQuarter(); meldKlok(); });
-    // ── Weergaveknop ──
-    // Draait door de drie standen. De knop toont wat de klok nú doet, niet de
-    // volgende stand: bij cijfers is 'wat staat er straks' niet af te lezen.
-    const weergaveToggle = document.getElementById('weergaveToggle');
+    // De klokrichting wordt in de app ingesteld, op het tabblad Meer. Die schrijft
+    // hem in localStorage — dezelfde herkomst, dus dezelfde sleutel — en stuurt
+    // daarna een bericht, zodat een draaiende timer meteen omschakelt in plaats van
+    // pas na herladen. Hier staat geen knop meer voor: dit is het enige dat de
+    // betékenis van de cijfers verandert, en daar wil je tijdens een wedstrijd niet
+    // per ongeluk op tikken.
     function zetWeergave(m) {
       if (WEERGAVEN.indexOf(m) < 0) m = 'doorlopend';
+      if (m === weergave) return;
       weergave = m;
-      try { localStorage.setItem(WEERGAVE_SLEUTEL, m); } catch (e) {}
-      weergaveToggle.textContent = WEERGAVE_KNOP[m];
-      weergaveToggle.title = WEERGAVE_UITLEG[m];
       buildTicks();
       updateUI();
-      // De app toont dezelfde tijd op de veldklok en schrijft de wisselmomenten
-      // uit; die moet mee omschakelen. De stand staat al in localStorage — dat
-      // deelt de app met ons — dit bericht is alleen het sein om te hertekenen.
-      if (window.parent !== window) {
-        try { parent.postMessage({ ghcTijdweergave: m }, location.origin); } catch (e) {}
-      }
-      if ('vibrate' in navigator) navigator.vibrate(10);
     }
-    weergaveToggle.addEventListener('click', function () {
-      zetWeergave(WEERGAVEN[(WEERGAVEN.indexOf(weergave) + 1) % WEERGAVEN.length]);
-    });
-    // Beginstand op de knop zetten zonder te melden of te trillen.
-    weergaveToggle.textContent = WEERGAVE_KNOP[weergave];
-    weergaveToggle.title = WEERGAVE_UITLEG[weergave];
 
     themeToggle.addEventListener('click', () => {
       const cur = document.body.classList.contains('sun') ? 'sun' : (document.body.classList.contains('dark') ? 'dark' : 'light');
