@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="178">
+<meta name="app-version" content="179">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -266,21 +266,16 @@ body.sun .keuze.aan .keuzebadge{background:#12408f;color:#fff;border-color:#1240
    op het spelerstabblad, hier gaat het alleen over wie er in het team zit. */
 .sellijst{display:flex;flex-direction:column;gap:6px}
 .selrij{display:flex;align-items:center;gap:8px}
-/* min-width:0 is hier niet optioneel. Een flex-item krijgt standaard min-width:auto,
-   en voor een <input> is dat de breedte van zijn size-attribuut — twintig tekens.
-   Zonder deze regel negeert het nummerveld zijn flex-basis van 46px volledig en
-   wordt het bijna 200px breed. */
-.selnum{flex:0 0 52px;min-width:0;width:52px;text-align:center}
-.selnaam{flex:1 1 auto;min-width:0;width:100%}
-.selrij input{padding:9px 10px;border-radius:var(--r-md);border:1px solid var(--stroke);
-  background:var(--glass);color:var(--txt);font:inherit;font-size:var(--fs-md)}
-.selrij input:disabled{opacity:.5}
-body.sun .selrij input{background:#fff;border-color:#c9d6ea}
-.selrij .del{flex:0 0 auto;width:36px;height:36px;border-radius:var(--r-sm);border:none;
-  background:rgba(214,81,47,.18);color:#ffb39e;font-size:var(--fs-base);font-weight:700;padding:0;
-  display:flex;align-items:center;justify-content:center}
-.selrij .del:disabled{opacity:.4}
-body.sun .selrij .del{background:#fdeae6;color:#a01a10;border:1px solid rgba(179,36,26,.45)}
+.selrij{padding:9px 11px;border-radius:var(--r-md);border:1px solid var(--stroke);
+  background:var(--glass);cursor:pointer}
+.selrij.aan{border-color:rgba(255,140,120,.6);background:rgba(214,81,47,.14)}
+.selrij input[type=checkbox]{flex:0 0 auto;width:19px;height:19px;accent-color:#d6512f;margin:0}
+.selnr{flex:0 0 26px;text-align:center;font-variant-numeric:tabular-nums;font-weight:800;
+  font-size:var(--fs-xs);color:var(--dim)}
+.selnm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:var(--fs-md);font-weight:600}
+body.sun .selrij{background:#fff;border-color:#c9d6ea}
+body.sun .selrij.aan{background:#fdeae6;border-color:rgba(179,36,26,.5)}
 
 /* ---------- Tab bar ---------- */
 .tabbar{
@@ -2729,13 +2724,18 @@ function cloudSetupDialog(){
   };
 }
 function inputDialog(opts){
-  // opts: {title, body, placeholder, okLabel, onOk(value)}
+  // opts: {title, body, placeholder, okLabel, enkel, onOk(value)}
+  // 'enkel' geeft een invoerregel in plaats van een tekstvak. Voor een spelersnaam
+  // is een tekstvak van vier regels hoog onzin, en enter zou er een witregel in
+  // zetten in plaats van te bevestigen.
   const h=document.getElementById('modalHost');
   h.innerHTML=`<div class="modal-back center" id="mback">
     <div class="modal" role="dialog" aria-modal="true">
       <h3>${esc(opts.title||'')}</h3>
       ${opts.body?`<p>${esc(opts.body)}</p>`:''}
-      <textarea id="minput" placeholder="${esc(opts.placeholder||'')}"></textarea>
+      ${opts.enkel
+        ?`<input id="minput" type="text" placeholder="${esc(opts.placeholder||'')}" style="width:100%;padding:11px 12px;border-radius:var(--r-md);border:1px solid var(--stroke);background:var(--glass);color:var(--txt);font:inherit;font-size:var(--fs-md)">`
+        :`<textarea id="minput" placeholder="${esc(opts.placeholder||'')}"></textarea>`}
       <div class="row">
         <button class="btn ghost" id="mcancel">Annuleren</button>
         <button class="btn" id="mok">${esc(opts.okLabel||'Overnemen')}</button>
@@ -2743,6 +2743,9 @@ function inputDialog(opts){
     </div></div>`;
   const back=document.getElementById('mback'), inp=document.getElementById('minput');
   setTimeout(()=>inp.focus(),60);
+  // Bij één regel bevestigt enter, zodat je vier namen achter elkaar kunt intikken
+  // zonder telkens naar de knop te hoeven.
+  if(opts.enkel)inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();document.getElementById('mok').click();}};
   document.getElementById('mcancel').onclick=closeModal;
   back.onclick=e=>{if(e.target===back)closeModal();};
   document.getElementById('mok').onclick=()=>{const v=inp.value;closeModal();opts.onOk&&opts.onOk(v);};
@@ -3988,41 +3991,6 @@ function zetTijdweergave(m){
 // functie, zodat de twee plekken niet uit elkaar kunnen lopen.
 function regelGaatOver(r,id){ return r.p1===id||r.p2===id; }
 
-// Speler uit de selectie halen. Raakt meer dan de lijst, dus alles wat vervalt
-// staat vóóraf in het venster in plaats van erna in een melding.
-function spelerUitSelectie(id){
-  if(wijzigenGeblokkeerd())return;
-  const p=state.players.find(x=>x.id===id);
-  if(!p)return;
-  if(wedstrijdBezig()){
-    toast('Kan niet tijdens een wedstrijd — meld hem af op Spelers');
-    return;
-  }
-  const naam=p.name||'Deze speler';
-  const gevolgen=[];
-  const regels=state.rules.filter(r=>regelGaatOver(r,id));
-  if(regels.length)gevolgen.push(regels.length===1?'Eén coachregel over hem vervalt.':regels.length+' coachregels over hem vervallen.');
-  if(state.keeperId===id)gevolgen.push('Hij is de ingestelde keeper; die komt leeg te staan.');
-  if(p.captain)gevolgen.push('Hij is de aanvoerder; die komt leeg te staan.');
-  if(state.schedule)gevolgen.push('Het wisselschema moet daarna opnieuw gemaakt worden.');
-  const over=state.players.filter(x=>x.id!==id&&x.present).length;
-  if(over<11)gevolgen.push('Er blijven dan '+over+' aanwezige spelers over; voor een opstelling zijn er 11 nodig.');
-  confirmDialog({
-    title:naam+' uit de selectie halen?',
-    bodyHtml:'Hij verdwijnt uit het team, niet alleen uit deze wedstrijd.'
-      +(gevolgen.length?'<br><br>'+gevolgen.map(t=>'&bull; '+esc(t)).join('<br>'):'')
-      +'<br><br>Schud je telefoon of gebruik Ongedaan maken als je je bedenkt.',
-    okLabel:'Verwijderen', danger:true,
-    onOk:()=>{
-      snapshot('speler verwijderd');
-      state.players=state.players.filter(x=>x.id!==id);
-      state.rules=state.rules.filter(r=>!regelGaatOver(r,id));
-      if(state.keeperId===id)state.keeperId=null;
-      save(); render(); toast(naam+' uit de selectie gehaald');
-    }
-  });
-}
-
 // ── Kaart: hoe de klok loopt ──
 // Elke keuze laat meteen zien wát hij oplevert: het getal dat op dat moment op de
 // klok zou staan. Zonder dat voorbeeld moet je '17–0' maar geloven en heen en weer
@@ -4054,28 +4022,113 @@ function klokRichtingKaart(){
     <p class="hint" style="margin:10px 0 0">Rechts staat wat er op de klok zou staan als er vijf minuten in Q2 zijn gespeeld.</p></div>`;
 }
 
-// ── Kaart: de selectie ──
+// ── Kaart: selectie beheren ──
 // Hier staat wie er in het team zit; op het tabblad Spelers staat wie er vandaag
 // is en op welke positie hij speelt. Die twee werden eerder door elkaar gehaald:
 // een speler die niet in het team hoorde zette je op 'afwezig', en dan wist je een
 // week later niet meer of hij ziek was of nooit had bestaan.
+//
+// Bewust géén naam- of nummervelden. Die staan op Spelers, en twee invoervelden
+// voor hetzelfde gegeven is twee plekken waar het mis kan gaan.
+//
+// Twintig, niet zestien. Zestien is de grootte van dít team, geen grens van de app:
+// de planner en de bankweergave zijn getest tot 22 spelers. Met de twee gastspelers
+// erbij komt 20 precies op dat geteste maximum uit.
+const MAX_SELECTIE=20;
+let _selVerwijderOpen=false;
+let _selGekozen=new Set();
+
 function selectieKaart(){
   const vast=state.players.filter(p=>!p.guest);
   const bezig=wedstrijdBezig();
-  return `<div class="card"><h2>Selectie <span class="sub">${vast.length} speler${vast.length===1?'':'s'}</span></h2>
-    <p class="hint" style="margin:0 0 10px">Wie hoort er bij dit team? Wie er v&#233;&#243;&#243;r een wedstrijd is,
-      en op welke positie hij speelt, regel je op het tabblad <b>Spelers</b>.</p>
-    ${bezig?`<div class="banner">${ico("waarschuwing")}<span>De wedstrijd loopt. De selectie kun je pas wijzigen als de klok weer op nul staat; iemand die vandaag uitvalt meld je af op <b>Spelers</b>.</span></div>`:''}
-    <div class="sellijst">${vast.map(p=>`
-      <div class="selrij">
-        <input class="selnum" type="text" inputmode="numeric" maxlength="2" size="2" value="${esc(String(p.num??''))}"
-               data-selnum="${p.id}" aria-label="Rugnummer" ${bezig?'disabled':''}>
-        <input class="selnaam" type="text" size="8" value="${esc(p.name||'')}" placeholder="Naam"
-               data-selnaam="${p.id}" aria-label="Naam" ${bezig?'disabled':''}>
-        <button class="del" data-selweg="${p.id}" aria-label="${esc(p.name||'Speler')} uit de selectie halen" ${bezig?'disabled':''}>&#10005;</button>
-      </div>`).join('')}</div>
-    ${bezig?'':`<button class="btn ghost full" id="selToevoegen" style="margin-top:10px">+ Speler toevoegen</button>`}
-    <p class="hint" style="margin:10px 0 0">Gastspelers &mdash; iemand die &#233;&#233;n wedstrijd meedoet &mdash; voeg je toe op <b>Spelers</b>.</p></div>`;
+  const gekozen=vast.filter(p=>_selGekozen.has(p.id)).length;
+  let h=`<div class="card"><h2>Selectie beheren <span class="sub">${vast.length} speler${vast.length===1?'':'s'}</span></h2>
+    <p class="hint" style="margin:0 0 10px">Wie hoort er bij dit team? Namen, rugnummers en posities vul je in
+      op het tabblad <b>Spelers</b>, samen met wie er vandaag is.</p>`;
+  if(bezig){
+    h+=`<div class="banner">${ico("waarschuwing")}<span>De wedstrijd loopt. De selectie kun je pas wijzigen als de klok weer op nul staat; iemand die vandaag uitvalt meld je af op <b>Spelers</b>.</span></div>`;
+  }else{
+    h+=`<button class="btn ghost full" id="selToevoegen">+ Speler toevoegen</button>
+      <button class="btn ghost full" id="selVerwijderOpen" style="margin-top:8px">${_selVerwijderOpen?'Verwijderen afbreken':'\u2212 Speler verwijderen'}</button>`;
+    if(_selVerwijderOpen){
+      h+=`<p class="hint" style="margin:12px 0 8px">Vink aan wie er uit het team moet. Je krijgt daarna nog een bevestiging.</p>
+        <div class="sellijst">${vast.map(p=>`
+          <label class="selrij${_selGekozen.has(p.id)?' aan':''}">
+            <input type="checkbox" data-selvink="${p.id}" ${_selGekozen.has(p.id)?'checked':''}>
+            <span class="selnr">${esc(String(p.num??''))}</span>
+            <span class="selnm">${esc(p.name||'(naamloos)')}</span>
+          </label>`).join('')}</div>
+        <button class="btn gevaar full" id="selVerwijderNu" style="margin-top:10px" ${gekozen?'':'disabled'}>
+          ${gekozen?`${gekozen} speler${gekozen===1?'':'s'} verwijderen`:'Niemand aangevinkt'}</button>`;
+    }
+  }
+  h+=`<p class="hint" style="margin:10px 0 0">Maximaal ${MAX_SELECTIE} spelers. Gastspelers &mdash; iemand die
+    &#233;&#233;n wedstrijd meedoet &mdash; voeg je toe op <b>Spelers</b>.</p></div>`;
+  return h;
+}
+
+// Toevoegen vraagt meteen om de naam. Een naamloze speler toevoegen zou op dit
+// tabblad onzichtbaar zijn, want de lijst staat er niet meer.
+function spelerToevoegen(){
+  if(wijzigenGeblokkeerd())return;
+  const vast=state.players.filter(p=>!p.guest);
+  if(vast.length>=MAX_SELECTIE){
+    confirmDialog({title:'De selectie is vol',
+      body:MAX_SELECTIE+' spelers is het maximum. Haal er eerst iemand uit als je iemand wilt toevoegen.',
+      okLabel:'Begrepen', cancelLabel:''});
+    return;
+  }
+  inputDialog({
+    title:'Speler toevoegen', enkel:true, placeholder:'Naam', okLabel:'Toevoegen',
+    body:'Rugnummer en posities vul je daarna in op het tabblad Spelers.',
+    onOk:naam=>{
+      naam=(naam||'').trim();
+      if(!naam)return;
+      snapshot('speler toegevoegd');
+      state.players.push({id:'sp'+Date.now(),name:naam,num:'',prefs:['','',''],present:true,guest:false});
+      save(); render(); toast(naam+' toegevoegd \u2014 vul zijn nummer en posities in op Spelers');
+    }
+  });
+}
+
+// Meervoudig verwijderen. Eén voor één zou bij het opzetten van een nieuw team
+// zestien bevestigingen betekenen.
+function selectieVerwijderen(){
+  if(wijzigenGeblokkeerd())return;
+  if(wedstrijdBezig()){ toast('Kan niet tijdens een wedstrijd \u2014 meld hem af op Spelers'); return; }
+  const weg=state.players.filter(p=>!p.guest&&_selGekozen.has(p.id));
+  if(!weg.length)return;
+  const namen=weg.map(p=>p.name||'(naamloos)');
+  const lijst=namen.length<=3
+    ? namen.slice(0,-1).join(', ')+(namen.length>1?' en ':'')+namen[namen.length-1]
+    : namen.length+' spelers';
+  // Alles wat vervalt vóóraf tonen, niet achteraf in een melding.
+  const ids=new Set(weg.map(p=>p.id));
+  const gevolgen=[];
+  if(namen.length>3)gevolgen.push('Het gaat om: '+namen.join(', ')+'.');
+  const regels=state.rules.filter(r=>[...ids].some(id=>regelGaatOver(r,id)));
+  if(regels.length)gevolgen.push(regels.length===1?'E\u00e9n coachregel vervalt.':regels.length+' coachregels vervallen.');
+  if(ids.has(state.keeperId))gevolgen.push('De ingestelde keeper zit erbij; die komt leeg te staan.');
+  if(weg.some(p=>p.captain))gevolgen.push('De aanvoerder zit erbij; die komt leeg te staan.');
+  if(state.schedule)gevolgen.push('Het wisselschema moet daarna opnieuw gemaakt worden.');
+  const over=state.players.filter(p=>!ids.has(p.id)&&p.present).length;
+  if(over<11)gevolgen.push('Er blijven dan '+over+' aanwezige spelers over; voor een opstelling zijn er 11 nodig.');
+  confirmDialog({
+    title:lijst+' uit de selectie halen?',
+    bodyHtml:(namen.length===1?'Hij verdwijnt':'Zij verdwijnen')+' uit het team, niet alleen uit deze wedstrijd.'
+      +(gevolgen.length?'<br><br>'+gevolgen.map(t=>'&bull; '+esc(t)).join('<br>'):'')
+      +'<br><br>Schud je telefoon of gebruik Ongedaan maken als je je bedenkt.',
+    okLabel:'Verwijderen', danger:true,
+    onOk:()=>{
+      snapshot('speler verwijderd');
+      state.players=state.players.filter(p=>!ids.has(p.id));
+      state.rules=state.rules.filter(r=>![...ids].some(id=>regelGaatOver(r,id)));
+      if(ids.has(state.keeperId))state.keeperId=null;
+      _selGekozen.clear(); _selVerwijderOpen=false;
+      save(); render();
+      toast(namen.length===1?namen[0]+' uit de selectie gehaald':namen.length+' spelers uit de selectie gehaald');
+    }
+  });
 }
 
 // ── Tabblad 'Meer' ──
@@ -4593,27 +4646,28 @@ function bind(v){
   // ── Tabblad Meer: klokrichting ──
   v.querySelectorAll('[data-klokstand]').forEach(el=>el.onclick=()=>zetTijdweergave(el.dataset.klokstand));
   // ── Tabblad Meer: selectie ──
-  v.querySelectorAll('[data-selnaam]').forEach(el=>el.onchange=()=>{
-    const p=state.players.find(x=>x.id===el.dataset.selnaam); if(!p)return;
-    p.name=el.value.trim(); save(); render();
-  });
-  v.querySelectorAll('[data-selnum]').forEach(el=>el.onchange=()=>{
-    const p=state.players.find(x=>x.id===el.dataset.selnum); if(!p)return;
-    const n=el.value.trim();
-    p.num=n===''?'':(isNaN(Number(n))?p.num:Number(n));
-    save(); render();
-  });
-  v.querySelectorAll('[data-selweg]').forEach(el=>el.onclick=()=>spelerUitSelectie(el.dataset.selweg));
   const st=v.querySelector('#selToevoegen');
-  if(st)st.onclick=()=>{
-    if(wijzigenGeblokkeerd())return;
-    snapshot('speler toegevoegd');
-    const id='sp'+Date.now();
-    state.players.push({id,name:'',num:'',prefs:['','',''],present:true,guest:false});
-    save(); render();
-    // Meteen in de nieuwe naam kunnen typen; anders moet je hem eerst opzoeken.
-    requestAnimationFrame(()=>{const f=document.querySelector(`[data-selnaam="${id}"]`); if(f)f.focus();});
+  if(st)st.onclick=spelerToevoegen;
+  const svo=v.querySelector('#selVerwijderOpen');
+  if(svo)svo.onclick=()=>{
+    _selVerwijderOpen=!_selVerwijderOpen;
+    if(!_selVerwijderOpen)_selGekozen.clear();
+    render();
   };
+  // Alleen de knoptekst bijwerken, niet de hele kaart hertekenen: bij een volledige
+  // render springt de pagina terug naar boven en verlies je je plek in de lijst.
+  v.querySelectorAll('[data-selvink]').forEach(el=>el.onchange=()=>{
+    if(el.checked)_selGekozen.add(el.dataset.selvink); else _selGekozen.delete(el.dataset.selvink);
+    el.closest('.selrij').classList.toggle('aan',el.checked);
+    const knop=document.getElementById('selVerwijderNu');
+    if(knop){
+      const n=_selGekozen.size;
+      knop.disabled=!n;
+      knop.textContent=n?`${n} speler${n===1?'':'s'} verwijderen`:'Niemand aangevinkt';
+    }
+  });
+  const svn=v.querySelector('#selVerwijderNu');
+  if(svn)svn.onclick=selectieVerwijderen;
   const bex=v.querySelector('#backupExport');
   if(bex)bex.onclick=backupExport;
   const bim=v.querySelector('#backupImport');
@@ -4879,8 +4933,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=178;
-const VERSIE_LABEL='26.9.18';
+const APP_VERSION=179;
+const VERSIE_LABEL='26.9.19';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
