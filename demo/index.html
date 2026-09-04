@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="177">
+<meta name="app-version" content="178">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -241,6 +241,47 @@ body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
 .btn.small{padding:8px 12px;font-size:var(--fs-md);border-radius:var(--r-md)}
 .btn.full{width:100%}
 .btn.danger{background:rgba(214,81,47,.18);border:1px solid rgba(214,81,47,.5);color:#ffb39e;box-shadow:none}
+/* ---------- Tabblad Meer ---------- */
+.sectiekop{font-size:var(--fs-lg);font-weight:800;letter-spacing:-.2px;color:var(--txt);
+  margin:18px 6px 8px;opacity:.75}
+.sectiekop:first-child{margin-top:4px}
+/* Keuzelijst: drie standen onder elkaar, elk met het getal dat hij oplevert. */
+.keuzelijst{display:flex;flex-direction:column;gap:8px}
+.keuze{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  padding:10px 12px;border-radius:var(--r-md);border:1px solid var(--stroke);
+  background:var(--glass);color:var(--txt);font:inherit}
+.keuze.aan{border-color:rgba(150,190,255,.75);background:rgba(150,190,255,.14)}
+.keuze:active{transform:scale(.99)}
+.keuzebadge{flex:0 0 auto;min-width:52px;text-align:center;padding:5px 8px;border-radius:var(--r-pill);
+  background:rgba(255,255,255,.08);border:1px solid var(--stroke);
+  font-size:var(--fs-xs);font-weight:800;letter-spacing:.06em}
+.keuze.aan .keuzebadge{background:#fff;color:#12408f;border-color:#fff}
+.keuzetekst{flex:1;font-size:var(--fs-xs);color:var(--dim);line-height:1.35}
+.keuzevb{flex:0 0 auto;font-variant-numeric:tabular-nums;font-weight:800;font-size:var(--fs-md);color:var(--txt);opacity:.85}
+body.sun .keuze{background:#fff;border-color:#c9d6ea}
+body.sun .keuze.aan{background:#e8f0fd;border-color:#12408f}
+body.sun .keuzebadge{background:#eef3fb;border-color:#c9d6ea;color:#33507e}
+body.sun .keuze.aan .keuzebadge{background:#12408f;color:#fff;border-color:#12408f}
+/* Selectielijst: nummer, naam, weg. Bewust smal — posities en aanwezigheid horen
+   op het spelerstabblad, hier gaat het alleen over wie er in het team zit. */
+.sellijst{display:flex;flex-direction:column;gap:6px}
+.selrij{display:flex;align-items:center;gap:8px}
+/* min-width:0 is hier niet optioneel. Een flex-item krijgt standaard min-width:auto,
+   en voor een <input> is dat de breedte van zijn size-attribuut — twintig tekens.
+   Zonder deze regel negeert het nummerveld zijn flex-basis van 46px volledig en
+   wordt het bijna 200px breed. */
+.selnum{flex:0 0 52px;min-width:0;width:52px;text-align:center}
+.selnaam{flex:1 1 auto;min-width:0;width:100%}
+.selrij input{padding:9px 10px;border-radius:var(--r-md);border:1px solid var(--stroke);
+  background:var(--glass);color:var(--txt);font:inherit;font-size:var(--fs-md)}
+.selrij input:disabled{opacity:.5}
+body.sun .selrij input{background:#fff;border-color:#c9d6ea}
+.selrij .del{flex:0 0 auto;width:36px;height:36px;border-radius:var(--r-sm);border:none;
+  background:rgba(214,81,47,.18);color:#ffb39e;font-size:var(--fs-base);font-weight:700;padding:0;
+  display:flex;align-items:center;justify-content:center}
+.selrij .del:disabled{opacity:.4}
+body.sun .selrij .del{background:#fdeae6;color:#a01a10;border:1px solid rgba(179,36,26,.45)}
+
 /* ---------- Tab bar ---------- */
 .tabbar{
   position:fixed;left:0;right:0;bottom:0;z-index:50;
@@ -2614,12 +2655,15 @@ document.addEventListener('keydown',e=>{
   if(h&&h.querySelector('.modal')){ e.preventDefault(); closeModal(); }
 });
 function confirmDialog(opts){
-  // opts: {title, body, okLabel, cancelLabel, danger, onOk}
+  // opts: {title, body, bodyHtml, okLabel, cancelLabel, danger, onOk}
+  // 'body' wordt ontsmet en is dus altijd veilig; 'bodyHtml' niet, want daar is
+  // opmaak nodig — een opsomming van wat er vervalt leest een stuk beter dan één
+  // lange zin. Wie bodyHtml gebruikt ontsmet zijn eigen variabelen met esc().
   const h=document.getElementById('modalHost');
   h.innerHTML=`<div class="modal-back" id="mback">
     <div class="modal" role="dialog" aria-modal="true">
       <h3>${esc(opts.title||'Weet je het zeker?')}</h3>
-      ${opts.body?`<p>${esc(opts.body)}</p>`:''}
+      ${opts.bodyHtml?`<p>${opts.bodyHtml}</p>`:(opts.body?`<p>${esc(opts.body)}</p>`:'')}
       <div class="row">
         ${opts.cancelLabel===''?'':`<button class="btn ghost" id="mcancel">${esc(opts.cancelLabel||'Annuleren')}</button>`}
         <button class="btn ${opts.danger?'danger':''}" id="mok">${esc(opts.okLabel||'Verwijderen')}</button>
@@ -3086,7 +3130,11 @@ const TABS=[
   {id:'spelers',label:'Spelers'},
   {id:'regels',label:'Regels'},
   {id:'wedstrijd',label:'Wedstrijd'},
-  {id:'uitleg',label:'Uitleg'},
+  // Het label werd 'Meer'. De id blijft 'uitleg': die zit in bewaarde voorkeuren en
+  // in de schuifrichting van de tabwissel. Het tabblad heet Meer omdat er inmiddels
+  // net zoveel knoppen als uitleg op staan — back-up, diagnose, schudden, en nu ook
+  // de klokrichting en het beheer van de selectie.
+  {id:'uitleg',label:'Meer'},
 ];
 // Welk kwart toont het wedstrijdtabblad? Er is nog maar één tabblad, dus het kwart
 // is een aparte keuze geworden. Standaard volgt hij de wedstrijdklok; kiest de coach
@@ -3106,7 +3154,7 @@ function renderTabbar(){
     if(t.id==='spelers')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 19c.7-3.2 3.4-5 6.5-5s5.8 1.8 6.5 5"/><circle cx="17.5" cy="9.5" r="2.6"/><path d="M16 14.2c2.9.2 5 1.8 5.5 4.3"/></svg>${t.label}</button>`;
     if(t.id==='regels')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 4h14v17l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 9h6M9 13h6"/></svg>${t.label}</button>`;
     if(t.id==='wedstrijd')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18M12 4v16"/><circle cx="12" cy="12" r="2.5"/></svg><span>Wedstrijd</span></button>`;
-    if(t.id==='uitleg')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a2.5 2.5 0 0 1 2 1 2.5 2.5 0 0 1 2-1h4.5A1.5 1.5 0 0 1 20 5.5V18a1 1 0 0 1-1 1h-5a2 2 0 0 0-2 1 2 2 0 0 0-2-1H5a1 1 0 0 1-1-1z"/><path d="M12 5v15"/></svg><span>Uitleg</span></button>`;
+    if(t.id==='uitleg')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a2.5 2.5 0 0 1 2 1 2.5 2.5 0 0 1 2-1h4.5A1.5 1.5 0 0 1 20 5.5V18a1 1 0 0 1-1 1h-5a2 2 0 0 0-2 1 2 2 0 0 0-2-1H5a1 1 0 0 1-1-1z"/><path d="M12 5v15"/></svg><span>Meer</span></button>`;
     return '';
   }).join('');
   el.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
@@ -3919,28 +3967,140 @@ const UITLEG=[
    +'binnen een seconde bij de ander en de wedstrijdklok loopt mee. Wie een team aanmaakt is '
    +'eigenaar en laat anderen toe via \u2018Coach toelaten\u2019, een venster dat een kwartier openstaat.']
 ];
+// Zet de klokrichting: bewaren, de timer laten omschakelen en opnieuw tekenen.
+// Alleen dit toestel — het is een kijkvoorkeur, geen teamafspraak, en staat daarom
+// bewust buiten state.rules en buiten inputHash.
+function zetTijdweergave(m){
+  if(['doorlopend','oplopend','aflopend'].indexOf(m)<0)return;
+  try{ localStorage.setItem((DEMO?'demo_':'')+'ghc-tijdweergave',m); }catch(e){}
+  // De timer leest dezelfde sleutel, maar alleen bij het laden. Dit bericht zorgt
+  // dat een draaiende timer meteen omschakelt in plaats van pas na herladen.
+  try{
+    const th=document.getElementById('timerHost');
+    const ifr=th&&th.querySelector('iframe');
+    if(ifr&&ifr.contentWindow)ifr.contentWindow.postMessage({ghcTijdweergave:m},location.origin);
+  }catch(e){}
+  render(); veldKlokBijwerken();
+}
+
+// Een regel verwijst naar spelers via r.p1 en r.p2 — meer velden zijn er niet.
+// Dezelfde controle die het verwijderen van een gastspeler al gebruikte, nu als
+// functie, zodat de twee plekken niet uit elkaar kunnen lopen.
+function regelGaatOver(r,id){ return r.p1===id||r.p2===id; }
+
+// Speler uit de selectie halen. Raakt meer dan de lijst, dus alles wat vervalt
+// staat vóóraf in het venster in plaats van erna in een melding.
+function spelerUitSelectie(id){
+  if(wijzigenGeblokkeerd())return;
+  const p=state.players.find(x=>x.id===id);
+  if(!p)return;
+  if(wedstrijdBezig()){
+    toast('Kan niet tijdens een wedstrijd — meld hem af op Spelers');
+    return;
+  }
+  const naam=p.name||'Deze speler';
+  const gevolgen=[];
+  const regels=state.rules.filter(r=>regelGaatOver(r,id));
+  if(regels.length)gevolgen.push(regels.length===1?'Eén coachregel over hem vervalt.':regels.length+' coachregels over hem vervallen.');
+  if(state.keeperId===id)gevolgen.push('Hij is de ingestelde keeper; die komt leeg te staan.');
+  if(p.captain)gevolgen.push('Hij is de aanvoerder; die komt leeg te staan.');
+  if(state.schedule)gevolgen.push('Het wisselschema moet daarna opnieuw gemaakt worden.');
+  const over=state.players.filter(x=>x.id!==id&&x.present).length;
+  if(over<11)gevolgen.push('Er blijven dan '+over+' aanwezige spelers over; voor een opstelling zijn er 11 nodig.');
+  confirmDialog({
+    title:naam+' uit de selectie halen?',
+    bodyHtml:'Hij verdwijnt uit het team, niet alleen uit deze wedstrijd.'
+      +(gevolgen.length?'<br><br>'+gevolgen.map(t=>'&bull; '+esc(t)).join('<br>'):'')
+      +'<br><br>Schud je telefoon of gebruik Ongedaan maken als je je bedenkt.',
+    okLabel:'Verwijderen', danger:true,
+    onOk:()=>{
+      snapshot('speler verwijderd');
+      state.players=state.players.filter(x=>x.id!==id);
+      state.rules=state.rules.filter(r=>!regelGaatOver(r,id));
+      if(state.keeperId===id)state.keeperId=null;
+      save(); render(); toast(naam+' uit de selectie gehaald');
+    }
+  });
+}
+
+// ── Kaart: hoe de klok loopt ──
+// Elke keuze laat meteen zien wát hij oplevert: het getal dat op dat moment op de
+// klok zou staan. Zonder dat voorbeeld moet je '17–0' maar geloven en heen en weer
+// naar de timer om te zien wat je gekozen hebt.
+const KLOKSTANDEN=[
+  ['doorlopend','0\u201335','Doorlopende wedstrijdtijd. Q1 en Q3 lopen van 0:00 naar 17:30, Q2 en Q4 tellen verder naar 35:00.'],
+  ['oplopend',  '0\u201317','Elk kwart begint opnieuw op 0:00 en loopt op naar 17:30.'],
+  ['aflopend',  '17\u20130','Elk kwart telt af van 17:30 naar 0:00. Na nul loopt de klok negatief door, zodat je de blessuretijd ziet.']
+];
+// Het voorbeeldmoment: vijf minuten gespeeld in Q2. Dat is het enige moment waarop
+// de drie standen ook echt drie verschillende getallen geven.
+function klokVoorbeeld(m){
+  const sec=5*60, QLEN=17.5*60;
+  if(m==='oplopend') return klokCijfers(Math.floor(sec));
+  if(m==='aflopend') return klokCijfers(Math.ceil(QLEN-sec));
+  return klokCijfers(Math.floor(sec+QLEN));
+}
+function klokRichtingKaart(){
+  const nu=tijdweergave();
+  return `<div class="card"><h2>Hoe de klok loopt <span class="sub">alleen dit toestel</span></h2>
+    <p class="hint" style="margin:0 0 10px">Geldt voor de timer, voor het klokje op de veldtekening en voor de
+      tijden bij de wisselmomenten. Jij en je mede-coach mogen hier verschillend in staan.</p>
+    <div class="keuzelijst">${KLOKSTANDEN.map(([id,badge,tekst])=>`
+      <button class="keuze${nu===id?' aan':''}" data-klokstand="${id}">
+        <span class="keuzebadge">${badge}</span>
+        <span class="keuzetekst">${tekst}</span>
+        <span class="keuzevb">${klokVoorbeeld(id)}</span>
+      </button>`).join('')}</div>
+    <p class="hint" style="margin:10px 0 0">Rechts staat wat er op de klok zou staan als er vijf minuten in Q2 zijn gespeeld.</p></div>`;
+}
+
+// ── Kaart: de selectie ──
+// Hier staat wie er in het team zit; op het tabblad Spelers staat wie er vandaag
+// is en op welke positie hij speelt. Die twee werden eerder door elkaar gehaald:
+// een speler die niet in het team hoorde zette je op 'afwezig', en dan wist je een
+// week later niet meer of hij ziek was of nooit had bestaan.
+function selectieKaart(){
+  const vast=state.players.filter(p=>!p.guest);
+  const bezig=wedstrijdBezig();
+  return `<div class="card"><h2>Selectie <span class="sub">${vast.length} speler${vast.length===1?'':'s'}</span></h2>
+    <p class="hint" style="margin:0 0 10px">Wie hoort er bij dit team? Wie er v&#233;&#243;&#243;r een wedstrijd is,
+      en op welke positie hij speelt, regel je op het tabblad <b>Spelers</b>.</p>
+    ${bezig?`<div class="banner">${ico("waarschuwing")}<span>De wedstrijd loopt. De selectie kun je pas wijzigen als de klok weer op nul staat; iemand die vandaag uitvalt meld je af op <b>Spelers</b>.</span></div>`:''}
+    <div class="sellijst">${vast.map(p=>`
+      <div class="selrij">
+        <input class="selnum" type="text" inputmode="numeric" maxlength="2" size="2" value="${esc(String(p.num??''))}"
+               data-selnum="${p.id}" aria-label="Rugnummer" ${bezig?'disabled':''}>
+        <input class="selnaam" type="text" size="8" value="${esc(p.name||'')}" placeholder="Naam"
+               data-selnaam="${p.id}" aria-label="Naam" ${bezig?'disabled':''}>
+        <button class="del" data-selweg="${p.id}" aria-label="${esc(p.name||'Speler')} uit de selectie halen" ${bezig?'disabled':''}>&#10005;</button>
+      </div>`).join('')}</div>
+    ${bezig?'':`<button class="btn ghost full" id="selToevoegen" style="margin-top:10px">+ Speler toevoegen</button>`}
+    <p class="hint" style="margin:10px 0 0">Gastspelers &mdash; iemand die &#233;&#233;n wedstrijd meedoet &mdash; voeg je toe op <b>Spelers</b>.</p></div>`;
+}
+
+// ── Tabblad 'Meer' ──
+// Twee blokken. Bovenaan wat iets dóet, daaronder wat je leest. Ze stonden hier
+// door elkaar: back-up en schudden onderaan, tussen de uitleg. Diagnose staat
+// helemaal onderaan, want die heb je alleen nodig als er iets stuk is.
 function renderUitleg(){
-  // Bovenaan, want het is nieuw en anders vindt niemand die knop. Bewust géén
-  // genummerde stap in de lijst hieronder: dat zijn de stappen om een wedstrijd
-  // op te zetten, en dit is een kijkvoorkeur die je één keer instelt.
-  let h=`<div class="card"><h2>Hoe de klok loopt <span class="sub">drie standen</span></h2>
-    <p class="hint" style="margin:0 0 10px">Op het tabblad <b>Timer</b> staat rechtsboven een knop met
-      cijfers erin. Die laat zien wat de klok nu doet; elke tik zet hem op de volgende stand.
-      Je keuze geldt voor de timer, voor het klokje op de veldtekening en voor de tijden bij
-      de wisselmomenten. Hij wordt per toestel bewaard, dus jij en je mede-coach mogen
-      verschillend kijken.</p>
-    <p class="hint" style="margin:0 0 6px"><b>0&ndash;35</b> &mdash; doorlopende wedstrijdtijd. Q1 en Q3
-      lopen van 0:00 naar 17:30, Q2 en Q4 tellen verder van 17:30 naar 35:00. Dit is de stand
-      waar de app mee begint; verander je niets, dan blijft alles zoals je gewend bent.</p>
-    <p class="hint" style="margin:0 0 6px"><b>0&ndash;17</b> &mdash; elk kwart begint opnieuw op 0:00 en
-      loopt op naar 17:30.</p>
-    <p class="hint" style="margin:0 0 10px"><b>17&ndash;0</b> &mdash; elk kwart telt af van 17:30 naar 0:00,
-      zoals een kookwekker. Na nul loopt hij negatief door (&minus;00:42), zodat je de blessuretijd
-      ziet staan.</p>
-    <p class="hint" style="margin:0">De ring om de cijfers loopt mee: bij een oplopende klok
-      wordt hij voller, bij een aflopende trekt de kleur juist weg. Bij de wisselmomenten past de
-      tekst zich aan &mdash; bij een aflopende klok staat er bijvoorbeeld
-      &lsquo;na 6 min, dus bij 11,5 min op de klok&rsquo;.</p></div>`;
+  let h=`<h2 class="sectiekop">Instellingen</h2>`;
+  h+=klokRichtingKaart();
+  h+=selectieKaart();
+  h+=`<div class="card"><h2>Back-up</h2>
+    <button class="btn ghost full" id="backupExport">${ico("opslaan")}Opslaan als back-upbestand</button>
+    <button class="btn ghost full" id="backupImport" style="margin-top:8px">${ico("map")}Herstel uit back-up&#8230;</button>
+    <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p></div>`;
+  // Schudden vraagt op iOS eenmalig toestemming. Wordt die geweigerd of gemist, dan
+  // komt die vraag nooit meer vanzelf terug — vandaar deze knop.
+  h+=`<div class="card"><h2>Schudden om ongedaan te maken</h2>
+    <p class="hint" style="margin-bottom:10px">${
+      _schudStatus==='aan'?'&#10003; Staat aan. Schud je telefoon om de laatste actie terug te draaien.'
+      :_schudStatus==='geweigerd'?ico("kruis",16)+'Je hebt de bewegingssensor geweigerd. Tik hieronder om het opnieuw te vragen; lukt dat niet, zet dan Bewegen en ori&#235;ntatie aan bij Instellingen &rarr; Safari.'
+      :_schudStatus==='kan niet'?'Dit toestel heeft geen bruikbare bewegingssensor.'
+      :'Nog niet aangezet. iOS vraagt eenmalig toestemming voor de bewegingssensor.'}</p>
+    <button class="btn ghost full" id="schudBtn">${ico("telefoon")}Schudden ${_schudStatus==='aan'?'opnieuw instellen':'aanzetten'}</button></div>`;
+
+  h+=`<h2 class="sectiekop">Uitleg</h2>`;
   h+=`<div class="card"><h2>Zo werkt de app <span class="sub">in ${UITLEG.length} stappen</span></h2><div class="acc">`;
   UITLEG.forEach(([id,titel,tekst],i)=>{
     const op=accOpen===id;
@@ -3957,28 +4117,12 @@ function renderUitleg(){
       en kies \u2018App installeren\u2019.</p>
     <p class="hint" style="margin:0">Daarna opent de app schermvullend, zonder adresbalk, en werkt hij
       ook zonder internet \u2014 handig op een sportpark met slecht bereik.</p></div>`;
-  // Back-up, diagnose en schudden horen bij 'hoe werkt het', niet bij het beheren
-  // van de selectie. Ze stonden onderaan het spelerstabblad, waar je ze pas vond na
-  // langs zestien spelers te scrollen.
-  h+=`<div class="card"><h2>Back-up</h2>
-    <button class="btn ghost full" id="backupExport">${ico("opslaan")}Opslaan als back-upbestand</button>
-    <button class="btn ghost full" id="backupImport" style="margin-top:8px">${ico("map")}Herstel uit back-up&#8230;</button>
-    <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p></div>`;
-  // Schudden vraagt op iOS eenmalig toestemming. Wordt die geweigerd of gemist, dan
-  // komt die vraag nooit meer vanzelf terug — vandaar deze knop.
-  h+=diagnoseKaart();
-  h+=`<div class="card"><h2>Schudden om ongedaan te maken</h2>
-    <p class="hint" style="margin-bottom:10px">${
-      _schudStatus==='aan'?'&#10003; Staat aan. Schud je telefoon om de laatste actie terug te draaien.'
-      :_schudStatus==='geweigerd'?ico("kruis",16)+'Je hebt de bewegingssensor geweigerd. Tik hieronder om het opnieuw te vragen; lukt dat niet, zet dan Bewegen en ori&#235;ntatie aan bij Instellingen &rarr; Safari.'
-      :_schudStatus==='kan niet'?'Dit toestel heeft geen bruikbare bewegingssensor.'
-      :'Nog niet aangezet. iOS vraagt eenmalig toestemming voor de bewegingssensor.'}</p>
-    <button class="btn ghost full" id="schudBtn">${ico("telefoon")}Schudden ${_schudStatus==='aan'?'opnieuw instellen':'aanzetten'}</button></div>`;
   h+=`<div class="card"><h2>Goed om te weten</h2>
     <p class="hint" style="margin:0 0 8px">De namen van je spelers staan alleen op dit toestel. Er is geen
       account en geen inlog. Zonder samenwerken gaat er niets naar internet.</p>
     <p class="hint" style="margin:0">De app gaat uit van een elftal met vier kwarten van 17,5 minuut.
       Achttal, zestal en zaalhockey worden niet ondersteund.</p></div>`;
+  h+=diagnoseKaart();
   return h;
 }
 // Vult de titelbalk met de kop van het kwart. Op andere tabbladen staat daar weer
@@ -4393,7 +4537,7 @@ function bind(v){
     const p=byId(el.dataset.id);
     confirmDialog({title:'Gastspeler verwijderen?',body:(p?esc(p.name):'Deze speler')+' wordt uit de selectie gehaald. Eventuele regels voor deze speler vervallen ook.',okLabel:'Verwijderen',danger:true,onOk:()=>{
       state.players=state.players.filter(x=>x.id!==el.dataset.id);
-      state.rules=state.rules.filter(r=>r.p1!==el.dataset.id&&r.p2!==el.dataset.id);
+      state.rules=state.rules.filter(r=>!regelGaatOver(r,el.dataset.id));
       save();render();toast('Gastspeler verwijderd');
     }});
   });
@@ -4446,6 +4590,30 @@ function bind(v){
   if(dgw)dgw.onclick=()=>{_fouten.length=0;render();};
   const shb=v.querySelector('#schudBtn');
   if(shb)shb.onclick=()=>{_schudActief=false;schuddenAanzetten(true);};
+  // ── Tabblad Meer: klokrichting ──
+  v.querySelectorAll('[data-klokstand]').forEach(el=>el.onclick=()=>zetTijdweergave(el.dataset.klokstand));
+  // ── Tabblad Meer: selectie ──
+  v.querySelectorAll('[data-selnaam]').forEach(el=>el.onchange=()=>{
+    const p=state.players.find(x=>x.id===el.dataset.selnaam); if(!p)return;
+    p.name=el.value.trim(); save(); render();
+  });
+  v.querySelectorAll('[data-selnum]').forEach(el=>el.onchange=()=>{
+    const p=state.players.find(x=>x.id===el.dataset.selnum); if(!p)return;
+    const n=el.value.trim();
+    p.num=n===''?'':(isNaN(Number(n))?p.num:Number(n));
+    save(); render();
+  });
+  v.querySelectorAll('[data-selweg]').forEach(el=>el.onclick=()=>spelerUitSelectie(el.dataset.selweg));
+  const st=v.querySelector('#selToevoegen');
+  if(st)st.onclick=()=>{
+    if(wijzigenGeblokkeerd())return;
+    snapshot('speler toegevoegd');
+    const id='sp'+Date.now();
+    state.players.push({id,name:'',num:'',prefs:['','',''],present:true,guest:false});
+    save(); render();
+    // Meteen in de nieuwe naam kunnen typen; anders moet je hem eerst opzoeken.
+    requestAnimationFrame(()=>{const f=document.querySelector(`[data-selnaam="${id}"]`); if(f)f.focus();});
+  };
   const bex=v.querySelector('#backupExport');
   if(bex)bex.onclick=backupExport;
   const bim=v.querySelector('#backupImport');
@@ -4711,8 +4879,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=177;
-const VERSIE_LABEL='26.9.17';
+const APP_VERSION=178;
+const VERSIE_LABEL='26.9.18';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
