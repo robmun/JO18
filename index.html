@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="175">
+<meta name="app-version" content="176">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -303,10 +303,13 @@ body.sun .qbar{background:rgba(238,243,251,.88);border-bottom-color:#c9d6ea}
      in de titelbalk, die dat zelf regelt. */
   #qbarSlot .qbar{position:static;margin:0;padding:0;background:none;border:0;
     backdrop-filter:none;-webkit-backdrop-filter:none;gap:9px}
-  #qbarSlot .qgroep{flex:0 0 auto;padding:4px 9px;gap:7px}
-  #qbarSlot .qpill{width:29px;height:29px;font-size:11.5px}
-  #qbarSlot .qpill.loopt::after{margin:19px 0 0 19px;width:6px;height:6px}
-  #qbarSlot .qlbl{font-size:7.5px;letter-spacing:.5px}
+  #qbarSlot .qgroep{flex:0 0 auto;padding:3px 11px;gap:8px}
+  /* 40px: het grootste formaat dat past zonder de titelbalk hoger te maken — die
+     blijft op 71px, en dus blijft de 60px ruimtewinst voor het veld intact. Ruimer
+     dan de 34px op de telefoon, want op een tablet kijk je van verder weg. */
+  #qbarSlot .qpill{width:40px;height:40px;font-size:14.5px}
+  #qbarSlot .qpill.loopt::after{margin:26px 0 0 26px;width:8px;height:8px}
+  #qbarSlot .qlbl{font-size:9px;letter-spacing:.6px}
 }
 body.sun .qgroep{background:#fff;border-color:#c9d6ea}
 body.sun .qpill{background:#eef3fb;color:#4a5568;border-color:#c9d6ea}
@@ -2805,6 +2808,12 @@ function warnBoxesHTML(){
   let w='';
   if(timerMismatch!==null)
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">timer.html loopt achter op de app (versie ${VERSIE_LABEL}). Upload timer.html opnieuw naar GitHub.</div></div>`;
+  // Vergeten version.json is een stille storing: de app draait prima, maar geen
+  // enkele andere coach krijgt ooit nog een melding dat er een nieuwe versie is.
+  // Dat werd wel opgemerkt, maar belandde alleen in het diagnoseblok — en daar
+  // kijkt niemand. Nu staat het gewoon in beeld, bij de andere waarschuwingen.
+  if(versieJsonMist)
+    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">version.json loopt achter op de app (versie ${VERSIE_LABEL}). Zolang dat zo is krijgen andere toestellen geen melding dat er een nieuwe versie klaarstaat. Upload version.json opnieuw naar GitHub.</div></div>`;
   w+=swapWarnings.map((t,i)=>`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(t)}</div><button class="wx" data-warnx="${i}" aria-label="Melding sluiten">&#10005;</button></div>`).join('');
   const inf=planInfo.map((t,i)=>`<div class="warnbox info"><div class="wi">${ico("info")}</div><div class="wt">${esc(t)}</div><button class="wx" data-infox="${i}" aria-label="Melding sluiten">&#10005;</button></div>`).join('');
   return w+inf;
@@ -3276,7 +3285,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie '+VERSIE_LABEL+' &middot; 29 augustus 2026</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie '+VERSIE_LABEL+' &middot; '+VERSIE_DATUM+'</div>';
   return html;
 }
 
@@ -4692,8 +4701,13 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-const APP_VERSION=175;
-const VERSIE_LABEL='26.9.14';
+//  VERSIE_DATUM — de datum onder aan het regeltabblad. Stond daar als losse tekst
+//                 midden in de opbouw van dat tabblad en werd daarom al twee
+//                 releases vergeten. Hier bij de andere twee, zodat je bij elke
+//                 release drie regels op één plek bijwerkt — plus version.json.
+const APP_VERSION=176;
+const VERSIE_LABEL='26.9.16';
+const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
@@ -4722,6 +4736,7 @@ async function checkForUpdate(){
       else if(nr<APP_VERSION && !versieJsonMist){
         versieJsonMist=true;
         onthoudFout('version.json',new Error('staat op '+nr+', app draait op '+APP_VERSION));
+        render();   // anders staat de waarschuwing er pas bij de volgende hertekening
       }
       return;
     }
