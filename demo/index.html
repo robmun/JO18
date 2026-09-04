@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="183">
+<meta name="app-version" content="184">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -4992,8 +4992,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=183;
-const VERSIE_LABEL='26.9.23';
+const APP_VERSION=184;
+const VERSIE_LABEL='26.9.24';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
@@ -5668,10 +5668,41 @@ document.getElementById('sunBtn').onclick=()=>{
   zetZon(aan);
   toast(aan?'Zonstand aan — hoog contrast':'Zonstand uit');
 };
+// ── Printen ──
+// Het scherm gaat eerst uit de DOM. Op display:none staan is niet genoeg: de browser
+// rekent de opmaak van elk element eerst helemaal door onder de printregels voordat
+// hij weet dat het niet meegeprint hoeft te worden. Juist het wedstrijdtabblad is
+// daarin het duurst — vijftien blur-lagen, tientallen verlopen en een veldtekening —
+// en al dat werk wordt daarna weggegooid. Gemeten scheelt dit de helft van de tijd
+// tussen de tik en het printvenster.
+//
+// De timer-iframe is de tweede kostenpost, maar die laten we staan: hem weghalen en
+// terugzetten herlaadt hem, en dan ben je midden in een wedstrijd je lopende klok kwijt.
+let _printHerstelT=null;
+function printSchermTerug(){
+  if(!document.body.classList.contains('printbezig'))return;
+  document.body.classList.remove('printbezig');
+  clearTimeout(_printHerstelT); _printHerstelT=null;
+  render();
+}
+// Drie vangnetten, want 'afterprint' is op iOS niet betrouwbaar: annuleer je het
+// printen, dan komt hij soms niet en zou je naar een leeg scherm kijken.
+window.addEventListener('afterprint',printSchermTerug);
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible')printSchermTerug(); });
 document.getElementById('printBtn').onclick=()=>{
   if(!state.schedule){toast('Genereer eerst een opstelling');return;}
   renderPrint();
-  setTimeout(()=>window.print(),50);
+  document.body.classList.add('printbezig');
+  document.getElementById('view').innerHTML='';   // wordt uit de toestand teruggebouwd
+  // requestAnimationFrame in plaats van een vaste 50 ms: doorgaan zodra het lege
+  // scherm werkelijk getekend is, niet na een geraden wachttijd.
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    try{ window.print(); }finally{
+      // Derde vangnet. window.print() blokkeert op de meeste toestellen tot het
+      // venster weg is, maar niet overal — vandaar ook een tijdslot.
+      _printHerstelT=setTimeout(printSchermTerug,1500);
+    }
+  }));
 };
 if(!state.schedule&&state.players.filter(p=>p.present).length>=11){
   try{state.schedule=buildSchedule(state);state.genHash=inputHash(state);save();}catch(e){onthoudFout('schema opbouwen',e);}
