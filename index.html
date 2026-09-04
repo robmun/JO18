@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="176">
+<meta name="app-version" content="177">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -114,14 +114,20 @@ body{
   background:rgba(255,255,255,.26);opacity:0;transition:opacity .35s;pointer-events:none}
 #scrollThumb.show{opacity:1}
 #scrollThumb.actief{background:rgba(255,255,255,.55)}
-#scrollHint{position:fixed;left:50%;transform:translateX(-50%);z-index:45;pointer-events:none;
+/* Rechtsonder, niet in het midden. Gecentreerd viel hij precies over de keeper:
+   de keeper staat onderaan in het midden van het veld, het veld staat midden in
+   beeld en de hint ook — die drie liggen dus altijd op één lijn, en of ze elkaar
+   raken hing alleen af van de schermhoogte en de grootte van de bank. Hier hoort
+   hij ook thuis: vlak naast de scrollduim, als één paar aanwijzers voor hetzelfde. */
+#scrollHint{position:fixed;right:12px;z-index:45;pointer-events:none;
   width:34px;height:22px;border-radius:var(--r-pill);display:flex;align-items:center;justify-content:center;
   background:rgba(16,42,84,.72);border:1px solid rgba(150,190,255,.35);
   backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
   opacity:0;transition:opacity .4s}
 #scrollHint.show{opacity:1;animation:hintBob 1.6s ease-in-out infinite}
 #scrollHint svg{width:14px;height:14px;stroke:rgba(214,228,255,.9)}
-@keyframes hintBob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(4px)}}
+/* Zonder het horizontale deel van de transform, want dat centreren is vervallen. */
+@keyframes hintBob{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
 /* ---------- Layout ---------- */
 main{
   flex:1 1 auto;min-height:0;width:100%;
@@ -4705,8 +4711,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=176;
-const VERSIE_LABEL='26.9.16';
+const APP_VERSION=177;
+const VERSIE_LABEL='26.9.17';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
