@@ -401,6 +401,11 @@ body.sun{
 }
 body.sun::before,body.sun::after{display:none}
 body.sun .header{background:#ffffff;border-color:rgba(15,32,64,.22);box-shadow:0 2px 10px rgba(15,32,64,.10)}
+/* Het clubwapen in de kopbalk en het spelertje midden op de wijzerplaat zijn wit
+   lijnwerk op een doorzichtige ondergrond. In de zonstand worden allebei die
+   ondergronden wit, en dan verdwijnen ze volledig. Omkeren maakt er zwart lijnwerk
+   van. Het logo onder in beeld heeft al een eigen kleurfilter en blijft ongemoeid. */
+body.sun #ghcLogo, body.sun #ringLogo { filter:invert(1); }
 body.sun .quarters{background:#ffffff;border-color:rgba(15,32,64,.22);box-shadow:0 2px 10px rgba(15,32,64,.08)}
 body.sun .halfTitle{color:#33507e}
 body.sun .qbtn{background:#ffffff;border-color:rgba(15,32,64,.40);color:#33507e}
@@ -922,16 +927,19 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       // Keep warn arc hidden (compat)
       ringWarnArc.style.opacity = '0';
 
-      // ── Tick kleuren: altijd goud zodat ze zichtbaar blijven op de rode arc ──
-      const sunT=document.body.classList.contains('sun');
+      // ── Streepjes en cijfers op de wijzerplaat ──
+      // Goud en wit, in élke stand. Er stond hier een aparte zonvariant in diepblauw,
+      // vanuit de gedachte dat de wijzerplaat dan licht zou zijn. Dat is niet zo: de
+      // ring blijft in de zonstand net zo donker als altijd — alleen het midden wordt
+      // wit. De cijfers stonden er dus donkerblauw op bijna zwart, en waren niet te
+      // lezen. Op het rode deel van de ring werkt goud trouwens ook beter dan blauw.
       Array.from(ringTicks.children).forEach(el=>{
-        el.setAttribute('stroke', sunT ? 'rgba(18,38,72,0.85)' : 'rgba(220,185,90,0.92)');
+        el.setAttribute('stroke', 'rgba(220,185,90,0.92)');
         if(el.tagName==='line') el.setAttribute('opacity','1.0');
       });
-      // Labels: goud op donker, diepblauw in zonmodus
       Array.from(ringLabels.children).forEach(el=>{
-        if(el.tagName==='polygon'){ el.setAttribute('fill', sunT ? '#12264a' : 'rgba(255,255,255,0.95)'); return; }
-        el.setAttribute('fill', sunT ? '#12264a' : 'rgba(230,195,100,0.95)');
+        if(el.tagName==='polygon'){ el.setAttribute('fill', 'rgba(255,255,255,0.95)'); return; }
+        el.setAttribute('fill', 'rgba(230,195,100,0.95)');
       });
 
       // ringBg is weg (vervangen door SVG-lagen in nieuwe bezel)
@@ -1124,7 +1132,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 184;
+    var TIMER_VERSION = 185;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
@@ -1369,7 +1377,16 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     themeToggle.addEventListener('click', () => {
       const cur = document.body.classList.contains('sun') ? 'sun' : (document.body.classList.contains('dark') ? 'dark' : 'light');
-      applyTheme(cur === 'light' ? 'dark' : (cur === 'dark' ? 'sun' : 'light'));
+      const nieuw = cur === 'light' ? 'dark' : (cur === 'dark' ? 'sun' : 'light');
+      applyTheme(nieuw);
+      // De app eromheen kent alleen zon aan of uit, en stuurde die stand tot nu toe
+      // wél naar ons maar kreeg niets terug. Zette je hier de zonstand uit, dan bleef
+      // de app licht en zag je zijn achtergrond als witte randen om de timer heen.
+      // Alleen bij een tik op de knop melden, niet in applyTheme zelf: anders zou een
+      // bericht van de app hier meteen een bericht terug uitlokken.
+      if (window.parent !== window) {
+        try { parent.postMessage({ ghcTimerThema: nieuw }, location.origin); } catch (e) {}
+      }
     });
     qButtons.forEach(btn => btn.addEventListener('click', () => { if (!magBedienen()) { vraagOvernemen(); return; } changeQuarter(Number(btn.dataset.q)); meldKlok(); }));
 
