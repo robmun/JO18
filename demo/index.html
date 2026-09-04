@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="181">
+<meta name="app-version" content="182">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -530,7 +530,7 @@ select,option{font-size:var(--fs-base)}
 .zwklok{position:fixed;right:14px;z-index:35;display:none;align-items:baseline;gap:8px;
   background:rgba(6,16,34,.88);border:1.5px solid rgba(255,255,255,.22);border-radius:12px;
   padding:5px 12px;box-shadow:0 6px 16px rgba(4,14,32,.45);
-  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);pointer-events:none}
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .zwklok.toon{display:flex}
 .zwklok .zw-tijd{font-size:21px;font-weight:800;letter-spacing:.5px;
   font-variant-numeric:tabular-nums;color:#ff6a52}
@@ -542,6 +542,13 @@ body.sun .zwklok{background:#0b2148;border-color:#0b2148}
    zo'n 59%. Dat was precies de stand waarin je de klok het slechtst kon lezen,
    terwijl het woord PAUZE er al onder staat — één keer dempen is genoeg. */
 .veldklok.pauze .vk-tijd{color:rgba(255,106,82,.78)}
+/* De drie klokken brengen je naar de timer. Je kijkt er toch al naar op het moment
+   dat je iets met de tijd wilt — dan is de tabbalk onderin een omweg. Ze zijn geen
+   <button> maar houden wel een tikdoel, een aanwijzer en hetzelfde indrukgevoel als
+   de rest van de app. */
+.veldklok, .zwklok, .grklok{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.veldklok:active, .zwklok:active, .grklok:active{transform:scale(.96)}
+.veldklok, .zwklok, .grklok{transition:transform .12s ease}
 /* Spelers die even niet inzetbaar zijn: rechtsboven op het veld, aantikbaar om terug te halen */
 /* Kaarten in hun eigen kleur, zoals een blessure rood is. De aftelling staat achter
    de naam zodat je vanaf de bank ziet wanneer hij weer mag meedoen. */
@@ -877,7 +884,7 @@ body.viewer #app{padding-top:34px}
 <main id="view"></main>
 <!-- Blijft hangen zodra de klok op het veld uit beeld scrollt, zodat je bij het
      wisselschema nog steeds ziet hoe laat het is. Alleen op smalle schermen. -->
-<div id="zwevendeKlok" class="zwklok" aria-hidden="true">
+<div id="zwevendeKlok" class="zwklok" role="button" tabindex="0" title="Naar de timer">
   <span class="zw-tijd" id="zwTijd">00:00</span><span class="zw-sub" id="zwSub">Q1</span>
 </div>
 <div id="timerHost"><iframe title="GHC Wedstrijdtimer"></iframe></div>
@@ -3002,7 +3009,7 @@ function groteKlokHTML(bankAantal){
   const sec=klok.q==null?0:Math.min(klok.sec,QLEN);
   const deel=klokBoogDeel(sec);
   const laatst=sec>QLEN-120;                       // laatste twee minuten van het kwart
-  return `<div class="grklok${krap?' krap':''}" id="grklok">
+  return `<div class="grklok${krap?' krap':''}" id="grklok" role="button" tabindex="0" title="Naar de timer">
     <svg viewBox="0 0 200 200" width="100%" height="100%">
       <circle cx="100" cy="100" r="${KLOK_R+7}" class="gk-schijf"/>
       <circle cx="100" cy="100" r="${KLOK_R}" class="gk-baan"/>
@@ -3016,10 +3023,29 @@ function groteKlokHTML(bankAantal){
     </svg>
   </div>`;
 }
+// Naar het timertabblad springen. Zit in een eigen functie omdat drie klokken hem
+// aanroepen: die op het veld, de zwevende bij het scrollen, en de grote op de tablet.
+function naarTimer(){
+  if(activeTab==='timer')return;
+  activeTab='timer'; selChip=null;
+  render();
+  const v=document.getElementById('view'); if(v)v.scrollTop=0;
+}
+// Koppelt een klok aan die sprong. De zwevende klok leeft buiten #view en overleeft
+// een hertekening, dus die krijgt zijn handler één keer bij het opstarten; de andere
+// twee worden bij elke hertekening opnieuw opgebouwd en dus opnieuw gekoppeld.
+function klokKlikbaar(el){
+  if(!el||el._klokGekoppeld)return;
+  el._klokGekoppeld=true;
+  el.addEventListener('click',naarTimer);
+  el.addEventListener('keydown',e=>{
+    if(e.key==='Enter'||e.key===' '){ e.preventDefault(); naarTimer(); }
+  });
+}
 // Digitale klok rechtsboven op de veldtekening; toont dezelfde tijd als de timer.
 function veldKlokHTML(){
   const k=klokTekst(); if(!k)return '';
-  return `<div class="veldklok${k.loopt?'':' pauze'}" id="veldklok">
+  return `<div class="veldklok${k.loopt?'':' pauze'}" id="veldklok" role="button" tabindex="0" title="Naar de timer">
     <div class="vk-tijd" id="vkTijd">${k.tijd}</div>
     <div class="vk-sub" id="vkSub">${k.kwart}${k.loopt?'':' &middot; pauze'}</div>
   </div>`;
@@ -3039,6 +3065,7 @@ function beeldBijwerken(){
 // schermen: op een liggende tablet staat het veld sowieso stil bovenaan.
 function zwevendeKlokBijwerken(){
   const zw=document.getElementById('zwevendeKlok'); if(!zw)return;
+  klokKlikbaar(zw);
   const veldk=document.getElementById('veldklok');
   const bar=document.querySelector('.appbar');
   // De kwartbolletjes plakken onder de titelbalk. Zonder die erbij te tellen hing de
@@ -4654,6 +4681,9 @@ function bind(v){
   if(dgw)dgw.onclick=()=>{_fouten.length=0;render();};
   const shb=v.querySelector('#schudBtn');
   if(shb)shb.onclick=()=>{_schudActief=false;schuddenAanzetten(true);};
+  // De klokken op het veld brengen je naar de timer.
+  klokKlikbaar(v.querySelector('#veldklok'));
+  klokKlikbaar(v.querySelector('#grklok'));
   // ── Tabblad Meer: klokrichting ──
   v.querySelectorAll('[data-klokstand]').forEach(el=>el.onclick=()=>zetTijdweergave(el.dataset.klokstand));
   // ── Tabblad Meer: selectie ──
@@ -4944,8 +4974,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=181;
-const VERSIE_LABEL='26.9.21';
+const APP_VERSION=182;
+const VERSIE_LABEL='26.9.22';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
