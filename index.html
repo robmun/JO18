@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="184">
+<meta name="app-version" content="185">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -772,9 +772,15 @@ body.sun .wmoment.gebeurtenis .wtime{color:#a01a10}
 body.sun .wgeb{background:#fdeae6;border-left-color:#b3241a;color:#5c1410}
 .empty{font-size:var(--fs-md);color:var(--dim);font-style:italic}
 /* ---------- Timer-tab ---------- */
+/* De onderkant volgt de werkelijke hoogte van de tabbalk, niet een geschat getal.
+   Er stond 79px terwijl de balk 54px hoog is, dus er bleef een strook van 25px over
+   waar de achtergrond van de app doorheen scheen — als een witte streep onder de
+   timer. De gemeten hoogte bevat de veilige zone al, want die zit in de padding van
+   de balk zelf. Het geschatte getal blijft staan als terugval voor het moment vóór
+   de eerste meting. */
 #timerHost{display:none;position:fixed;left:0;right:0;z-index:5;
   top:0;padding-top:env(safe-area-inset-top);
-  bottom:calc(79px + env(safe-area-inset-bottom));
+  bottom:var(--tabbarH, calc(79px + env(safe-area-inset-bottom)));
   background:transparent}
 body.timermode .appbar{display:none}
 #timerHost.show{display:block}
@@ -3200,6 +3206,14 @@ function huidigQ(){
   if(toonQ!=null)return toonQ;
   return klok.q?klok.q-1:0;   // klok stil of niet gestart: Q1
 }
+// Meet de tabbalk en legt de hoogte vast, zodat de timer er precies tegenaan sluit.
+function meetTabbar(){
+  const tb=document.querySelector('.tabbar'); if(!tb)return;
+  const h=Math.round(tb.getBoundingClientRect().height);
+  if(h>0)document.documentElement.style.setProperty('--tabbarH',h+'px');
+}
+addEventListener('resize',meetTabbar);
+addEventListener('orientationchange',()=>setTimeout(meetTabbar,120));
 function renderTabbar(){
   const el=document.getElementById('tabbar');
   const kijk=(CLOUD.on&&CLOUD.role==='viewer');
@@ -4514,6 +4528,7 @@ function render(){
   const stb=document.getElementById('shareTopBtn');
   if(stb)stb.hidden=!activeTab.startsWith('q')||!state.schedule;
   renderTabbar();
+  requestAnimationFrame(meetTabbar);
   // Leegmaken bij elke hertekening; alleen renderWedstrijd vult hem daarna weer.
   // Zonder dit bleven de bolletjes in de titelbalk staan op Spelers of Uitleg.
   zetQbarSlot('');
@@ -4992,8 +5007,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=184;
-const VERSIE_LABEL='26.9.24';
+const APP_VERSION=185;
+const VERSIE_LABEL='26.9.25';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
@@ -5526,6 +5541,13 @@ window.addEventListener('message',e=>{
     render();
     return;
   }
+  if(e.data.ghcTimerThema){
+    // De timer kent licht, donker en zon; de app alleen zon aan of uit. Donker en
+    // licht vallen dus allebei onder 'uit' — dat is de stand waarin de app zijn
+    // gewone donkerblauwe uiterlijk heeft, en die past bij allebei.
+    zetZon(e.data.ghcTimerThema==='sun', true);
+    return;
+  }
   if(e.data.ghcTijdweergave){
     // De coach heeft op de timer een andere klokrichting gekozen. De stand zelf
     // staat al in localStorage — die delen we — dus hier alleen opnieuw tekenen,
@@ -5651,12 +5673,16 @@ document.addEventListener('pointerdown',function eerste(){
 },{once:true});
 
 // ── Zonstand ──
-function zetZon(aan){
+// 'stil' laat het bericht naar de timer achterwege. Nodig als de wissel juist dáár
+// vandaan komt: anders sturen we zijn eigen keuze meteen weer terug en overschrijven
+// we bijvoorbeeld zijn donkere stand met 'licht'.
+function zetZon(aan,stil){
   document.body.classList.toggle('sun',!!aan);
   try{localStorage.setItem(SLEUTEL('gw_zon'),aan?'1':'0');}catch(e){}
   const m=document.querySelector('meta[name="theme-color"]');
   if(m)m.setAttribute('content',aan?'#eef2f7':'#091e48');
   // de timer heeft zijn eigen zonstand; die laten we meeschakelen
+  if(stil)return;
   try{
     const ifr=document.querySelector('#timerHost iframe');
     if(ifr&&ifr.contentWindow)ifr.contentWindow.postMessage({ghcZon:!!aan},location.origin);
