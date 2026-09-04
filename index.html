@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="182">
+<meta name="app-version" content="183">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -257,6 +257,7 @@ body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
   font-size:var(--fs-xs);font-weight:800;letter-spacing:.06em}
 .keuze.aan .keuzebadge{background:#fff;color:#12408f;border-color:#fff}
 .keuzetekst{flex:1;font-size:var(--fs-xs);color:var(--dim);line-height:1.35}
+body.sun .keuzetekst{color:#2a4470}
 .keuzevb{flex:0 0 auto;font-variant-numeric:tabular-nums;font-weight:800;font-size:var(--fs-md);color:var(--txt);opacity:.85}
 body.sun .keuze{background:#fff;border-color:#c9d6ea}
 body.sun .keuze.aan{background:#e8f0fd;border-color:#12408f}
@@ -375,6 +376,10 @@ body.sun{--txt:#0b1626;--dim:#33507e;
 body.sun::before,body.sun::after{display:none !important}
 body.sun .appbar{background:#ffffff;border-bottom:1px solid rgba(15,32,64,.18);box-shadow:0 2px 10px rgba(15,32,64,.10)}
 body.sun .appbar h1{color:#0b1626}
+/* Het clubwapen is wit lijnwerk op een doorzichtige ondergrond. In de zonstand wordt
+   de balk wit en verdween het dus volledig. Omkeren maakt er zwart lijnwerk van, in
+   dezelfde toon als de titel ernaast; het blijft hetzelfde wapen. */
+body.sun .appbar .logoBox img{filter:invert(1)}
 body.sun .appbar h1 small{color:#33507e}
 body.sun .iconbtn{background:#10203c;color:#fff;border:1px solid #10203c}
 body.sun .card{background:#ffffff;border:1px solid rgba(15,32,64,.20);box-shadow:0 2px 10px rgba(15,32,64,.10);backdrop-filter:none}
@@ -408,7 +413,10 @@ body.sun .sw i:after{color:rgba(15,32,64,.75)}
 body.sun .sw input:checked + i{background:#e7ecf5;border-color:rgba(15,32,64,.32)}
 body.sun .sw input:checked + i:after{color:rgba(15,32,64,.75)}
 body.sun .sw input:not(:checked) + i{background:linear-gradient(135deg,#e5a63a,#c17f12);border-color:#a06a0e}
-body.sun .sw input:not(:checked) + i:after{color:#fff}
+/* 'afwezig' stond wit op amber: contrast 2,1 aan de lichte kant van het verloop, ver
+   onder de 4,5 die zulke kleine vette letters nodig hebben. Donkerbruin haalt 4,9 tot
+   7,6 en houdt het amber herkenbaar. */
+body.sun .sw input:not(:checked) + i:after{color:#2e1d03}
 body.sun .dim-row .pname b{text-decoration-color:#b3781a}
 body.sun .rule .del{background:#fdeae6;color:#a01a10;border:1px solid rgba(179,36,26,.45)}
 body.sun .chip .tag .k{color:#b3241a}
@@ -420,8 +428,11 @@ body.sun .tab .q{border-color:rgba(255,255,255,.55);color:#fff}
 body.sun .tab.active .q{background:#ffffff;color:#0b1626;border-color:#ffffff;box-shadow:none}
 body.sun .qhalf::before{border-color:rgba(255,255,255,.30)}
 body.sun .qhalf.hasactive::before{border-color:rgba(255,255,255,.70)}
-body.sun .qlbl{color:rgba(255,255,255,.72)}
-body.sun .qhalf.hasactive .qlbl{color:#fff}
+/* 'eerste helft' en 'tweede helft' stonden in de zonstand wit op een bijna witte
+   balk — contrast 1,0, dus letterlijk onzichtbaar. Deze regel dateerde van toen de
+   kwartbalk in de zonstand nog donker was. */
+body.sun .qlbl{color:#33507e}
+body.sun .qhalf.hasactive .qlbl{color:#12408f}
 /* Veld: verzadigder groen en dikkere witte lijnen */
 body.sun .fieldwrap{border-color:rgba(15,32,64,.45);--green1:#1f8046;--green2:#176437}
 body.sun .fieldwrap svg [stroke]{stroke-opacity:1}
@@ -720,7 +731,14 @@ body.sun .linerow .lnlbl{color:#33507e}
 #a2hs.opvallend img{border-color:rgba(255,255,255,.75)}
 #a2hs.opvallend button{background:rgba(255,255,255,.20);border-color:rgba(255,255,255,.55);color:#fff}
 @keyframes a2hsIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* De tip houdt in de zonstand een donkere ondergrond — hij ligt over de inhoud heen
+   en moet daarvan verschillen. Alleen de tekstkleuren volgden de zonstand mee en
+   werden donker, dus stond er donker op donker. */
+body.sun #a2hs{background:#12408f;border-color:rgba(255,255,255,.5)}
 body.sun #a2hs.opvallend{background:linear-gradient(180deg,#1b4fa8,#12408f);border-color:rgba(255,255,255,.5)}
+body.sun #a2hs .txt{color:rgba(255,255,255,.88)}
+body.sun #a2hs .txt b{color:#fff}
+body.sun #a2hs button{background:rgba(255,255,255,.18);color:#fff;border-color:rgba(255,255,255,.45)}
 #updBar{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 8px);z-index:60;
   display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r-lg);
   background:rgba(16,42,84,.97);border:1px solid var(--accent2);box-shadow:var(--shadow-lg), var(--edge-light);
@@ -4974,8 +4992,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=182;
-const VERSIE_LABEL='26.9.22';
+const APP_VERSION=183;
+const VERSIE_LABEL='26.9.23';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
