@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="180">
+<meta name="app-version" content="181">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -514,12 +514,15 @@ select,option{font-size:var(--fs-base)}
 }
 .fieldwrap svg.lines{position:absolute;inset:0;width:100%;height:100%}
 /* Wedstrijdklok op het veld, rechtsboven — goed leesbaar in de zon */
-/* Zelfde vormgeving als de speler-bolletjes: blauw verloop, witte rand, witte tekst */
+/* Eén vlakke kleur, geen verloop. Het radiale verloop had zijn lichtpunt linksboven,
+   waardoor juist die hoek bijna de kleur van het veld kreeg: de rand vervaagde en de
+   eerste cijfers stonden op de lichtste ondergrond. De insetschaduwen maakten er een
+   tweede verloop overheen. Wat blijft is de witte rand, de slagschaduw die hem van
+   het veld tilt, en één haarlijn licht bovenlangs voor de vorm. */
 .veldklok{position:absolute;right:3.5%;top:2%;z-index:3;display:flex;flex-direction:column;align-items:center;
-  background:radial-gradient(circle at 32% 26%, #35619f 0%, #1c3b6e 46%, #0d2144 100%);
+  background:#0d2144;
   border:2px solid rgba(255,255,255,.95);border-radius:14px;padding:5px 11px 4px;
-  box-shadow:inset 0 2px 3px rgba(255,255,255,.30), inset 0 -4px 6px rgba(0,0,0,.32),
-             0 5px 8px rgba(4,14,32,.42)}
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 5px 8px rgba(4,14,32,.42)}
 .veldklok .vk-tijd{font-size:22px;font-weight:800;letter-spacing:.5px;line-height:1.05;
   font-variant-numeric:tabular-nums;color:#ff6a52}
 .veldklok .vk-sub{font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
@@ -535,8 +538,10 @@ select,option{font-size:var(--fs-base)}
   color:rgba(255,255,255,.7)}
 .zwklok.pauze .zw-tijd{color:rgba(255,106,82,.72)}
 body.sun .zwklok{background:#0b2148;border-color:#0b2148}
-.veldklok.pauze{opacity:.82}
-.veldklok.pauze .vk-tijd{color:rgba(255,106,82,.72)}
+/* Pauze dimde twee keer: het hele vak op 82% én de cijfers nog eens op 72%, samen
+   zo'n 59%. Dat was precies de stand waarin je de klok het slechtst kon lezen,
+   terwijl het woord PAUZE er al onder staat — één keer dempen is genoeg. */
+.veldklok.pauze .vk-tijd{color:rgba(255,106,82,.78)}
 /* Spelers die even niet inzetbaar zijn: rechtsboven op het veld, aantikbaar om terug te halen */
 /* Kaarten in hun eigen kleur, zoals een blessure rood is. De aftelling staat achter
    de naam zodat je vanaf de bank ziet wanneer hij weer mag meedoen. */
@@ -4939,8 +4944,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=180;
-const VERSIE_LABEL='26.9.20';
+const APP_VERSION=181;
+const VERSIE_LABEL='26.9.21';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
