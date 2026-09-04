@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="179">
+<meta name="app-version" content="180">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -320,7 +320,10 @@ body.sun .accitem.open{background:#eaf1fb}
 body.sun .qbar{background:rgba(238,243,251,.88);border-bottom-color:#c9d6ea}
 .qgroep{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;
   padding:5px 6px;border-radius:12px;background:var(--card);border:1px solid var(--stroke)}
-.qduo{display:flex;gap:7px}
+/* 20px tussen de bolletjes, niet 7. Ze stonden zo dicht op elkaar dat je met een
+   duim makkelijk het verkeerde kwart raakte. Dit is het grootste gat dat ook op een
+   telefoon van 320px nog past zonder dat de balk overloopt. */
+.qduo{display:flex;gap:20px}
 .qpill{width:34px;height:34px;border-radius:50%;border:1px solid var(--stroke);
   background:rgba(255,255,255,.06);color:var(--dim);font-size:12.5px;font-weight:800;
   letter-spacing:.3px;display:grid;place-items:center;transition:transform .12s ease}
@@ -4139,20 +4142,6 @@ function renderUitleg(){
   let h=`<h2 class="sectiekop">Instellingen</h2>`;
   h+=klokRichtingKaart();
   h+=selectieKaart();
-  h+=`<div class="card"><h2>Back-up</h2>
-    <button class="btn ghost full" id="backupExport">${ico("opslaan")}Opslaan als back-upbestand</button>
-    <button class="btn ghost full" id="backupImport" style="margin-top:8px">${ico("map")}Herstel uit back-up&#8230;</button>
-    <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p></div>`;
-  // Schudden vraagt op iOS eenmalig toestemming. Wordt die geweigerd of gemist, dan
-  // komt die vraag nooit meer vanzelf terug — vandaar deze knop.
-  h+=`<div class="card"><h2>Schudden om ongedaan te maken</h2>
-    <p class="hint" style="margin-bottom:10px">${
-      _schudStatus==='aan'?'&#10003; Staat aan. Schud je telefoon om de laatste actie terug te draaien.'
-      :_schudStatus==='geweigerd'?ico("kruis",16)+'Je hebt de bewegingssensor geweigerd. Tik hieronder om het opnieuw te vragen; lukt dat niet, zet dan Bewegen en ori&#235;ntatie aan bij Instellingen &rarr; Safari.'
-      :_schudStatus==='kan niet'?'Dit toestel heeft geen bruikbare bewegingssensor.'
-      :'Nog niet aangezet. iOS vraagt eenmalig toestemming voor de bewegingssensor.'}</p>
-    <button class="btn ghost full" id="schudBtn">${ico("telefoon")}Schudden ${_schudStatus==='aan'?'opnieuw instellen':'aanzetten'}</button></div>`;
-
   h+=`<h2 class="sectiekop">Uitleg</h2>`;
   h+=`<div class="card"><h2>Zo werkt de app <span class="sub">in ${UITLEG.length} stappen</span></h2><div class="acc">`;
   UITLEG.forEach(([id,titel,tekst],i)=>{
@@ -4175,6 +4164,23 @@ function renderUitleg(){
       account en geen inlog. Zonder samenwerken gaat er niets naar internet.</p>
     <p class="hint" style="margin:0">De app gaat uit van een elftal met vier kwarten van 17,5 minuut.
       Achttal, zestal en zaalhockey worden niet ondersteund.</p></div>`;
+  // Back-up, schudden en diagnose staan onder een eigen kop, ná de uitleg. Ze
+  // stonden tussen de instellingen, waardoor je erlangs moest scrollen om bij
+  // 'zo werkt de app' te komen — precies de tekst waarvoor je hier komt.
+  h+=`<h2 class="sectiekop">Onderhoud</h2>`;
+  h+=`<div class="card"><h2>Back-up</h2>
+    <button class="btn ghost full" id="backupExport">${ico("opslaan")}Opslaan als back-upbestand</button>
+    <button class="btn ghost full" id="backupImport" style="margin-top:8px">${ico("map")}Herstel uit back-up&#8230;</button>
+    <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p></div>`;
+  // Schudden vraagt op iOS eenmalig toestemming. Wordt die geweigerd of gemist, dan
+  // komt die vraag nooit meer vanzelf terug — vandaar deze knop.
+  h+=`<div class="card"><h2>Schudden om ongedaan te maken</h2>
+    <p class="hint" style="margin-bottom:10px">${
+      _schudStatus==='aan'?'&#10003; Staat aan. Schud je telefoon om de laatste actie terug te draaien.'
+      :_schudStatus==='geweigerd'?ico("kruis",16)+'Je hebt de bewegingssensor geweigerd. Tik hieronder om het opnieuw te vragen; lukt dat niet, zet dan Bewegen en ori&#235;ntatie aan bij Instellingen &rarr; Safari.'
+      :_schudStatus==='kan niet'?'Dit toestel heeft geen bruikbare bewegingssensor.'
+      :'Nog niet aangezet. iOS vraagt eenmalig toestemming voor de bewegingssensor.'}</p>
+    <button class="btn ghost full" id="schudBtn">${ico("telefoon")}Schudden ${_schudStatus==='aan'?'opnieuw instellen':'aanzetten'}</button></div>`;
   h+=diagnoseKaart();
   return h;
 }
@@ -4933,8 +4939,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=179;
-const VERSIE_LABEL='26.9.19';
+const APP_VERSION=180;
+const VERSIE_LABEL='26.9.20';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
