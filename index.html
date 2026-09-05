@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="185">
+<meta name="app-version" content="187">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -241,6 +241,19 @@ body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
 .btn.small{padding:8px 12px;font-size:var(--fs-md);border-radius:var(--r-md)}
 .btn.full{width:100%}
 .btn.danger{background:rgba(214,81,47,.18);border:1px solid rgba(214,81,47,.5);color:#ffb39e;box-shadow:none}
+/* ---------- Speeltijd per speler ---------- */
+.sptijd{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px}
+@media (max-width:359px){ .sptijd{grid-template-columns:1fr} }
+.sprij{display:flex;align-items:baseline;gap:6px;padding:3px 0;min-width:0}
+.spnaam{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:var(--fs-sm);color:var(--txt)}
+.spnaam i{font-size:var(--fs-xs);color:var(--dim);font-style:normal}
+.spmin{flex:0 0 auto;font-variant-numeric:tabular-nums;font-size:var(--fs-sm);color:var(--dim)}
+.spmin b{color:var(--txt);font-weight:800}
+/* Alleen wie achterloopt krijgt nadruk; als iedereen gelijk uitkomt blijft het rustig. */
+.sprij.minder .spnaam,.sprij.minder .spmin b{color:#ffb39e}
+body.sun .sprij.minder .spnaam,body.sun .sprij.minder .spmin b{color:#a01a10}
+
 /* ---------- Tabblad Meer ---------- */
 .sectiekop{font-size:var(--fs-lg);font-weight:800;letter-spacing:-.2px;color:var(--txt);
   margin:18px 6px 8px;opacity:.75}
@@ -532,20 +545,30 @@ select,option{font-size:var(--fs-base)}
    het veld tilt, en één haarlijn licht bovenlangs voor de vorm. */
 .veldklok{position:absolute;right:3.5%;top:2%;z-index:3;display:flex;flex-direction:column;align-items:center;
   background:#0d2144;
-  border:2px solid rgba(255,255,255,.95);border-radius:14px;padding:5px 11px 4px;
+  border:2px solid rgba(255,255,255,.95);border-radius:14px;padding:2px clamp(3px,1.1vw,7px) 3px;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 5px 8px rgba(4,14,32,.42)}
-.veldklok .vk-tijd{font-size:22px;font-weight:800;letter-spacing:.5px;line-height:1.05;
+/* Meeschalend met de schermbreedte, want de ruimte tot de wisselspelers doet dat ook.
+   Een rechte evenredigheid met de schermbreedte past niet goed: die is óf te ruim op
+   een smalle telefoon, óf te zuinig op een brede. Met een aftrek erin blijft de lucht
+   tot de langste bankrij overal rond de twaalf pixels, van 320px tot 430px.
+   De regelhoogte staat op 0,88 en de marges zijn krap. Cijfers hebben geen staarten,
+   dus de ruimte die een regel normaal boven en onder vrijhoudt is hier verloren
+   ruimte: er stond 11px leeg boven de cijfers en 14px aan elke kant, terwijl de
+   cijfers zelf maar 21px hoog waren. Die ruimte gaat nu naar de cijfers. */
+.veldklok .vk-tijd{font-size:clamp(26px,calc(12vw - 14px),40px);font-weight:800;letter-spacing:.5px;line-height:.88;
   font-variant-numeric:tabular-nums;color:#ff6a52}
-.veldklok .vk-sub{font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
+.veldklok .vk-sub{margin-top:1px;font-size:clamp(9px,2.6vw,11px);font-weight:800;letter-spacing:.8px;text-transform:uppercase;
   color:rgba(255,255,255,.78);margin-top:1px}
 .zwklok{position:fixed;right:14px;z-index:35;display:none;align-items:baseline;gap:8px;
   background:rgba(6,16,34,.88);border:1.5px solid rgba(255,255,255,.22);border-radius:12px;
   padding:5px 12px;box-shadow:0 6px 16px rgba(4,14,32,.45);
   backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .zwklok.toon{display:flex}
-.zwklok .zw-tijd{font-size:21px;font-weight:800;letter-spacing:.5px;
+/* Schaalt mee met dezelfde maat als de klok op het veld; deze hangt vrij rechtsboven
+   en heeft alleen de schermrand als grens. */
+.zwklok .zw-tijd{font-size:clamp(21px,7vw,31px);font-weight:800;letter-spacing:.5px;
   font-variant-numeric:tabular-nums;color:#ff6a52}
-.zwklok .zw-sub{font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
+.zwklok .zw-sub{font-size:clamp(11px,3vw,13px);font-weight:800;letter-spacing:.8px;text-transform:uppercase;
   color:rgba(255,255,255,.7)}
 .zwklok.pauze .zw-tijd{color:rgba(255,106,82,.72)}
 body.sun .zwklok{background:#0b2148;border-color:#0b2148}
@@ -4058,6 +4081,67 @@ function zetTijdweergave(m){
 // functie, zodat de twee plekken niet uit elkaar kunnen lopen.
 function regelGaatOver(r,id){ return r.p1===id||r.p2===id; }
 
+// ── Speeltijd per speler ──
+// De planner verdeelt de minuten gelijk, dus bij een ongestoorde wedstrijd komt
+// iedereen op hetzelfde getal uit en zegt deze lijst weinig. Hij verdient zijn plek
+// juist als het misloopt: na een blessure, een kaart, of met een regel als
+// 'maximaal 25 minuten' lopen de getallen uiteen, en dan wil je zien hoe erg.
+//
+// Straftijd telt mee als gespeeld. Dat gaat vanzelf goed: een speler met een kaart
+// blijft in het schema staan, alleen zijn plek op het veld wordt leeg getekend.
+//
+// De vaste keeper staat helemaal niet in de blokken en hoort ook niet in deze lijst;
+// hij speelt de hele wedstrijd. Wie maar in één of twee kwarten keept doet in de
+// andere kwarten gewoon mee, en die veldminuten tellen wel — met een aantekening,
+// anders lijkt hij ineens de helft minder te spelen dan de rest.
+function speeltijdPerSpeler(){
+  const sch=state.schedule;
+  if(!sch)return null;
+  const perQ=sch.perQ, blokMin=17.5/perQ, B=perQ*4;
+  // Hoe ver is de wedstrijd? Vóór de aftrap nul, dus dan is alleen 'verwacht' gevuld.
+  const nuMin = klok.q==null ? 0 : (klok.q-1)*17.5 + Math.min(klok.sec,17.5*60)/60;
+  const uit={};
+  const zet=(id,vak,m)=>{ if(!id)return; (uit[id]=uit[id]||{verwacht:0,gespeeld:0})[vak]+=m; };
+  for(let b=0;b<B;b++){
+    const van=b*blokMin, tot=van+blokMin;
+    const gespeeld=Math.max(0,Math.min(nuMin,tot)-van);
+    Object.values(sch.assignments[b]||{}).forEach(id=>{
+      zet(id,'verwacht',blokMin);
+      if(gespeeld>0)zet(id,'gespeeld',gespeeld);
+    });
+  }
+  return {perSpeler:uit, gestart:nuMin>0};
+}
+function speeltijdHTML(){
+  const st=speeltijdPerSpeler();
+  if(!st)return '';
+  const keept=new Set((state.rules||[]).filter(r=>r.type==='gk').map(r=>r.p1));
+  const rijen=Object.entries(st.perSpeler)
+    .filter(([id])=>id!==state.keeperId)          // vaste keeper: speelt sowieso alles
+    .map(([id,m])=>({id,naam:(byId(id)||{}).name||'?',...m}))
+    .sort((a,b)=>a.verwacht-b.verwacht || a.naam.localeCompare(b.naam,'nl'));
+  if(!rijen.length)return '';
+  // Toetsen tegen de mediaan, niet tegen de hoogste. Krijgt één speler juist méér
+  // dan de rest, dan zou 'onder de hoogste' de hele ploeg rood kleuren terwijl er
+  // niets aan de hand is. De mediaan is wat de meesten spelen; wie daar meer dan een
+  // minuut onder zit is de uitzondering die je wilt zien.
+  const gesorteerd=rijen.map(r=>r.verwacht).sort((a,b)=>a-b);
+  const mediaan=gesorteerd[Math.floor(gesorteerd.length/2)];
+  const minder=r=>r.verwacht<mediaan-1;
+  const gelijk=Math.round(gesorteerd[gesorteerd.length-1])-Math.round(gesorteerd[0])<=0;
+  return `<div class="card"><h2>Speeltijd <span class="sub">${st.gestart?'gespeeld / verwacht':'verwacht'}</span></h2>
+    <div class="sptijd">${rijen.map(r=>`
+      <div class="sprij${minder(r)?' minder':''}">
+        <span class="spnaam">${esc(r.naam)}${keept.has(r.id)?' <i>keept ook</i>':''}</span>
+        <span class="spmin">${st.gestart?`${Math.round(r.gespeeld)} <b>/ ${Math.round(r.verwacht)}</b>`:`<b>${Math.round(r.verwacht)}</b>`}</span>
+      </div>`).join('')}</div>
+    <p class="hint" style="margin:10px 0 0">${gelijk
+      ? 'Iedereen komt op hetzelfde aantal minuten uit\u2014 zo hoort het.'
+      : 'Wie duidelijk minder speelt dan de rest staat bovenaan en is gemarkeerd.'}
+      ${state.keeperId?'De keeper staat er niet bij; die speelt de hele wedstrijd.':''}
+      Straftijd van een kaart telt mee als gespeeld.</p></div>`;
+}
+
 // ── Kaart: hoe de klok loopt ──
 // Elke keuze laat meteen zien wát hij oplevert: het getal dat op dat moment op de
 // klok zou staan. Zonder dat voorbeeld moet je '17–0' maar geloven en heen en weer
@@ -4478,6 +4562,7 @@ function renderQuarter(q){
       if(q>0)tekst+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
     }
   }
+  tekst+=speeltijdHTML();
   // Liggende tablet: veld links, wisselteksten rechts. Anders gewoon onder elkaar.
   html+=isWide()?`<div class="twocol"><div class="col-field">${veld}</div><div>${tekst}</div></div>`:veld+tekst;
 
@@ -5007,8 +5092,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=185;
-const VERSIE_LABEL='26.9.25';
+const APP_VERSION=187;
+const VERSIE_LABEL='26.9.27';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
