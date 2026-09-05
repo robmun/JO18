@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="187">
+<meta name="app-version" content="188">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1555,9 +1555,56 @@ function assignAll(blockSets,perQ,rules,byId,vast){
         if(alt>cur+1e-9){asg[a]=pc;asg[c]=pa;improved=true;}
       }
     }
+    // Te lange doorschuifketens korter maken. Zie kortKetens hieronder; de start van
+    // Q3 slaan we over als die gelijk moet blijven aan Q1, want dan zou de reparatie
+    // juist die afspraak breken.
+    if(prev && !(q3like && b===perQ*2)) kortKetens(prev,asg,POS,byId,locks);
     out.push(asg);prev=asg;if(b===0)q1a=asg;
   }
   return out;
+}
+
+// ── Doorschuifketens korter maken ──
+// Bij een wissel hoeft in principe alleen de invaller op de plek van de vertrekker te
+// gaan staan: twee spelers, klaar. Maar de toewijzing hierboven weegt een
+// voorkeurspositie (+100) zwaarder dan op je plek blijven (+35), dus verhuist er
+// graag iemand — en die verhuizing duwt de volgende weer weg. Zo ontstond in een
+// echte wedstrijd een keten van zes: invaller, vertrekker en vier doorschuivers.
+// Aan de lijn is dat niet te onthouden.
+//
+// Deze stap grijpt pas in als een keten te lang wordt, en laat de overige 94% van de
+// wissels dus met rust. Hij zet een doorschuiver terug op zijn oude plek en ruilt hem
+// met wie daar nu staat. Dat kost voorkeurskwaliteit — bewuste keuze: een wissel die
+// je kunt uitvoeren is meer waard dan een wissel die op papier ideaal is.
+//
+// Harde regels blijven staan: een vaste positie uit een coachregel en de linies
+// waarin iemand mag spelen worden nooit geschonden. Lukt het daardoor niet, dan
+// blijft de keten lang — beter dat dan een opstelling die de afspraken breekt.
+const MAX_KETEN=3;      // streefwaarde: invaller, vertrekker en hooguit één doorschuiver
+function kortKetens(prev,asg,POS,byId,locks){
+  const legaal=(pid,posId)=>{
+    if(locks[pid]&&locks[pid]!==posId)return false;
+    const pos=POS.find(p=>p.id===posId);
+    return !!pos && magInLinie(byId[pid],pos.line);
+  };
+  for(let ronde=0;ronde<12;ronde++){
+    const w=wisselChains(prev,asg);
+    let ergste=null;
+    for(const c of w.chains){
+      const lengte=1+(c.outP?1:0)+c.moves.length;
+      if(lengte>MAX_KETEN&&(!ergste||lengte>ergste.lengte))ergste={c,lengte};
+    }
+    if(!ergste)return;
+    let gelukt=false;
+    for(const m of ergste.c.moves){
+      const bezet=asg[m.from];
+      if(!bezet||bezet===m.pid)continue;
+      if(!legaal(m.pid,m.from)||!legaal(bezet,m.to))continue;
+      asg[m.from]=m.pid; asg[m.to]=bezet;
+      gelukt=true; break;
+    }
+    if(!gelukt)return;   // niets legaals meer te ruilen
+  }
 }
 
 function buildSchedule(state,opts){
@@ -5092,8 +5139,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=187;
-const VERSIE_LABEL='26.9.27';
+const APP_VERSION=188;
+const VERSIE_LABEL='26.9.28';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
