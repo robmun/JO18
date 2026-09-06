@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="193">
+<meta name="app-version" content="194">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -4288,6 +4288,23 @@ function speeltijdPerSpeler(){
   const nuMin = klok.q==null ? 0 : (klok.q-1)*17.5 + Math.min(klok.sec,17.5*60)/60;
   const uit={};
   const zet=(id,vak,m)=>{ if(!id)return; (uit[id]=uit[id]||{verwacht:0,gespeeld:0})[vak]+=m; };
+  // Tijd op doel telt mee als speeltijd. De keeper staat niet in de blokken, dus die
+  // moet hier apart bij: een vaste keeper staat de hele wedstrijd, een vervanger in
+  // de kwarten die de coachregel noemt. Zonder dit stond een keeper die twee kwarten
+  // keept en twee kwarten meespeelt op de helft van de rest, onder een kop die
+  // 'Speeltijd' heet — dat leest als achterstand terwijl hij alles heeft gespeeld.
+  const keptQs={};
+  if(state.keeperId)keptQs[state.keeperId]=[1,2,3,4];
+  for(const r of (state.rules||[])){
+    if(r.type!=='gk'||!r.p1)continue;
+    keptQs[r.p1]=(keptQs[r.p1]||[]).concat(r.qs||[]);
+  }
+  for(const [id,qs] of Object.entries(keptQs)){
+    for(const q of new Set(qs)){
+      zet(id,'verwacht',17.5);
+      zet(id,'gespeeld',Math.max(0,Math.min(nuMin-(q-1)*17.5,17.5)));
+    }
+  }
   for(let b=0;b<B;b++){
     const van=b*blokMin, tot=van+blokMin;
     const gespeeld=Math.max(0,Math.min(nuMin,tot)-van);
@@ -4305,9 +4322,12 @@ function speeltijdHTML(){
   // jij dat zo hebt ingesteld, niet omdat de verdeling scheef is — dus geen rode
   // markering, wél de reden erbij zodat je niet gaat zoeken.
   const beperkt=new Map();
+  if(state.keeperId)beperkt.set(state.keeperId,'keeper');
   for(const r of (state.rules||[])){
     if(!r.p1)continue;
-    if(r.type==='gk')beperkt.set(r.p1,'keept ook');
+    // Met de kwarten erbij, want zijn totaal ligt hoger dan dat van de rest en dat
+    // moet je kunnen thuisbrengen: keeptijd telt mee, veldtijd komt daarbovenop.
+    if(r.type==='gk')beperkt.set(r.p1,'keept '+((r.qs||[]).map(q=>'Q'+q).join('+')||'ook'));
     else if(r.type==='noq')beperkt.set(r.p1,'niet in '+noqQs(r).map(q=>'Q'+q).join('+'));
     else if(r.type==='half')beperkt.set(r.p1,'alleen '+(r.half===1?'1e':'2e')+' helft');
     else if(r.type==='minutes'&&r.mm==='max')beperkt.set(r.p1,'max '+r.min+' min');
@@ -4317,14 +4337,16 @@ function speeltijdHTML(){
   // ontbreekt omdat hij niet speelt of omdat je hem over het hoofd zag. Gasten doen
   // alleen mee als ze vandaag ook echt in het schema staan.
   const inSchema=new Set(Object.keys(st.perSpeler));
+  // Alfabetisch op voornaam, met dezelfde korte naam als op het veld. Eerder stond de
+  // kortste speeltijd bovenaan, maar zoek je één speler op omdat een ouder ernaar
+  // vraagt, dan wil je hem kunnen vinden; de rode markering wijst de afwijkers toch
+  // al aan.
   const rijen=state.players
-    .filter(p=>p.id!==state.keeperId && (!p.guest || inSchema.has(p.id)))
-    .map(p=>({id:p.id, naam:p.name||'(naamloos)', aanwezig:!!p.present,
+    .filter(p=>!p.guest || inSchema.has(p.id))
+    .map(p=>({id:p.id, naam:pKort(p.id)||p.name||'(naamloos)', aanwezig:!!p.present,
               verwacht:(st.perSpeler[p.id]||{}).verwacht||0,
               gespeeld:(st.perSpeler[p.id]||{}).gespeeld||0}))
-    // Afwezigen onderaan: die zeggen niets over de verdeling van vandaag.
-    .sort((a,b)=>(a.aanwezig===b.aanwezig?0:a.aanwezig?-1:1)
-                 || a.verwacht-b.verwacht || a.naam.localeCompare(b.naam,'nl'));
+    .sort((a,b)=>a.naam.localeCompare(b.naam,'nl',{sensitivity:'base'}));
   if(!rijen.length)return '';
   // Toetsen tegen de mediaan, niet tegen de hoogste. Krijgt één speler juist méér
   // dan de rest, dan zou 'onder de hoogste' de hele ploeg rood kleuren terwijl er
@@ -4356,10 +4378,9 @@ function speeltijdHTML(){
           :`<b>${Math.round(r.verwacht)}</b>`}</span>
       </div>`).join('')}</div>
     <p class="hint" style="margin:10px 0 0">${gelijk
-      ? 'Iedereen komt op hetzelfde aantal minuten uit\u2014 zo hoort het.'
-      : 'Wie duidelijk minder speelt dan de rest staat bovenaan en is gemarkeerd. Wie minder speelt door een eigen regel is niet gemarkeerd; daar staat de reden bij.'}
-      ${state.keeperId?'De keeper staat er niet bij; die speelt de hele wedstrijd.':''}
-      Straftijd van een kaart telt mee als gespeeld. De hele selectie staat er, ook wie vandaag is afgemeld.</p></div>`;
+      ? 'Iedereen komt op hetzelfde aantal minuten uit \u2014 zo hoort het.'
+      : 'Wie duidelijk minder speelt dan de rest is gemarkeerd. Wie minder speelt door een eigen regel niet; daar staat de reden achter zijn naam.'}
+      De hele selectie staat er op alfabet, ook wie vandaag is afgemeld. Tijd op doel telt mee als speeltijd, en straftijd van een kaart ook.</p></div>`;
 }
 
 // ── Kaart: hoe de klok loopt ──
@@ -5327,8 +5348,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=193;
-const VERSIE_LABEL='26.9.33';
+const APP_VERSION=194;
+const VERSIE_LABEL='26.9.34';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
