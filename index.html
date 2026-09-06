@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="191">
+<meta name="app-version" content="192">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -249,28 +249,32 @@ body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
 .btn.small{padding:8px 12px;font-size:var(--fs-md);border-radius:var(--r-md)}
 .btn.full{width:100%}
 .btn.danger{background:rgba(214,81,47,.18);border:1px solid rgba(214,81,47,.5);color:#ffb39e;box-shadow:none}
-/* ---------- Wisselteksten op een liggende tablet ----------
-   In de dug-out kijk je van een meter afstand en hoef je maar één ding te lezen: de
-   wissel die eraan komt. Al het andere — de opstelling bij de start van het kwart,
-   de wissels die al geweest zijn, en die van later — is naslag en mag klein.
-   Zodra het aanstaande moment voorbij is verspringt de nadruk vanzelf naar het
-   volgende, want de markering hangt aan de stand van de klok.
-   Alleen hier; op een telefoon blijft alles zoals het was. */
+/* ---------- Wisselteksten: één moment groot, de rest klein ----------
+   Langs de lijn hoef je maar één ding te lezen: de wissel die eraan komt. Al het
+   andere — de opstelling bij de start van het kwart, de wissels die al geweest zijn,
+   en die van later — is naslag en mag klein. Zodra het aanstaande moment voorbij is
+   verspringt de nadruk vanzelf naar het volgende, want de markering hangt aan de
+   stand van de klok.
+   Geldt op telefoon én tablet; op de tablet is het verschil iets groter, want daar
+   kijk je van een meter afstand. */
+.startq h2{font-size:var(--fs-base)}
+.startq .wline{font-size:var(--fs-sm);padding:2px 0}
+.wmoment .wtime{font-size:var(--fs-xs);margin-bottom:4px}
+.wmoment .wline{font-size:var(--fs-sm);padding:2px 0}
+.wmoment .wgeb{font-size:var(--fs-sm)}
+.wmoment .wbench{font-size:var(--fs-xs);margin-top:4px}
+/* En dan het moment dat eraan komt. */
+.wmoment.nu{margin:12px 0;padding:11px 12px 9px;border-radius:var(--r-lg);
+  background:rgba(140,180,255,.10);border:1px solid rgba(140,180,255,.30)}
+.wmoment.nu + .wmoment{border-top:none;padding-top:0;margin-top:10px}
+.wmoment.nu .wtime{font-size:var(--fs-base);margin-bottom:7px}
+.wmoment.nu .wline{font-size:var(--fs-lg);padding:4px 0;line-height:1.3}
+.wmoment.nu .wbench{font-size:var(--fs-sm);margin-top:7px}
+body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,.25)}
 @media (orientation:landscape) and (min-width:820px) and (min-height:600px) and (pointer:coarse){
-  .twocol .startq h2{font-size:var(--fs-base)}
-  .twocol .startq .wline{font-size:var(--fs-sm);padding:2px 0}
-  .twocol .wmoment .wtime{font-size:var(--fs-xs);margin-bottom:4px}
-  .twocol .wmoment .wline{font-size:var(--fs-sm);padding:2px 0}
-  .twocol .wmoment .wgeb{font-size:var(--fs-sm)}
-  .twocol .wmoment .wbench{font-size:var(--fs-xs);margin-top:4px}
-  /* En dan het moment dat eraan komt. */
-  .twocol .wmoment.nu{margin:14px 0;padding:12px 12px 10px;border-radius:var(--r-lg);
-    background:rgba(140,180,255,.10);border:1px solid rgba(140,180,255,.30)}
-  .twocol .wmoment.nu + .wmoment{border-top:none;padding-top:0;margin-top:12px}
+  .twocol .wmoment.nu{margin:14px 0;padding:12px 12px 10px}
   .twocol .wmoment.nu .wtime{font-size:var(--fs-lg);margin-bottom:8px}
   .twocol .wmoment.nu .wline{font-size:var(--fs-xl);padding:5px 0;line-height:1.28}
-  .twocol .wmoment.nu .wbench{font-size:var(--fs-sm);margin-top:8px}
-  body.sun .twocol .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,.25)}
 }
 
 /* ---------- Speeltijd per speler ---------- */
@@ -280,6 +284,7 @@ body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
 .spnaam{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:var(--fs-sm);color:var(--txt)}
 .spnaam i{font-size:var(--fs-xs);color:var(--dim);font-style:normal}
+.card h2 .eenheid{font-size:var(--fs-xs);font-weight:600;color:var(--dim);letter-spacing:0}
 .spmin{flex:0 0 auto;font-variant-numeric:tabular-nums;font-size:var(--fs-sm);color:var(--dim)}
 .spmin b{color:var(--txt);font-weight:800}
 /* Alleen wie achterloopt krijgt nadruk; als iedereen gelijk uitkomt blijft het rustig. */
@@ -4320,7 +4325,7 @@ function speeltijdHTML(){
   const mediaan=gesorteerd[Math.floor(gesorteerd.length/2)];
   const minder=r=>!beperkt.has(r.id)&&r.verwacht<mediaan-1;
   const gelijk=Math.round(gesorteerd[gesorteerd.length-1])-Math.round(gesorteerd[0])<=0;
-  return `<div class="card"><h2>Speeltijd <span class="sub">${st.gestart?'gespeeld / verwacht':'verwacht'}</span></h2>
+  return `<div class="card"><h2>Speeltijd <span class="eenheid">(in min.)</span> <span class="sub">${st.gestart?'gespeeld / verwacht':'verwacht'}</span></h2>
     <div class="sptijd">${rijen.map(r=>`
       <div class="sprij${minder(r)?' minder':''}">
         <span class="spnaam">${esc(r.naam)}${beperkt.has(r.id)?` <i>${esc(beperkt.get(r.id))}</i>`:''}</span>
@@ -5298,8 +5303,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=191;
-const VERSIE_LABEL='26.9.31';
+const APP_VERSION=192;
+const VERSIE_LABEL='26.9.32';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
