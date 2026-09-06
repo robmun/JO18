@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="194">
+<meta name="app-version" content="195">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -2680,9 +2680,15 @@ async function importShared(txt){
     if(!inc||!Array.isArray(inc.players))throw 0;
     const present=inc.players.filter(p=>p.present).length;
     const nRules=Array.isArray(inc.rules)?inc.rules.length:0;
+    // Loopt er een wedstrijd, dan verandert dit ook de opstelling die op dit moment op
+    // het veld staat. Dat is precies het soort verrassing dat je in de dug-out niet
+    // wilt, dus het staat er met zoveel woorden bij.
+    const loopt = klok.q!=null && (klok.loopt || klok.sec>0);
     confirmDialog({
       title:'Gedeelde stand overnemen?',
-      body:present+' spelers aanwezig, '+nRules+' regel'+(nRules===1?'':'s')+(inc.schedule?', inclusief wisselschema':'')+'. De huidige stand op dit toestel wordt vervangen.',
+      bodyHtml:esc(present+' spelers aanwezig, '+nRules+' regel'+(nRules===1?'':'s')
+        +(inc.schedule?', inclusief wisselschema':'')+'. De huidige stand op dit toestel wordt vervangen.')
+        +(loopt?'<br><br><b>Let op: er loopt een wedstrijd.</b> Ook de opstelling die nu op het veld staat wordt vervangen.':''),
       okLabel:'Overnemen',cancelLabel:'Annuleren',
       onOk:()=>{
         const nieuw={v:Number(inc.v||0),players:inc.players,keeperId:inc.keeperId||'mauk',
@@ -3754,9 +3760,27 @@ function resolveKeeperOrWarn(){
   if(present.length<11){toast('Minimaal 11 aanwezige spelers nodig (incl. keeper)');return false;}
   return true;
 }
+let _regenBevestigd=false;
 function regenerate(){
   if(cloudViewerBlocked())return;
   if(!resolveKeeperOrWarn())return;
+  // Staat de klok op nul in een later kwart — bijvoorbeeld na een reset in de rust —
+  // dan is deze knop weer zichtbaar, en hij maakt de héle wedstrijd opnieuw. Ook de
+  // kwarten die je al gespeeld hebt. De app kan niet zien of die echt gespeeld zijn
+  // of dat je nog aan het voorbereiden bent, dus vraagt hij het.
+  if(klok.q!=null && klok.q>1 && !_regenBevestigd){
+    const gespeeld=Array.from({length:klok.q-1},(_,i)=>'Q'+(i+1)).join(' en ');
+    confirmDialog({
+      title:'Alles opnieuw genereren?',
+      bodyHtml:esc(gespeeld)+' '+(klok.q===2?'is':'zijn')+' volgens de klok al gespeeld. '
+        +'Opnieuw genereren maakt de hele wedstrijd van voren af aan, inclusief die '
+        +(klok.q===2?'opstelling':'opstellingen')+'.<br><br>Wil je alleen de rest aanpassen, '
+        +'gebruik dan \u2018Herplan vanaf dit kwart\u2019 \u2014 dan blijft wat gespeeld is staan.',
+      okLabel:'Toch opnieuw', danger:true,
+      onOk:()=>{ _regenBevestigd=true; try{ regenerate(); } finally { _regenBevestigd=false; } }
+    });
+    return;
+  }
   snapshot('genereren');
   wisUitStatus(); wisGebeurtenissen(); // nieuw schema: blessures en gebeurtenissen vervallen
   state.schedule=buildSchedule(state);
@@ -4463,6 +4487,9 @@ function selectieKaart(){
 // tabblad onzichtbaar zijn, want de lijst staat er niet meer.
 function spelerToevoegen(){
   if(wijzigenGeblokkeerd())return;
+  // De knop is tijdens een wedstrijd niet in beeld, maar de functie zelf controleerde
+  // dat niet. Verwijderen deed dat wel; nu allebei.
+  if(wedstrijdBezig()){ toast('Kan niet tijdens een wedstrijd'); return; }
   const vast=state.players.filter(p=>!p.guest);
   if(vast.length>=MAX_SELECTIE){
     confirmDialog({title:'De selectie is vol',
@@ -4777,12 +4804,19 @@ function renderQuarter(q){
   // Welk wisselmoment komt er als eerste aan? Dat is het enige dat je in de dug-out
   // echt moet lezen; de rest mag klein. Kijk je naar een kwart dat al geweest is,
   // dan is er niets aanstaands en blijft alles klein.
+  // Toetsen op de werkelijke blokgrens, niet op het afgeronde getal in de tekst.
+  // Bij drie blokken ligt de grens op 5:50 terwijl er 'na 6 min' staat; vergeleken
+  // we met die 6, dan gold het moment op 5:50 nog als aanstaand en bleef de nadruk
+  // erop hangen — precies op het moment dat de opstelling wél omsloeg. Tot de
+  // volgende blokwissel kwam er geen hertekening meer, dus het bleef staan tot je
+  // de app opnieuw opende.
   const nuMinuut = (klok.q!=null && klok.q-1===q) ? klok.sec/60
                  : (klok.q!=null && klok.q-1>q) ? Infinity   // dit kwart is voorbij
                  : -1;                                        // nog niet begonnen
+  const blokMinuten=17.5/sch.perQ;
   let volgendeMinuut=null;
   if(nuMinuut!==Infinity){
-    const aanstaand=kwartMomenten(q,sch).filter(mo=>mo.minuut>nuMinuut);
+    const aanstaand=kwartMomenten(q,sch).filter(mo=>mo.m*blokMinuten>nuMinuut+1e-9);
     if(aanstaand.length)volgendeMinuut=aanstaand[0].minuut;
   }
   const regels=kwartMomenten(q,sch).map(mo=>({minuut:mo.minuut,soort:'wissel',mo}))
@@ -5348,8 +5382,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=194;
-const VERSIE_LABEL='26.9.34';
+const APP_VERSION=195;
+const VERSIE_LABEL='26.9.35';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
