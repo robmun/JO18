@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="192">
+<meta name="app-version" content="193">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -289,6 +289,9 @@ body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,
 .spmin b{color:var(--txt);font-weight:800}
 /* Alleen wie achterloopt krijgt nadruk; als iedereen gelijk uitkomt blijft het rustig. */
 .sprij.minder .spnaam,.sprij.minder .spmin b{color:#ffb39e}
+/* Afgemeld: wel in de lijst, maar duidelijk op de achtergrond. */
+.sprij.weg{opacity:.5}
+.sprij.weg .spnaam{text-decoration:line-through;text-decoration-color:rgba(255,255,255,.35)}
 body.sun .sprij.minder .spnaam,body.sun .sprij.minder .spmin b{color:#a01a10}
 
 /* ---------- Tabblad Meer ---------- */
@@ -4309,10 +4312,19 @@ function speeltijdHTML(){
     else if(r.type==='half')beperkt.set(r.p1,'alleen '+(r.half===1?'1e':'2e')+' helft');
     else if(r.type==='minutes'&&r.mm==='max')beperkt.set(r.p1,'max '+r.min+' min');
   }
-  const rijen=Object.entries(st.perSpeler)
-    .filter(([id])=>id!==state.keeperId)          // vaste keeper: speelt sowieso alles
-    .map(([id,m])=>({id,naam:(byId(id)||{}).name||'?',...m}))
-    .sort((a,b)=>a.verwacht-b.verwacht || a.naam.localeCompare(b.naam,'nl'));
+  // De hele selectie, niet alleen wie er in het schema staat. Wie vandaag is
+  // afgemeld hoort er ook bij te staan — anders moet je gaan uitzoeken of iemand
+  // ontbreekt omdat hij niet speelt of omdat je hem over het hoofd zag. Gasten doen
+  // alleen mee als ze vandaag ook echt in het schema staan.
+  const inSchema=new Set(Object.keys(st.perSpeler));
+  const rijen=state.players
+    .filter(p=>p.id!==state.keeperId && (!p.guest || inSchema.has(p.id)))
+    .map(p=>({id:p.id, naam:p.name||'(naamloos)', aanwezig:!!p.present,
+              verwacht:(st.perSpeler[p.id]||{}).verwacht||0,
+              gespeeld:(st.perSpeler[p.id]||{}).gespeeld||0}))
+    // Afwezigen onderaan: die zeggen niets over de verdeling van vandaag.
+    .sort((a,b)=>(a.aanwezig===b.aanwezig?0:a.aanwezig?-1:1)
+                 || a.verwacht-b.verwacht || a.naam.localeCompare(b.naam,'nl'));
   if(!rijen.length)return '';
   // Toetsen tegen de mediaan, niet tegen de hoogste. Krijgt één speler juist méér
   // dan de rest, dan zou 'onder de hoogste' de hele ploeg rood kleuren terwijl er
@@ -4320,22 +4332,34 @@ function speeltijdHTML(){
   // minuut onder zit is de uitzondering die je wilt zien.
   // De mediaan over de spelers zónder beperking: anders trekken zij de norm omlaag
   // en lijkt de rest ineens te véél te spelen.
-  const vrij=rijen.filter(r=>!beperkt.has(r.id)).map(r=>r.verwacht).sort((a,b)=>a-b);
-  const gesorteerd=(vrij.length?vrij:rijen.map(r=>r.verwacht).sort((a,b)=>a-b));
+  const meedoen=rijen.filter(r=>r.aanwezig);
+  const vrij=meedoen.filter(r=>!beperkt.has(r.id)).map(r=>r.verwacht).sort((a,b)=>a-b);
+  const gesorteerd=(vrij.length?vrij:meedoen.map(r=>r.verwacht).sort((a,b)=>a-b)).sort((a,b)=>a-b);
   const mediaan=gesorteerd[Math.floor(gesorteerd.length/2)];
-  const minder=r=>!beperkt.has(r.id)&&r.verwacht<mediaan-1;
+  // Meer dan één blok onder de mediaan. Eén blok verschil is onvermijdelijk zodra
+  // het aantal veldspelers niet netjes in de blokken past — met dertien spelers op
+  // tien plekken krijgt een deel er negen en een deel tien. Op een drempel van één
+  // minuut kleurde daardoor de halve ploeg rood terwijl er niets aan de hand was.
+  const blokMin=17.5/(state.schedule?state.schedule.perQ:3);
+  const minder=r=>r.aanwezig&&!beperkt.has(r.id)&&r.verwacht<mediaan-blokMin-0.1;
+  if(!gesorteerd.length)return '';
   const gelijk=Math.round(gesorteerd[gesorteerd.length-1])-Math.round(gesorteerd[0])<=0;
   return `<div class="card"><h2>Speeltijd <span class="eenheid">(in min.)</span> <span class="sub">${st.gestart?'gespeeld / verwacht':'verwacht'}</span></h2>
     <div class="sptijd">${rijen.map(r=>`
-      <div class="sprij${minder(r)?' minder':''}">
-        <span class="spnaam">${esc(r.naam)}${beperkt.has(r.id)?` <i>${esc(beperkt.get(r.id))}</i>`:''}</span>
-        <span class="spmin">${st.gestart?`${Math.round(r.gespeeld)} <b>/ ${Math.round(r.verwacht)}</b>`:`<b>${Math.round(r.verwacht)}</b>`}</span>
+      <div class="sprij${minder(r)?' minder':''}${r.aanwezig?'':' weg'}">
+        <span class="spnaam">${esc(r.naam)}${
+          !r.aanwezig?' <i>afwezig</i>'
+          :beperkt.has(r.id)?` <i>${esc(beperkt.get(r.id))}</i>`:''}</span>
+        <span class="spmin">${
+          !r.aanwezig?'<b>0</b>'
+          :st.gestart?`${Math.round(r.gespeeld)} <b>/ ${Math.round(r.verwacht)}</b>`
+          :`<b>${Math.round(r.verwacht)}</b>`}</span>
       </div>`).join('')}</div>
     <p class="hint" style="margin:10px 0 0">${gelijk
       ? 'Iedereen komt op hetzelfde aantal minuten uit\u2014 zo hoort het.'
       : 'Wie duidelijk minder speelt dan de rest staat bovenaan en is gemarkeerd. Wie minder speelt door een eigen regel is niet gemarkeerd; daar staat de reden bij.'}
       ${state.keeperId?'De keeper staat er niet bij; die speelt de hele wedstrijd.':''}
-      Straftijd van een kaart telt mee als gespeeld.</p></div>`;
+      Straftijd van een kaart telt mee als gespeeld. De hele selectie staat er, ook wie vandaag is afgemeld.</p></div>`;
 }
 
 // ── Kaart: hoe de klok loopt ──
@@ -5303,8 +5327,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=192;
-const VERSIE_LABEL='26.9.32';
+const APP_VERSION=193;
+const VERSIE_LABEL='26.9.33';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
