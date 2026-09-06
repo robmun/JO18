@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="188">
+<meta name="app-version" content="189">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -165,12 +165,16 @@ main{
      smal veld de bank af en zweeft hij bij een breed veld in het niets. */
   /* Oversteek in procenten, maar begrensd op 44px: de ruimte tussen de kolommen is
      smal, en op een grote iPad zou 12% van het veld de wisseltekst raken. */
-  .grklok{position:absolute;right:max(-12%,-44px);top:2%;z-index:4;
-    width:46%;max-width:240px;min-width:104px;aspect-ratio:1;
+  /* Maat en plek komen uit een meting (zie meetGroteKlok): de beschikbare band ligt
+     tussen de verste bankrij en de kolom met de wisselteksten, en die band verschilt
+     sterk per iPad — op een 9,7 inch is er 47px speling naar rechts, op een 12,9 inch
+     maar 3. Met vaste percentages was de klok op de grootste iPad al over de bank
+     heen gelopen terwijl er op de kleinste ruimte overbleef. De waarden hieronder
+     zijn de terugval voor het moment vóór de eerste meting. */
+  .grklok{position:absolute;right:var(--gkR, max(-12%,-44px));top:2%;z-index:4;
+    width:var(--gkW, 46%);max-width:var(--gkMax, 240px);min-width:104px;aspect-ratio:1;
     filter:drop-shadow(0 6px 18px rgba(4,14,32,.5))}
-  /* Veel wisselspelers: de bank groeit naar een derde rij en komt dan tegen de klok
-     aan. Vandaar dat hij dan meekrimpt. */
-  .grklok.krap{width:34%;max-width:210px}
+  .grklok.krap{width:var(--gkW, 34%);max-width:var(--gkMax, 210px)}
   .grklok .gk-schijf{fill:rgba(6,16,34,.72)}
   /* In de zonstand valt de schijf deels buiten het groen; doorschijnend donker
      wordt daar vuilgrijs op wit. Dus dekkend donkerblauw. */
@@ -183,10 +187,14 @@ main{
   .gk-boog.laat{stroke:#ff5a45}
   /* Rood, zodat de tijd van een afstand opvalt. De ring blijft blauw als voortgang
      en kleurt mee rood in de laatste twee minuten — alles rood betekent: bijna klaar. */
-  .gk-tijd{fill:#ff6a52;font-size:44px;font-weight:800;text-anchor:middle;
-    font-variant-numeric:tabular-nums;letter-spacing:-1px}
-  .gk-sub{fill:rgba(255,255,255,.72);font-size:17px;font-weight:800;text-anchor:middle;letter-spacing:1.5px}
-  .gk-tot{fill:rgba(255,255,255,.62);font-size:12px;font-weight:700;text-anchor:middle}
+  /* De totaal gespeelde tijd stond hier ook nog; die is eruit. In de dug-out kijk je
+     naar de klok van dít kwart, en de ruimte die dat oplevert gaat naar de cijfers.
+     De ring heeft een straal van 86 en is 13 dik, dus binnen blijft er 2x79,5 = 159
+     over. Bij 68px was '24:10' 164 eenheden breed en stak het net buiten de ring;
+     65px komt op 157 uit en past met een haar marge. */
+  .gk-tijd{fill:#ff6a52;font-size:65px;font-weight:800;text-anchor:middle;
+    font-variant-numeric:tabular-nums;letter-spacing:-2px}
+  .gk-sub{fill:rgba(255,255,255,.72);font-size:19px;font-weight:800;text-anchor:middle;letter-spacing:1.5px}
   body.sun .gk-baan{stroke:rgba(15,32,64,.16)}
   body.sun .gk-boog{stroke:#12408f}
 }
@@ -241,6 +249,30 @@ body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
 .btn.small{padding:8px 12px;font-size:var(--fs-md);border-radius:var(--r-md)}
 .btn.full{width:100%}
 .btn.danger{background:rgba(214,81,47,.18);border:1px solid rgba(214,81,47,.5);color:#ffb39e;box-shadow:none}
+/* ---------- Wisselteksten op een liggende tablet ----------
+   In de dug-out kijk je van een meter afstand en hoef je maar één ding te lezen: de
+   wissel die eraan komt. Al het andere — de opstelling bij de start van het kwart,
+   de wissels die al geweest zijn, en die van later — is naslag en mag klein.
+   Zodra het aanstaande moment voorbij is verspringt de nadruk vanzelf naar het
+   volgende, want de markering hangt aan de stand van de klok.
+   Alleen hier; op een telefoon blijft alles zoals het was. */
+@media (orientation:landscape) and (min-width:820px) and (min-height:600px) and (pointer:coarse){
+  .twocol .startq h2{font-size:var(--fs-base)}
+  .twocol .startq .wline{font-size:var(--fs-sm);padding:2px 0}
+  .twocol .wmoment .wtime{font-size:var(--fs-xs);margin-bottom:4px}
+  .twocol .wmoment .wline{font-size:var(--fs-sm);padding:2px 0}
+  .twocol .wmoment .wgeb{font-size:var(--fs-sm)}
+  .twocol .wmoment .wbench{font-size:var(--fs-xs);margin-top:4px}
+  /* En dan het moment dat eraan komt. */
+  .twocol .wmoment.nu{margin:14px 0;padding:12px 12px 10px;border-radius:var(--r-lg);
+    background:rgba(140,180,255,.10);border:1px solid rgba(140,180,255,.30)}
+  .twocol .wmoment.nu + .wmoment{border-top:none;padding-top:0;margin-top:12px}
+  .twocol .wmoment.nu .wtime{font-size:var(--fs-lg);margin-bottom:8px}
+  .twocol .wmoment.nu .wline{font-size:var(--fs-xl);padding:5px 0;line-height:1.28}
+  .twocol .wmoment.nu .wbench{font-size:var(--fs-sm);margin-top:8px}
+  body.sun .twocol .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,.25)}
+}
+
 /* ---------- Speeltijd per speler ---------- */
 .sptijd{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px}
 @media (max-width:359px){ .sptijd{grid-template-columns:1fr} }
@@ -2966,6 +2998,25 @@ function globaleBanners(){
   }
   return h;
 }
+// Zoekt regels die een speler op een positie zetten in een linie waar hij volgens
+// zijn eigen instelling niet mag spelen. Alleen melden, niet blokkeren: welke van de
+// twee de coach bedoelde weten wij niet, en de app moet geen keuze voor hem maken.
+function linieBotsingen(){
+  const uit=[];
+  for(const r of (state.rules||[])){
+    if(r.type!=='pos'&&r.type!=='condpos'&&r.type!=='rotate')continue;
+    const pos=POSMAP[r.pos]; if(!pos)continue;
+    for(const pid of [r.p1, r.type==='rotate'?r.p2:null]){
+      if(!pid)continue;
+      const p=byId(pid); if(!p)continue;
+      if(magInLinie(p,pos.line))continue;
+      uit.push(`${p.name||'Een speler'} mag volgens zijn instellingen niet in de ${LINES[pos.line]},`
+        +` maar de regel \u2018${ruleSentence(r)}\u2019 zet hem daar wel neer. De regel wint;`
+        +` pas de linies aan op Spelers of verwijder de regel.`);
+    }
+  }
+  return uit;
+}
 function warnBoxesHTML(){
   let w='';
   if(timerMismatch!==null)
@@ -2974,6 +3025,14 @@ function warnBoxesHTML(){
   // enkele andere coach krijgt ooit nog een melding dat er een nieuwe versie is.
   // Dat werd wel opgemerkt, maar belandde alleen in het diagnoseblok — en daar
   // kijkt niemand. Nu staat het gewoon in beeld, bij de andere waarschuwingen.
+  // Een positieregel die botst met de linies waarin een speler mag staan. De app
+  // kiest dan voor de regel — een expliciete afspraak weegt zwaarder dan een
+  // algemene beperking — maar dat gebeurde volkomen stil. Je kon iemand achterin
+  // aanvinken, hem daarnaast op de spits vastzetten, en zaterdag verbaasd zijn dat
+  // hij voorin stond. Nu staat het er gewoon bij.
+  for(const c of linieBotsingen()){
+    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(c)}</div></div>`;
+  }
   if(versieJsonMist)
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">version.json loopt achter op de app (versie ${VERSIE_LABEL}). Zolang dat zo is krijgen andere toestellen geen melding dat er een nieuwe versie klaarstaat. Upload version.json opnieuw naar GitHub.</div></div>`;
   w+=swapWarnings.map((t,i)=>`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(t)}</div><button class="wx" data-warnx="${i}" aria-label="Melding sluiten">&#10005;</button></div>`).join('');
@@ -3111,9 +3170,8 @@ function groteKlokHTML(bankAantal){
         stroke-dasharray="${KLOK_OMTREK.toFixed(1)}"
         stroke-dashoffset="${(KLOK_OMTREK*(1-deel)).toFixed(1)}"
         transform="rotate(-90 100 100)"/>
-      <text x="100" y="94" class="gk-tijd" id="gkTijd">${k.tijd}</text>
-      <text x="100" y="120" class="gk-sub" id="gkSub">${k.kwart}${k.loopt?'':' \u00b7 pauze'}</text>
-      <text x="100" y="145" class="gk-tot" id="gkTot">${gespeeldTotaal()} gespeeld</text>
+      <text x="100" y="108" class="gk-tijd" id="gkTijd">${k.tijd}</text>
+      <text x="100" y="137" class="gk-sub" id="gkSub">${k.kwart}${k.loopt?'':' \u00b7 pauze'}</text>
     </svg>
   </div>`;
 }
@@ -3276,6 +3334,38 @@ function huidigQ(){
   if(toonQ!=null)return toonQ;
   return klok.q?klok.q-1:0;   // klok stil of niet gestart: Q1
 }
+// ── De grote klok op een liggende tablet ──
+// Zo groot mogelijk, maar nooit over de wisselspelers of over de kolom met de
+// wisselteksten. Die band is niet met vaste percentages te vangen: op een 9,7 inch
+// blijft er 47px speling naar rechts over, op een 12,9 inch maar 3, en de bank
+// schuift ook nog op zodra er een derde rij bij komt. Vandaar een meting.
+const GK_MARGE=14;         // lucht die aan beide kanten vrij blijft
+function meetGroteKlok(){
+  const st=document.documentElement.style;
+  const gk=document.getElementById('grklok');
+  if(!gk||!isWide()){ st.removeProperty('--gkW'); st.removeProperty('--gkR'); st.removeProperty('--gkMax'); return; }
+  const rij=gk.offsetParent;                       // .veldrij, waar de klok aan hangt
+  const veld=document.querySelector('.twocol .col-field .fieldwrap');
+  const kolom=document.querySelector('.twocol > div:last-child');
+  if(!rij||!veld)return;
+  const r=rij.getBoundingClientRect(), v=veld.getBoundingClientRect();
+  // Rechtergrens: de wisselteksten, of anders de schermrand.
+  const grensR=(kolom?kolom.getBoundingClientRect().left:innerWidth)-GK_MARGE;
+  // Linkergrens: de bankrijen liggen op vaste percentages van het veld, dus die
+  // hangen niet van de klokmaat af — geen kip-en-ei.
+  const rijen=[...document.querySelectorAll('.twocol .col-field .benchlist .brow')]
+    .map(e=>e.getBoundingClientRect());
+  const bankR=rijen.length?Math.max(...rijen.map(q=>q.right)):v.left;
+  const grensL=bankR+GK_MARGE;
+  // Vierkant, dus de hoogte begrenst ook: de klok begint op 2% van het veld en moet
+  // erbinnen blijven.
+  const maat=Math.max(104,Math.min(grensR-grensL, v.height*0.94));
+  st.setProperty('--gkW', Math.round(maat)+'px');
+  st.setProperty('--gkMax', Math.round(maat)+'px');
+  st.setProperty('--gkR', Math.round(r.right-grensR)+'px');
+}
+addEventListener('resize',()=>requestAnimationFrame(meetGroteKlok));
+
 // Meet de tabbalk en legt de hoogte vast, zodat de timer er precies tegenaan sluit.
 function meetTabbar(){
   const tb=document.querySelector('.tabbar'); if(!tb)return;
@@ -4575,11 +4665,22 @@ function renderQuarter(q){
     if(prevK&&curK&&prevK!==curK){
       kLine=`<div class="wline"><span class="arr in">&#8645;</span><span><b class="pl-in">${esc(pKort(curK))}</b> op doel &middot; <b class="pl-out">${esc(pKort(prevK))}</b> uit het doel</span></div>`;
     }
-    tekst+=`<div class="card"><h2>Bij start van Q${q+1}</h2>${kLine}${chainsEmpty(d)?(kLine?'':'<p class="empty">Geen wissels — zelfde elf als eind Q'+q+'.</p>'):wisselLines(d)}</div>`;
+    tekst+=`<div class="card startq"><h2>Bij start van Q${q+1}</h2>${kLine}${chainsEmpty(d)?(kLine?'':'<p class="empty">Geen wissels — zelfde elf als eind Q'+q+'.</p>'):wisselLines(d)}</div>`;
   }
   // Wisselmomenten binnen het kwart
   tekst+=`<div class="card"><h2>Wissels in Q${q+1} <span class="sub">${perQ-1}&times; per kwart</span></h2>`;
   // Geplande wisselmomenten en wat er tussendoor gebeurde, op volgorde van de klok.
+  // Welk wisselmoment komt er als eerste aan? Dat is het enige dat je in de dug-out
+  // echt moet lezen; de rest mag klein. Kijk je naar een kwart dat al geweest is,
+  // dan is er niets aanstaands en blijft alles klein.
+  const nuMinuut = (klok.q!=null && klok.q-1===q) ? klok.sec/60
+                 : (klok.q!=null && klok.q-1>q) ? Infinity   // dit kwart is voorbij
+                 : -1;                                        // nog niet begonnen
+  let volgendeMinuut=null;
+  if(nuMinuut!==Infinity){
+    const aanstaand=kwartMomenten(q,sch).filter(mo=>mo.minuut>nuMinuut);
+    if(aanstaand.length)volgendeMinuut=aanstaand[0].minuut;
+  }
   const regels=kwartMomenten(q,sch).map(mo=>({minuut:mo.minuut,soort:'wissel',mo}))
     .concat(gebeurtenissen().filter(g=>g.q===q).map(g=>({minuut:g.min,soort:'gebeurtenis',g})))
     .sort((a,b)=>a.minuut-b.minuut || (a.soort==='wissel'?-1:1));
@@ -4593,7 +4694,7 @@ function renderQuarter(q){
     }
     const mo=r.mo;
     const kop=wisselKop(q,mo.minuut);
-    tekst+=`<div class="wmoment"><div class="wtime">${kop}</div>`;
+    tekst+=`<div class="wmoment${mo.minuut===volgendeMinuut?' nu':''}"><div class="wtime">${kop}</div>`;
     tekst+=chainsEmpty(mo.wissels)?'<p class="empty">Geen wissels op dit moment.</p>':wisselLines(mo.wissels);
     tekst+=`<div class="wbench"><b>Wissels daarna:</b> ${mo.bankNa.map(pKort).map(esc).join(', ')||'—'}</div></div>`;
   }
@@ -4711,7 +4812,7 @@ function render(){
   // Bij her-renderen op hetzelfde tabblad: scrollpositie behouden
   // (iOS springt anders naar boven zodra de inhoud even inklapt).
   if(_keepY!==null&&_sc&&Math.abs(_sc.scrollTop-_keepY)>2)_sc.scrollTop=_keepY;
-  requestAnimationFrame(()=>{updateScrollUI();fitNames();zwevendeKlokBijwerken();});
+  requestAnimationFrame(()=>{updateScrollUI();fitNames();zwevendeKlokBijwerken();meetGroteKlok();});
 }
 // Kwartbolletjes. Een eigen keuze gaat voor op de klok, en gaat mee naar de timer
 // zodat beide hetzelfde kwart tonen. Aparte functie omdat de bolletjes op een
@@ -5139,8 +5240,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=188;
-const VERSIE_LABEL='26.9.28';
+const APP_VERSION=189;
+const VERSIE_LABEL='26.9.29';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
