@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="190">
+<meta name="app-version" content="191">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -819,7 +819,14 @@ body.with-a2hs main{padding-bottom:calc(230px + env(safe-area-inset-bottom))}
 .wline .posname{color:var(--dim);font-size:inherit}
 .wbench{margin-top:7px;font-size:var(--fs-sm);color:var(--dim)}
 /* Wat er tussen de geplande momenten door gebeurde: valt op zonder te schreeuwen. */
-.wmoment.gebeurtenis .wtime{color:#ffb3a3}
+.wmoment.gebeurtenis .wtime{color:#ffb3a3;display:flex;align-items:center;gap:8px}
+/* Kruisje rechtsboven bij een melding. Klein en kleurloos: het hoort een uitweg te
+   zijn, geen knop die om aandacht vraagt. Ruim tikvlak, want het staat naast tekst. */
+.gebx{flex:0 0 auto;width:30px;height:30px;margin:-6px -6px -6px 0;margin-left:auto;
+  border:none;background:none;color:var(--dim);font-size:var(--fs-md);line-height:1;
+  display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm)}
+.gebx:active{background:rgba(255,255,255,.10)}
+body.sun .gebx:active{background:rgba(15,32,64,.10)}
 .wgeb{display:flex;align-items:flex-start;font-size:var(--fs-base);line-height:1.32;
   color:var(--txt);background:rgba(255,120,100,.10);border-left:2.5px solid rgba(255,140,120,.6);
   border-radius:var(--r-sm);padding:8px 10px}
@@ -3952,9 +3959,24 @@ function beschrijfHerplan(oud,nieuw,vanaf,perQ,later){
 // in het wisselschema te staan. Zonder dit zag je alleen de geplande momenten op 6 en
 // 12 minuten, en niet dat er op 8 minuten iemand van het veld ging.
 function gebeurtenissen(){ if(!Array.isArray(state.gebeurtenissen))state.gebeurtenissen=[]; return state.gebeurtenissen; }
+// Wat er in beeld hoort te komen: alles wat de coach niet zelf heeft weggedrukt.
+// Weggedrukte gebeurtenissen blijven wél in de opslag staan, zodat schudden ze
+// terughaalt en een gedeelde stand niet ineens anders is dan bij de ander.
+function zichtbareGebeurtenissen(){ return gebeurtenissen().filter(g=>!g.weg); }
 function noteerGebeurtenis(q,tekst){
   const sec=(klok.q===q+1)?klok.sec:0;
-  gebeurtenissen().push({q,sec,min:Math.round(sec/60),tekst});
+  // Een eigen kenmerk, want de volgorde in de lijst is geen betrouwbare sleutel
+  // zodra er onderweg iets bij komt.
+  gebeurtenissen().push({id:'g'+Date.now()+Math.random().toString(36).slice(2,6),
+    q,sec,min:Math.round(sec/60),tekst});
+}
+// Wegdrukken. Gaat mee in de tien bewaarde stappen, dus een misklik draai je terug.
+function gebeurtenisWeg(id){
+  const g=gebeurtenissen().find(x=>x.id===id);
+  if(!g)return;
+  snapshot('melding weggedrukt');
+  g.weg=true; save(); render();
+  toast('Melding weggedrukt \u2014 schud om terug te halen');
 }
 function wisGebeurtenissen(){ state.gebeurtenissen=[]; }
 function herplanVanafNu(label,vanafVolgende,gebeurtenis){
@@ -4714,14 +4736,17 @@ function renderQuarter(q){
     if(aanstaand.length)volgendeMinuut=aanstaand[0].minuut;
   }
   const regels=kwartMomenten(q,sch).map(mo=>({minuut:mo.minuut,soort:'wissel',mo}))
-    .concat(gebeurtenissen().filter(g=>g.q===q).map(g=>({minuut:g.min,soort:'gebeurtenis',g})))
+    .concat(zichtbareGebeurtenissen().filter(g=>g.q===q).map(g=>({minuut:g.min,soort:'gebeurtenis',g})))
     .sort((a,b)=>a.minuut-b.minuut || (a.soort==='wissel'?-1:1));
   for(const r of regels){
     if(r.soort==='gebeurtenis'){
       // Zelfde kop als bij een wisselmoment: ze staan op één tijdlijn onder elkaar,
       // en twee verschillende manieren van tijd aanduiden leest voor geen meter.
-      tekst+=`<div class="wmoment gebeurtenis"><div class="wtime">${esc(wisselKop(q,r.minuut))}</div>`
-        +`<p class="wgeb">${ico('blessure',16)}${esc(r.g.tekst)}</p></div>`;
+      // Kruisje rechtsboven: een kaart of blessure van tien minuten geleden hoeft niet
+      // de rest van de wedstrijd in beeld te blijven staan.
+      tekst+=`<div class="wmoment gebeurtenis"><div class="wtime">${esc(wisselKop(q,r.minuut))}`
+        +(r.g.id?`<button class="gebx" data-gebweg="${esc(r.g.id)}" aria-label="Melding wegdrukken">&#10005;</button>`:'')
+        +`</div><p class="wgeb">${ico('blessure',16)}${esc(r.g.tekst)}</p></div>`;
       continue;
     }
     const mo=r.mo;
@@ -4995,6 +5020,7 @@ function bind(v){
   };
   // Alleen de knoptekst bijwerken, niet de hele kaart hertekenen: bij een volledige
   // render springt de pagina terug naar boven en verlies je je plek in de lijst.
+  v.querySelectorAll('[data-gebweg]').forEach(el=>el.onclick=()=>gebeurtenisWeg(el.dataset.gebweg));
   v.querySelectorAll('[data-selvink]').forEach(el=>el.onchange=()=>{
     if(el.checked)_selGekozen.add(el.dataset.selvink); else _selGekozen.delete(el.dataset.selvink);
     el.closest('.selrij').classList.toggle('aan',el.checked);
@@ -5174,7 +5200,7 @@ function renderPrint(){
     const bench=benchOfBlock(sch,b0).map(pKort).map(esc).join(', ')||'—';
     let w='';
     const pRegels=kwartMomenten(q,sch).map(mo=>({minuut:mo.minuut,mo}))
-      .concat(gebeurtenissen().filter(g=>g.q===q).map(g=>({minuut:g.min,g})))
+      .concat(zichtbareGebeurtenissen().filter(g=>g.q===q).map(g=>({minuut:g.min,g})))
       .sort((a,b)=>a.minuut-b.minuut || (a.mo?-1:1));
     for(const r of pRegels){
       w+= r.g
@@ -5272,8 +5298,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=190;
-const VERSIE_LABEL='26.9.30';
+const APP_VERSION=191;
+const VERSIE_LABEL='26.9.31';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
@@ -5668,7 +5694,7 @@ async function shareQuarterImage(q){
   const bench=benchOfBlock(sch,b0).map(pKort);
   if(bench.length)blocks.push({head:'Bank bij start:',lines:wrapText(bench.join(', '),58)});
   const dRegels=kwartMomenten(q,sch).map(mo=>({minuut:mo.minuut,mo}))
-    .concat(gebeurtenissen().filter(g=>g.q===q).map(g=>({minuut:g.min,g})))
+    .concat(zichtbareGebeurtenissen().filter(g=>g.q===q).map(g=>({minuut:g.min,g})))
     .sort((a,b)=>a.minuut-b.minuut || (a.mo?-1:1));
   for(const r of dRegels){
     const naMin=r.minuut;
