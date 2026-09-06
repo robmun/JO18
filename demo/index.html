@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="189">
+<meta name="app-version" content="190">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1290,15 +1290,32 @@ function eligibleVec(p,perQ,rules){
 }
 
 // Eerlijke doel-aantallen blokken per speler (waterfill met plafond = beschikbaarheid)
-function fairTargets(ids,caps,totalSlots){
-  const t={}; let rem=totalSlots; let act=[...ids];
-  let guard=0;
+// ── Hoeveel blokken hoort iedereen te spelen? ──
+// Naar rato van beschikbaarheid, niet gelijk over de kop. Wie de halve wedstrijd
+// beschikbaar is speelt de helft van wat een ander speelt — hij wordt niet
+// gecompenseerd in de kwarten waarin hij er wél is.
+//
+// Dat ging eerder anders: iedereen kreeg hetzelfde doel, en wie minder blokken
+// beschikbaar had werd 'geplafonneerd' op zijn eigen beschikbaarheid. Gevolg: een
+// speler die Q3 en Q4 mist, speelde Q1 en Q2 volledig vol zonder ooit op de bank te
+// zitten, en kwam bij 'niet in Q4' zelfs op precies evenveel minuten uit als iemand
+// die alle vier de kwarten speelde. Nu telt iedereen mee met zijn gewicht.
+//
+// 'beschikbaar' en 'plafond' zijn bewust twee dingen. Beschikbaarheid (niet in Q2,
+// alleen de eerste helft, keept een kwart) schaalt het doel. Een regel als
+// 'maximaal 25 minuten' is een bovengrens: die mag iemand niet óók nog naar beneden
+// schalen, hij knipt er alleen de top af. Wat er door zo'n bovengrens overblijft
+// wordt in een volgende ronde over de anderen verdeeld.
+function fairTargets(ids,beschikbaar,plafond,totalSlots){
+  const t={}; let rem=totalSlots, act=[...ids], guard=0;
   while(act.length && guard++<50){
-    const share=rem/act.length;
-    const capped=act.filter(id=>caps[id]<=share+1e-9);
-    if(!capped.length){act.forEach(id=>t[id]=share);rem=0;act=[];break;}
-    capped.forEach(id=>{t[id]=caps[id];rem-=caps[id];});
-    act=act.filter(id=>!capped.includes(id));
+    const som=act.reduce((s,id)=>s+beschikbaar[id],0);
+    if(som<=0)break;
+    const rato=rem/som;                       // aandeel van je beschikbare blokken
+    const raaktPlafond=act.filter(id=>plafond[id]<=beschikbaar[id]*rato+1e-9);
+    if(!raaktPlafond.length){act.forEach(id=>t[id]=beschikbaar[id]*rato);rem=0;act=[];break;}
+    raaktPlafond.forEach(id=>{t[id]=plafond[id];rem-=plafond[id];});
+    act=act.filter(id=>!raaktPlafond.includes(id));
   }
   act.forEach(id=>t[id]=0);
   return t;
@@ -1324,12 +1341,14 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
     if(r.mm==='max') maxBlk[r.p1]=Math.min(maxBlk[r.p1]??1e9, Math.floor(r.min/blockMin));
     else             minBlk[r.p1]=Math.max(minBlk[r.p1]??0,  Math.ceil(r.min/blockMin));
   }
-  // maximum verlaagt de beschikbaarheid (cap), zodat de eerlijke verdeling het meeneemt
+  // Beschikbaarheid blijft wat het is; het maximum wordt een apart plafond. Zie de
+  // toelichting bij fairTargets waarom die twee niet op één hoop mogen.
+  const beschikbaar={}; ids.forEach(i=>beschikbaar[i]=caps[i]);
   fieldPlayers.forEach(p=>{ if(maxBlk[p.id]!=null) caps[p.id]=Math.min(caps[p.id],maxBlk[p.id]); });
   // resterende beschikbare blokken vanaf blok b (incl. b)
   const remFrom={};ids.forEach(i=>{remFrom[i]=new Array(B+1).fill(0);for(let b=B-1;b>=0;b--)remFrom[i][b]=remFrom[i][b+1]+(elig[i][b]?1:0);});
   const slots=10*B;
-  const t=fairTargets(ids,caps,Math.min(slots,ids.reduce((s,i)=>s+caps[i],0)));
+  const t=fairTargets(ids,beschikbaar,caps,Math.min(slots,ids.reduce((s,i)=>s+caps[i],0)));
   const played={},bench={};ids.forEach(i=>{played[i]=playedInit&&playedInit[i]!=null?playedInit[i]:0;bench[i]=0;});
   const apart=rules.filter(r=>r.type==='apart');
   const conflictsWith=(id,set)=>{
@@ -4252,7 +4271,17 @@ function speeltijdPerSpeler(){
 function speeltijdHTML(){
   const st=speeltijdPerSpeler();
   if(!st)return '';
-  const keept=new Set((state.rules||[]).filter(r=>r.type==='gk').map(r=>r.p1));
+  // Spelers van wie de beschikbaarheid bewust is ingeperkt. Die spelen minder omdat
+  // jij dat zo hebt ingesteld, niet omdat de verdeling scheef is — dus geen rode
+  // markering, wél de reden erbij zodat je niet gaat zoeken.
+  const beperkt=new Map();
+  for(const r of (state.rules||[])){
+    if(!r.p1)continue;
+    if(r.type==='gk')beperkt.set(r.p1,'keept ook');
+    else if(r.type==='noq')beperkt.set(r.p1,'niet in '+noqQs(r).map(q=>'Q'+q).join('+'));
+    else if(r.type==='half')beperkt.set(r.p1,'alleen '+(r.half===1?'1e':'2e')+' helft');
+    else if(r.type==='minutes'&&r.mm==='max')beperkt.set(r.p1,'max '+r.min+' min');
+  }
   const rijen=Object.entries(st.perSpeler)
     .filter(([id])=>id!==state.keeperId)          // vaste keeper: speelt sowieso alles
     .map(([id,m])=>({id,naam:(byId(id)||{}).name||'?',...m}))
@@ -4262,19 +4291,22 @@ function speeltijdHTML(){
   // dan de rest, dan zou 'onder de hoogste' de hele ploeg rood kleuren terwijl er
   // niets aan de hand is. De mediaan is wat de meesten spelen; wie daar meer dan een
   // minuut onder zit is de uitzondering die je wilt zien.
-  const gesorteerd=rijen.map(r=>r.verwacht).sort((a,b)=>a-b);
+  // De mediaan over de spelers zónder beperking: anders trekken zij de norm omlaag
+  // en lijkt de rest ineens te véél te spelen.
+  const vrij=rijen.filter(r=>!beperkt.has(r.id)).map(r=>r.verwacht).sort((a,b)=>a-b);
+  const gesorteerd=(vrij.length?vrij:rijen.map(r=>r.verwacht).sort((a,b)=>a-b));
   const mediaan=gesorteerd[Math.floor(gesorteerd.length/2)];
-  const minder=r=>r.verwacht<mediaan-1;
+  const minder=r=>!beperkt.has(r.id)&&r.verwacht<mediaan-1;
   const gelijk=Math.round(gesorteerd[gesorteerd.length-1])-Math.round(gesorteerd[0])<=0;
   return `<div class="card"><h2>Speeltijd <span class="sub">${st.gestart?'gespeeld / verwacht':'verwacht'}</span></h2>
     <div class="sptijd">${rijen.map(r=>`
       <div class="sprij${minder(r)?' minder':''}">
-        <span class="spnaam">${esc(r.naam)}${keept.has(r.id)?' <i>keept ook</i>':''}</span>
+        <span class="spnaam">${esc(r.naam)}${beperkt.has(r.id)?` <i>${esc(beperkt.get(r.id))}</i>`:''}</span>
         <span class="spmin">${st.gestart?`${Math.round(r.gespeeld)} <b>/ ${Math.round(r.verwacht)}</b>`:`<b>${Math.round(r.verwacht)}</b>`}</span>
       </div>`).join('')}</div>
     <p class="hint" style="margin:10px 0 0">${gelijk
       ? 'Iedereen komt op hetzelfde aantal minuten uit\u2014 zo hoort het.'
-      : 'Wie duidelijk minder speelt dan de rest staat bovenaan en is gemarkeerd.'}
+      : 'Wie duidelijk minder speelt dan de rest staat bovenaan en is gemarkeerd. Wie minder speelt door een eigen regel is niet gemarkeerd; daar staat de reden bij.'}
       ${state.keeperId?'De keeper staat er niet bij; die speelt de hele wedstrijd.':''}
       Straftijd van een kaart telt mee als gespeeld.</p></div>`;
 }
@@ -5240,8 +5272,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=189;
-const VERSIE_LABEL='26.9.29';
+const APP_VERSION=190;
+const VERSIE_LABEL='26.9.30';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
