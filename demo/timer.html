@@ -150,6 +150,18 @@ html.ghc-embed .app { padding-top:10px !important; }
   box-shadow:inset 0 1px 0 rgba(255,255,255,0.18);
 }
 .themeToggle::before { content:"🌙"; font-size:0.88rem; }
+/* Verschijnt twaalf seconden na een reset. Klein en terughoudend: het is een uitweg,
+   geen knop die om aandacht vraagt. */
+.resetTerug{display:block;margin:8px auto 0;padding:7px 14px;border-radius:999px;
+  border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.10);
+  color:var(--txt,#fff);font:inherit;font-size:0.66rem;font-weight:700;letter-spacing:.04em}
+.resetTerug[hidden]{display:none}
+body.sun .resetTerug{background:#fff;border-color:rgba(15,32,64,.28);color:#10203c}
+/* De melding dat je een ander kwart bekijkt dan waar de klok in staat. */
+.kijkmelding{display:inline-block;margin-top:2px;padding:3px 10px;border-radius:999px;
+  background:rgba(255,196,90,.16);border:1px solid rgba(255,196,90,.45);
+  color:#ffd489;font-weight:800;letter-spacing:.03em}
+body.sun .kijkmelding{background:#fff5e0;border-color:#c98b12;color:#7a5205}
 
 /* ── KWARTEN — glas card ── */
 .quarters {
@@ -582,6 +594,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     <button id="start" class="primary" type="button">Start</button>
     <button id="reset" class="secondary" type="button" style="font-size:0.64rem;">Reset kwart</button>
   </section>
+  <button id="resetTerug" class="resetTerug" type="button" hidden>&#8630; Reset toch niet</button>
   <footer class="footer">
     <span class="footer-text">#wijzijngooische</span>
     <img class="footer-logo" id="footerLogo" alt="GHC"/>
@@ -825,7 +838,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       // 17,5 op bij de al afgeronde 3 en kwam op 21 uit, terwijl die tick op
       // 20,4 minuten staat. De ronde getallen wezen dus net niet naar hun plek.
       const minutenOpTick = t => t * 17.5 / 60;
-      const isQ2Q4 = (currentQuarter === 2 || currentQuarter === 4);
+      const isQ2Q4 = (bekekenQuarter === 2 || bekekenQuarter === 4);
       let labelData = [{tick: 0, text: null}];
       [10, 20, 30, 40, 50].forEach(function (t) {
         let min;
@@ -1072,11 +1085,13 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
         if (e.data.ghcKlokInfo.stand) zetKlok(e.data.ghcKlokInfo.stand);
         updateUI();   // ook de regel 'Klok wordt bediend door ...' verversen
       }
+      if (e.data.ghcNaarActief) naarActiefKwart();
+      if (e.data.ghcAntwoord) vraagAntwoord(e.data.ghcAntwoord.id, !!e.data.ghcAntwoord.ja);
       if (e.data.ghcTijdweergave) zetWeergave(String(e.data.ghcTijdweergave));
       if (e.data.ghcSetQuarter) {
         var q = Number(e.data.ghcSetQuarter);
         // Loopt de klok, dan blijft die staan: de coach bekijkt alleen een ander kwart.
-        if (q >= 1 && q <= 4 && q !== currentQuarter && !running) {
+        if (q >= 1 && q <= 4 && q !== bekekenQuarter) {
           _qFromApp = true;
           changeQuarter(q);
           _qFromApp = false;
@@ -1108,7 +1123,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     }
 
     function updateButtons() {
-      qButtons.forEach(btn => btn.classList.toggle('active', Number(btn.dataset.q) === currentQuarter));
+      qButtons.forEach(btn => btn.classList.toggle('active', Number(btn.dataset.q) === bekekenQuarter));
       var mag = magBedienen();
       // Niet 'disabled': dan gebeurt er bij een tik niets en weet je niet waarom.
       // Gedimd maar aantikbaar, zodat je de overnamevraag krijgt.
@@ -1122,7 +1137,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     }
 
     function updateWarning() {
-      const warn = quarterElapsed(currentQuarter) >= (QLEN - WARN_SECONDS);
+      const warn = quarterElapsed(bekekenQuarter) >= (QLEN - WARN_SECONDS);
       timeEl.classList.toggle('warn', warn);
     }
 
@@ -1132,7 +1147,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 197;
+    var TIMER_VERSION = 200;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
@@ -1158,7 +1173,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     function zetKlok(k) {
       _klokVanBuiten = true;
       if (running) { running = false; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } releaseWakeLock(); }
-      if (k.q >= 1 && k.q <= 4 && k.q !== currentQuarter) { currentQuarter = k.q; buildTicks(); }
+      if (k.q >= 1 && k.q <= 4 && k.q !== currentQuarter) { currentQuarter = k.q; bekekenQuarter = k.q; buildTicks(); }
       var basis = k.basis || 0;
       var verstreken = basis;
       var verdacht = false;
@@ -1187,21 +1202,28 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       try { parent.postMessage({ghcStand: {q: q, sec: Math.floor(sec), loopt: !!loopt}}, location.origin); } catch (e) {}
     }
     function updateUI() {
-      const elapsedQuarter = quarterElapsed(currentQuarter);
+      const elapsedQuarter = quarterElapsed(bekekenQuarter);
       // Onthoud welke hele seconde er nu getekend wordt. Zo tekent tick() niet nog
       // eens hetzelfde, en werkt een rechtstreekse aanroep — een druk op ±1 minuut,
       // een kwartwissel, een stand van een ander toestel — altijd meteen.
       _laatstGetekend = Math.floor(elapsedQuarter);
-      const display = displayValue(currentQuarter);
+      const display = displayValue(bekekenQuarter);
       const totalElapsed = totalElapsedMatch();
-      meldStand(currentQuarter, elapsedQuarter, running);
+      // De app toont in zijn klokjes altijd de actieve klok, ook als jij vooruitkijkt.
+      meldStand(currentQuarter, quarterElapsed(currentQuarter), running);
 
       const tijdTekst = fmt(display);
       timeEl.textContent = tijdTekst;
       timeEl.classList.toggle('lang', tijdTekst.length > 5);
       // 'Gespeeld: x / 70:00' is eruit: de grote cijfers zeggen het al, en de totale
       // wedstrijdtijd staat inmiddels in de app zelf. Alleen de klokbaas-melding blijft.
-      metaEl.innerHTML = (klokAan && klokBaas && klokBaas.id !== klokMijnId
+      // Kijk je naar een ander kwart dan waar de klok in staat, dan moet dat er groot
+      // bij: anders lees je een tijd van 00:00 en denk je dat de klok stilstaat.
+      var kijktVooruit = bekekenQuarter !== currentQuarter;
+      metaEl.innerHTML = kijktVooruit
+        ? '<span class="kijkmelding">Q' + currentQuarter + (running ? ' loopt' : ' staat stil')
+          + ' &middot; je bekijkt Q' + bekekenQuarter + '</span>'
+        : (klokAan && klokBaas && klokBaas.id !== klokMijnId
             ? '<br><span style="opacity:.75">' + (klokVerlaten
                 // De naam komt uit wat een coach zelf invult en belandt in HTML;
                 // zonder ontsnappen kan '<b>' als opmaak in beeld komen.
@@ -1212,8 +1234,31 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       updateWarning();
       updateRingArc(elapsedQuarter);
 
-      startBtn.textContent = running ? 'Pauze' : 'Start';
-      startBtn.classList.toggle('pause', running);
+      // Drie standen:
+      //   je kijkt naar het actieve kwart      -> Start / Pauze, zoals altijd
+      //   je kijkt vooruit terwijl de klok loopt -> eerst pauzeren, dus niet te starten
+      //   je kijkt vooruit met een stilstaande klok -> 'Start Q3', met bevestiging
+      if (!kijktVooruit) {
+        startBtn.textContent = running ? 'Pauze' : 'Start';
+        startBtn.classList.toggle('pause', running);
+        startBtn.disabled = false; startBtn.style.opacity = '';
+      } else if (running) {
+        startBtn.textContent = 'Pauzeer Q' + currentQuarter + ' eerst';
+        startBtn.classList.remove('pause');
+        startBtn.disabled = true; startBtn.style.opacity = '.45';
+      } else {
+        startBtn.textContent = 'Start Q' + bekekenQuarter;
+        startBtn.classList.remove('pause');
+        startBtn.disabled = false; startBtn.style.opacity = '';
+      }
+      // ±1 minuut en Reset horen bij de klok, niet bij wat je bekijkt. Zolang je een
+      // ander kwart bekijkt zijn ze uit; anders pas je ongezien het lopende kwart aan.
+      [document.getElementById('plusMin'), document.getElementById('minusMin'), resetBtn]
+        .forEach(function (b) {
+          if (!b) return;
+          if (kijktVooruit) { b.disabled = true; b.style.opacity = '.35'; }
+          else { b.disabled = false; }   // updateButtons zet de dimming voor de klokbaas
+        });
     }
 
     async function requestWakeLock() {
@@ -1305,6 +1350,24 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       updateUI();
     }
 
+    // ── Bevestiging vragen ──
+    // De timer heeft geen eigen venster; de app eromheen wel. We sturen de vraag
+    // daarheen en krijgen het antwoord terug. Staat de timer los in een tabblad —
+    // dat kan — dan valt hij terug op het venster van de browser zelf.
+    var _vragen = {}, _vraagNr = 0;
+    function vraag(opts, klaar) {
+      if (window.parent === window) { if (confirm(opts.titel + '\n\n' + opts.tekst)) klaar(); return; }
+      var id = 'v' + (++_vraagNr);
+      _vragen[id] = klaar;
+      try { parent.postMessage({ ghcVraag: { id: id, titel: opts.titel, tekst: opts.tekst,
+        ok: opts.ok || 'Doorgaan', gevaar: !!opts.gevaar } }, location.origin); }
+      catch (e) { delete _vragen[id]; klaar(); }
+    }
+    function vraagAntwoord(id, ja) {
+      var f = _vragen[id]; delete _vragen[id];
+      if (f && ja) f();
+    }
+
     function vraagOvernemen() {
       try { parent.postMessage({ ghcKlokVraagOver: true }, location.origin); } catch (e) {}
       if ('vibrate' in navigator) navigator.vibrate(20);
@@ -1328,9 +1391,22 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       updateUI();
     }
 
+    // ── Actief kwart en bekeken kwart ──
+    // Tot nu toe stopte een tik op een kwartbolletje de klok. Wie tijdens Q2 even
+    // vooruit wilde kijken naar Q3 beëindigde daarmee ongemerkt Q2 — precies het soort
+    // ongeluk dat je in een wedstrijd niet wilt. De klok hoort alleen te stoppen als je
+    // op Pauze drukt.
+    //   currentQuarter  het kwart waarin de klok loopt of gepauzeerd staat
+    //   bekekenQuarter  het kwart dat je op de wijzerplaat ziet
+    // Meestal hetzelfde; ze lopen alleen uiteen zolang je vooruit- of terugkijkt.
+    var bekekenQuarter = currentQuarter;
     function changeQuarter(q) {
-      stopTimer();
-      currentQuarter = q;
+      if (running) {
+        // Loopt de klok, dan is dit alleen kijken. Q blijft waar hij was.
+        bekekenQuarter = q;
+      } else {
+        currentQuarter = q; bekekenQuarter = q;
+      }
       buildTicks();
       _saveState();
       updateUI();
@@ -1338,6 +1414,15 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       // Laat de opstelling in de hoofd-app hetzelfde kwart tonen
       if (!_qFromApp && window.parent !== window) {
         try { parent.postMessage({ghcQuarter: q}, location.origin); } catch(err) {}
+      }
+    }
+    // Terug naar het kwart waar de klok in staat.
+    function naarActiefKwart() {
+      if (bekekenQuarter === currentQuarter) return;
+      bekekenQuarter = currentQuarter;
+      buildTicks(); updateUI();
+      if (window.parent !== window) {
+        try { parent.postMessage({ghcQuarter: currentQuarter}, location.origin); } catch(err) {}
       }
     }
 
@@ -1359,8 +1444,68 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     document.getElementById('plusMin').addEventListener('click', function () { nudgeMinute(60); });
     document.getElementById('minusMin').addEventListener('click', function () { nudgeMinute(-60); });
-    startBtn.addEventListener('click', toggleStartPause);
-    resetBtn.addEventListener('click', function(){ if (!magBedienen()) { vraagOvernemen(); return; } resetCurrentQuarter(); meldKlok(); });
+    startBtn.addEventListener('click', function () {
+      if (bekekenQuarter === currentQuarter) { toggleStartPause(); return; }
+      if (running) return;                      // knop staat uit; hier komen we niet
+      // Een nieuw kwart starten sluit het vorige af. Staat dat vorige nog niet op
+      // 17:30, dan is dat het vermelden waard: misschien vergat je te pauzeren, of
+      // misschien werd er echt eerder afgefloten.
+      var oud = currentQuarter, nieuw = bekekenQuarter;
+      var stand = quarterElapsed(oud);
+      var rond = Math.abs(stand - QLEN) < 30;
+      vraag({
+        titel: 'Q' + nieuw + ' starten?',
+        tekst: rond
+          ? 'Q' + oud + ' wordt afgesloten op ' + fmt(QLEN) + '.'
+          : 'Q' + oud + ' staat nog op ' + fmt(stand) + '. Wil je Q' + oud
+            + ' toch afsluiten en Q' + nieuw + ' starten?',
+        ok: 'Start Q' + nieuw, gevaar: !rond
+      }, function () {
+        currentQuarter = nieuw;
+        buildTicks(); updateUI();
+        startTimer(); meldKlok();
+        if (window.parent !== window) {
+          try { parent.postMessage({ghcQuarter: nieuw}, location.origin); } catch (err) {}
+        }
+      });
+    });
+    // Reset zette met één tik de tijd op nul. Dat is te makkelijk: het gooit de
+    // gespeelde tijd van het kwart weg en laat de app denken dat het kwart nog moet
+    // beginnen. Bij een kwart dat al loopt dus eerst een vraag, met de stand erin.
+    var _vorigeReset = null;   // voor 'Toch niet'
+    resetBtn.addEventListener('click', function () {
+      if (!magBedienen()) { vraagOvernemen(); return; }
+      var stand = quarterElapsed(currentQuarter);
+      if (stand < 1) { resetCurrentQuarter(); meldKlok(); return; }
+      vraag({
+        titel: 'Q' + currentQuarter + ' resetten?',
+        tekst: 'Q' + currentQuarter + ' staat op ' + fmt(stand)
+          + '. Resetten zet dit kwart terug op nul; de gespeelde tijd is dan weg.',
+        ok: 'Resetten', gevaar: true
+      }, function () {
+        _vorigeReset = { q: currentQuarter, sec: stand, liep: running };
+        resetCurrentQuarter(); meldKlok();
+        toonHerstel();
+      });
+    });
+    // Kleine 'Toch niet'-knop, twaalf seconden lang. Een reset is de enige actie in de
+    // timer die tijd weggooit, en verder is er geen ongedaan maken.
+    function toonHerstel() {
+      var el = document.getElementById('resetTerug');
+      if (!el || !_vorigeReset) return;
+      el.hidden = false;
+      clearTimeout(el._t);
+      el._t = setTimeout(function () { el.hidden = true; _vorigeReset = null; }, 12000);
+      el.onclick = function () {
+        if (!_vorigeReset) return;
+        setQuarterElapsed(_vorigeReset.q, _vorigeReset.sec);
+        resetBeepState(_vorigeReset.q);
+        swapDone[_vorigeReset.q] = (swapTimes[_vorigeReset.q] || [])
+          .filter(function (t) { return t <= _vorigeReset.sec; });
+        _vorigeReset = null; el.hidden = true;
+        _saveState(); updateUI(); meldKlok();
+      };
+    }
     // De klokrichting wordt in de app ingesteld, op het tabblad Meer. Die schrijft
     // hem in localStorage — dezelfde herkomst, dus dezelfde sleutel — en stuurt
     // daarna een bericht, zodat een draaiende timer meteen omschakelt in plaats van
