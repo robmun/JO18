@@ -1085,6 +1085,15 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
         if (e.data.ghcKlokInfo.stand) zetKlok(e.data.ghcKlokInfo.stand);
         updateUI();   // ook de regel 'Klok wordt bediend door ...' verversen
       }
+      if (e.data.ghcNieuweWedstrijd) {
+        // Alles terug naar de aftrap. Zonder dit hield de timer zijn oude kwarttijden
+        // en afgehandelde wisselsignalen vast, en begon een 'nieuwe wedstrijd' dus met
+        // Q4 actief en Q1 op 17:30.
+        stopTimer();
+        [1, 2, 3, 4].forEach(function (q) { setQuarterElapsed(q, 0); resetBeepState(q); });
+        currentQuarter = 1; bekekenQuarter = 1;
+        _saveState(); buildTicks(); updateUI(); meldKlok();
+      }
       if (e.data.ghcNaarActief) naarActiefKwart();
       if (e.data.ghcAntwoord) vraagAntwoord(e.data.ghcAntwoord.id, !!e.data.ghcAntwoord.ja);
       if (e.data.ghcTijdweergave) zetWeergave(String(e.data.ghcTijdweergave));
@@ -1147,7 +1156,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 201;
+    var TIMER_VERSION = 202;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
@@ -1464,14 +1473,34 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       // is de gewone gang van zaken vóór de aftrap: een coach die in Q2 wil beginnen
       // omdat hij later invalt, hoeft geen vraag over een kwart dat nooit liep.
       if (stand < 1) { ga(); return; }
+      // De normale gang is één kwart vooruit. Terug naar een afgesloten kwart of een
+      // kwart overslaan kan nodig zijn — een scheidsrechter die anders indeelt, een
+      // vergissing — maar het hoort geen gewone bediening te zijn, dus het krijgt een
+      // eigen, strengere vraag.
+      var terug = nieuw < oud;
+      var slaOver = nieuw > oud + 1;
       var rond = Math.abs(stand - QLEN) < 30;
-      vraag({
-        titel: 'Q' + nieuw + ' starten?',
-        tekst: rond
+      var tekst;
+      if (terug) {
+        tekst = 'Q' + nieuw + ' is al afgesloten op ' + fmt(quarterElapsed(nieuw))
+          + '. Opnieuw starten telt de tijd verder vanaf daar, en Q' + oud
+          + ' wordt afgesloten op ' + fmt(stand) + '.';
+      } else if (slaOver) {
+        var over = [];
+        for (var k = oud + 1; k < nieuw; k++) over.push('Q' + k);
+        tekst = 'Je slaat ' + over.join(' en ') + ' over. Q' + oud + ' wordt afgesloten op '
+          + fmt(stand) + ' en ' + over.join(' en ') + (over.length > 1 ? ' blijven' : ' blijft')
+          + ' op nul staan.';
+      } else {
+        tekst = rond
           ? 'Q' + oud + ' wordt afgesloten op ' + fmt(QLEN) + '.'
           : 'Q' + oud + ' staat nog op ' + fmt(stand) + '. Wil je Q' + oud
-            + ' toch afsluiten en Q' + nieuw + ' starten?',
-        ok: 'Start Q' + nieuw, gevaar: !rond
+            + ' toch afsluiten en Q' + nieuw + ' starten?';
+      }
+      vraag({
+        titel: terug ? 'Q' + nieuw + ' opnieuw activeren?' : 'Q' + nieuw + ' starten?',
+        tekst: tekst,
+        ok: 'Start Q' + nieuw, gevaar: terug || slaOver || !rond
       }, ga);
     });
     // Reset zette met één tik de tijd op nul. Dat is te makkelijk: het gooit de

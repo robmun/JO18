@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="201">
+<meta name="app-version" content="202">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -3151,7 +3151,7 @@ document.addEventListener('visibilitychange',()=>{
 // Brede stand: tablet in liggende stand (zelfde voorwaarden als de media-query).
 const WIDE_MQ='(orientation:landscape) and (min-width:820px) and (min-height:600px) and (pointer:coarse)';
 const isWide=()=>window.matchMedia&&window.matchMedia(WIDE_MQ).matches;
-let pendingQTab=null; // kwart dat de timer doorgaf terwijl de coach elders keek
+let pendingQTab=null; // kwartindex (0-3) die de timer doorgaf terwijl de coach elders keek
 // Stand van de wedstrijdklok, doorgegeven door de timer. Hiermee loopt de
 // veldweergave mee met de wedstrijd: na een wisselmoment zie je de nieuwe opstelling.
 let klok={q:null,sec:0,loopt:false};
@@ -3806,14 +3806,25 @@ function regenerate(){
   if(wedstrijdGestart() && !_regenBevestigd){
     confirmDialog({
       title:'Nieuwe wedstrijd beginnen?',
-      bodyHtml:'De wedstrijd is al begonnen. Opnieuw genereren maakt de hele wedstrijd '
-        +'van voren af aan, ook de kwarten die al gespeeld zijn, en wist blessures en kaarten.'
+      bodyHtml:'De wedstrijd is al begonnen. Dit maakt de hele wedstrijd van voren af aan '
+        +'en wist alles wat er tot nu toe is gebeurd:<br><br>'
+        +'&bull; het wisselschema, ook de kwarten die al gespeeld zijn<br>'
+        +'&bull; blessures, kaarten en meldingen<br>'
+        +'&bull; de wedstrijdklok \u2014 alle vier de kwarten terug op nul'
         +'<br><br>Wil je alleen de rest aanpassen, gebruik dan \u2018Herplan vanaf dit kwart\u2019 '
         +'\u2014 dan blijft staan wat gespeeld is.',
       okLabel:'Nieuwe wedstrijd', danger:true,
       onOk:()=>{
         _regenBevestigd=true;
-        try{ state.wedstrijdGestart=false; regenerate(); }
+        try{
+          state.wedstrijdGestart=false;
+          // De timer moet mee terug naar de aftrap: anders begint de 'nieuwe wedstrijd'
+          // met Q4 actief en Q1 nog op 17:30, en kloppen de wisselsignalen niet meer.
+          const ifr=document.querySelector('#timerHost iframe');
+          if(ifr&&ifr.contentWindow)ifr.contentWindow.postMessage({ghcNieuweWedstrijd:true},location.origin);
+          klok={q:1,sec:0,loopt:false};
+          regenerate();
+        }
         finally { _regenBevestigd=false; }
       }
     });
@@ -4973,11 +4984,16 @@ function renderQuarter(q){
       // De klok loopt of staat middenin een kwart: alleen de speler zelf aantikken.
       tekst+=`<p class="hint" style="margin:0 0 10px">De wedstrijd loopt. Tik een speler aan om te wisselen of een blessure door te geven; herplannen kan zodra je de klok pauzeert.</p>`;
     }else if(wedstrijdGestart()){
+      // Herplannen gaat over het wedstrijdpunt, niet over wat je toevallig bekijkt.
+      // huidigQ() geeft het bekeken kwart terug, dus wie terugbladerde naar Q1 kreeg
+      // 'Herplan vanaf Q1' te zien terwijl Q3 al bezig was — dat zou gespeelde kwarten
+      // overschrijven.
+      const actiefQ = klok.q!=null ? klok.q-1 : 0;
       // Begonnen maar op dit moment stil: herplannen mag, opnieuw genereren zit achter
       // de vraag 'Nieuwe wedstrijd beginnen?' en heet daarom ook zo.
-      if(q>0)tekst+=`<button class="btn full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
+      if(actiefQ>0)tekst+=`<button class="btn full" id="replanBtn" data-q="${actiefQ}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${actiefQ+1} met huidige spelers</button>`;
       tekst+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Nieuwe wedstrijd beginnen&#8230;</button>`;
-      tekst+=`<p class="hint" style="margin:0 0 10px">Herplannen laat de gespeelde kwarten staan. Het aantal wisselmomenten per kwart ligt vast zolang deze wedstrijd loopt.</p>`;
+      tekst+=`<p class="hint" style="margin:0 0 10px">${q!==actiefQ?`Je bekijkt Q${q+1}; de wedstrijd staat in Q${actiefQ+1}. `:''}Herplannen laat de gespeelde kwarten staan en begint altijd bij het kwart waar de wedstrijd nu is. Het aantal wisselmomenten per kwart ligt vast zolang deze wedstrijd loopt.</p>`;
     }else{
       tekst+=`<button class="btn gevaar full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
       if(q>0)tekst+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
@@ -5514,8 +5530,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=201;
-const VERSIE_LABEL='26.9.41';
+const APP_VERSION=202;
+const VERSIE_LABEL='26.9.42';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
@@ -6022,15 +6038,18 @@ window.addEventListener('message',e=>{
   if(e.data.ghcQuarter){
     const q=Number(e.data.ghcQuarter);
     if(q<1||q>4)return;
-    const tab='q'+(q-1);
+    // Alleen het kwart dat je bekijkt verandert; het tabblad blijft 'wedstrijd'.
+    // Hier stond activeTab='q'+(q-1) — namen uit de tijd dat elk kwart een eigen
+    // tabblad had. Sinds die vier tabbladen tot één 'Wedstrijd' zijn samengevoegd
+    // zette dit de app in een tabblad dat niet bestaat: geen enkel tabblad opgelicht
+    // in de balk, en het scherm viel in slaap omdat de wake lock op de tabbladnaam
+    // toetst.
     if(isQTab(activeTab)){
-      // Coach kijkt naar een opstelling: meteen meelopen.
-      if(activeTab!==tab){activeTab=tab;selChip=null;render();document.getElementById('view').scrollTop=0;}
+      if(toonQ!==q-1){ toonQ=q-1; selChip=null; render(); document.getElementById('view').scrollTop=0; }
     }else{
-      // Coach kijkt naar de timer of een ander tabblad: onthouden en
-      // toepassen zodra hij naar een opstelling swipet. Een eigen tik op
-      // Q1–Q4 gaat altijd voor.
-      pendingQTab=tab;
+      // Coach kijkt naar de timer of een ander tabblad: onthouden en toepassen zodra
+      // hij naar de wedstrijd swipet. Een eigen tik op Q1–Q4 gaat altijd voor.
+      pendingQTab=q-1;
     }
     return;
   }
@@ -6102,7 +6121,7 @@ window.addEventListener('message',e=>{
   let i=order.indexOf(activeTab)+e.data.ghcSwipe;
   if(i<0||i>=order.length)return;
   let next=order[i];
-  if(isQTab(next)&&pendingQTab){next=pendingQTab;pendingQTab=null;}
+  if(isQTab(next)&&pendingQTab!=null){toonQ=pendingQTab;pendingQTab=null;}
   activeTab=next;selChip=null;render();document.getElementById('view').scrollTop=0;
 });
 
