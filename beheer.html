@@ -107,6 +107,21 @@
   <div id="cijfers" style="margin-top:12px"><p class="hint">Nog niet opgehaald.</p></div>
 </div>
 
+<!-- ── Techniek en fouten ──────────────────────────────────────────────────── -->
+<div class="kaart">
+  <h2>Toestellen en fouten</h2>
+  <div class="rij">
+    <label style="margin:0">Laatste</label>
+    <select id="weken" style="width:auto">
+      <option value="4">4 weken</option>
+      <option value="8" selected>8 weken</option>
+      <option value="26">26 weken</option>
+    </select>
+    <button id="haalTech">Ophalen</button>
+  </div>
+  <div id="techniek" style="margin-top:12px"><p class="hint">Nog niet opgehaald.</p></div>
+</div>
+
 <!-- ── Team opzoeken ───────────────────────────────────────────────────────── -->
 <div class="kaart">
   <h2>Team opzoeken</h2>
@@ -266,6 +281,83 @@ $('haal').onclick=async()=>{
   }catch(e){
     doel.innerHTML='';
     doel.appendChild(toonFout('Cijfers ophalen mislukt',e));
+    doel.appendChild(Object.assign(document.createElement('p'),
+      {className:'hint',textContent:'Meestal betekent dit dat je kenmerk niet in de beheerderslijst staat.'}));
+  }
+};
+
+// ── Techniek en fouten ─────────────────────────────────────────────────────
+// Eén document per week met per onderwerp een groepje tellers. We tellen de weken bij
+// elkaar op en zetten ze per onderwerp gesorteerd neer.
+function isoWeek(d){
+  const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  t.setUTCDate(t.getUTCDate()+4-(t.getUTCDay()||7));
+  const start=new Date(Date.UTC(t.getUTCFullYear(),0,1));
+  const nr=Math.ceil(((t-start)/864e5+1)/7);
+  return t.getUTCFullYear()+'-W'+String(nr).padStart(2,'0');
+}
+const ONDERWERPEN=[['soort','Soort toestel'],['ios','Versie besturingssysteem'],
+  ['scherm','Schermmaat'],['standalone','Op het beginscherm'],
+  ['appversie','Versie van de app'],['omgeving','Omgeving'],['fouten','Fouten']];
+// Schermmaat zegt niet welk model het is; deze lijst maakt er een gok van, en zegt
+// er eerlijk bij hoeveel modellen dezelfde maat delen.
+const MODELLEN={'320x568':'iPhone SE (1e)','375x667':'iPhone SE 2/3, 6/7/8',
+ '414x736':'iPhone 8 Plus','375x812':'iPhone X/XS/11 Pro/12-13 mini',
+ '414x896':'iPhone XR/11/XS Max/11 Pro Max','390x844':'iPhone 12/13/14, 12-13 Pro',
+ '428x926':'iPhone 12-14 Pro Max, 14 Plus','393x852':'iPhone 14 Pro/15/15 Pro/16',
+ '430x932':'iPhone 14-15 Pro Max, 15-16 Plus','402x874':'iPhone 16 Pro',
+ '440x956':'iPhone 16 Pro Max','768x1024':'iPad 9,7"','810x1080':'iPad 10,2"',
+ '820x1180':'iPad Air 10,9"','834x1194':'iPad Pro 11"','1024x1366':'iPad Pro 12,9"'};
+$('haalTech').onclick=async()=>{
+  const n=Number($('weken').value), doel=$('techniek');
+  if(!verbonden(doel))return;
+  doel.innerHTML='<p class="hint">Ophalen\u2026</p>';
+  const weken=[];
+  for(let i=0;i<n;i++)weken.push(isoWeek(new Date(Date.now()-i*7*864e5)));
+  try{
+    const docs=await Promise.all([...new Set(weken)].map(w=>db.collection('techniek').doc(w).get()));
+    const tot={}; ONDERWERPEN.forEach(([k])=>tot[k]={});
+    let gevonden=0;
+    docs.forEach(d=>{
+      if(!d.exists)return; gevonden++;
+      const v=d.data()||{};
+      ONDERWERPEN.forEach(([k])=>{
+        const m=v[k]; if(!m||typeof m!=='object')return;
+        Object.entries(m).forEach(([sleutel,n])=>{ tot[k][sleutel]=(tot[k][sleutel]||0)+Number(n||0); });
+      });
+    });
+    if(!gevonden){
+      doel.innerHTML='<p class="hint">Nog geen gegevens. Ze verschijnen zodra iemand '
+        +'de app opent met een versie die dit meetelt \u2014 en zodra jouw kenmerk in de '
+        +'beheerderslijst staat.</p>';
+      return;
+    }
+    let h='';
+    ONDERWERPEN.forEach(([k,titel])=>{
+      const rijen=Object.entries(tot[k]).sort((a,b)=>b[1]-a[1]);
+      if(!rijen.length)return;
+      const som=rijen.reduce((s,r)=>s+r[1],0);
+      h+='<h3 style="font-size:.9rem;margin:14px 0 6px">'+titel+'</h3><table><tbody>';
+      rijen.forEach(([sleutel,n])=>{
+        let toon=sleutel;
+        if(k==='appversie')toon=sleutel.replace(/_/g,'.');
+        if(k==='scherm'&&MODELLEN[sleutel])toon=sleutel+' \u2014 <span style="color:var(--dim)">'+MODELLEN[sleutel]+'</span>';
+        if(k==='ios'&&/^safari/.test(sleutel))toon='Safari '+sleutel.replace('safari','')+' <span style="color:var(--dim)">(iPad meldt zijn versie niet)</span>';
+        h+='<tr><td>'+toon+'</td><td>'+n+'</td>'
+          +'<td style="width:34%"><span style="display:inline-block;height:7px;border-radius:4px;'
+          +'background:var(--accent);width:'+Math.round(100*n/som)+'%"></span></td></tr>';
+      });
+      h+='</tbody></table>';
+    });
+    h+='<p class="hint" style="margin-top:14px">Alles is opgeteld in groepen, nooit per '
+      +'toestel \u2014 je ziet dus niet wie wat gebruikt. De schermmaat is een benadering van '
+      +'het model: Apple zet het model niet meer in de user-agent, en veel iPhones delen '
+      +'dezelfde maat. Bij de fouten staat alleen de categorie, want de tekst kan een '
+      +'spelersnaam bevatten.</p>';
+    doel.innerHTML=h;
+  }catch(e){
+    doel.innerHTML='';
+    doel.appendChild(toonFout('Ophalen mislukt',e));
     doel.appendChild(Object.assign(document.createElement('p'),
       {className:'hint',textContent:'Meestal betekent dit dat je kenmerk niet in de beheerderslijst staat.'}));
   }
