@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Beheer — opstelling &amp; wissels</title>
+<!-- ============================================================================
+     Beheerpagina. Bewust een los bestand: hij hoort niet in de app thuis en je wilt
+     hem ook niet per ongeluk meeleveren aan een coach. Zet hem naast index.html en
+     open hem zelf; hij staat nergens vandaan gelinkt.
+
+     Wat hij kan:
+       - de noodrem van de demo tonen en omzetten
+       - de gebruikscijfers per dag laten zien
+       - één team opzoeken op code, met de gekoppelde coaches
+
+     Wat hij bewust NIET kan: een lijst van alle teams tonen. De regels staan geen
+     'list' toe op de collectie 'teams', want dan zou een onraadbare teamcode zinloos
+     zijn. Dat is de prijs van die keuze, en die is hem waard.
+============================================================================ -->
+<style>
+  :root{
+    --bg:#0a1932; --kaart:#12294f; --rand:rgba(255,255,255,.14);
+    --txt:#eaf1ff; --dim:#9fb3d4; --accent:#5b8dd6; --rood:#e0674a; --groen:#3fa66a;
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    padding:16px 14px 60px;max-width:820px;margin-inline:auto}
+  h1{font-size:1.3rem;margin:0 0 4px}
+  h2{font-size:1.05rem;margin:0 0 10px}
+  .sub{color:var(--dim);font-size:.85rem;margin:0 0 20px}
+  .kaart{background:var(--kaart);border:1px solid var(--rand);border-radius:var(--r);
+    padding:14px;margin-bottom:14px}
+  .hint{color:var(--dim);font-size:.82rem;line-height:1.45}
+  label{display:block;font-size:.8rem;color:var(--dim);margin:10px 0 4px}
+  input,textarea,select{width:100%;padding:9px 10px;border-radius:10px;
+    border:1px solid var(--rand);background:rgba(255,255,255,.06);color:var(--txt);
+    font:inherit;font-size:.95rem}
+  textarea{height:64px;resize:vertical}
+  button{padding:9px 14px;border-radius:999px;border:1px solid var(--rand);
+    background:rgba(255,255,255,.08);color:var(--txt);font:inherit;font-weight:700;
+    font-size:.85rem;cursor:pointer}
+  button.prim{background:var(--accent);border-color:var(--accent);color:#06152c}
+  button.gevaar{background:var(--rood);border-color:var(--rood);color:#fff}
+  button:disabled{opacity:.45;cursor:default}
+  .rij{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .kenmerk{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem;
+    background:rgba(255,255,255,.07);padding:3px 7px;border-radius:6px;word-break:break-all}
+  table{width:100%;border-collapse:collapse;font-size:.85rem}
+  th,td{text-align:right;padding:5px 6px;border-bottom:1px solid rgba(255,255,255,.07)}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--dim);font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em}
+  tr.totaal td{border-top:2px solid var(--rand);border-bottom:none;font-weight:800}
+  .vlag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.75rem;font-weight:800}
+  .vlag.open{background:rgba(63,166,106,.2);color:#7fdca4;border:1px solid rgba(63,166,106,.5)}
+  .vlag.dicht{background:rgba(224,103,74,.2);color:#ffb39e;border:1px solid rgba(224,103,74,.5)}
+  .fout{background:rgba(224,103,74,.14);border:1px solid rgba(224,103,74,.45);
+    border-radius:10px;padding:10px;font-size:.85rem;margin-top:10px}
+</style>
+</head>
+<body>
+
+<h1>Beheer</h1>
+<p class="sub">opstelling &amp; wissels — niet gelinkt vanuit de app</p>
+
+<!-- ── Wie ben ik ──────────────────────────────────────────────────────────── -->
+<div class="kaart">
+  <h2>Jouw kenmerk</h2>
+  <div class="rij">
+    <span class="kenmerk" id="uid">…</span>
+    <button id="kopieerUid">Kopieer</button>
+  </div>
+  <p class="hint" id="rolUit" style="margin-top:10px">Verbinden…</p>
+</div>
+
+<!-- ── Noodrem ─────────────────────────────────────────────────────────────── -->
+<div class="kaart">
+  <h2>Demo <span id="demoVlag"></span></h2>
+  <p class="hint">Staat de demo dicht, dan kan niemand er nog iets in wijzigen — ook niet
+    wie hem al op zijn beginscherm heeft staan. Kijken kan wel.</p>
+  <label>Demoperiode in dagen</label>
+  <input id="dagen" type="number" min="1" max="399" value="14">
+  <label>Boodschap als de demo dicht staat <span style="font-weight:400">(leeg = standaardtekst)</span></label>
+  <textarea id="boodschap" maxlength="300" placeholder="Even pauze — mail robertmunnichs@gmail.com."></textarea>
+  <div class="rij" style="margin-top:12px">
+    <button class="prim" id="bewaar" disabled>Bewaren</button>
+    <button class="gevaar" id="sluit" disabled>Demo sluiten</button>
+    <button id="open" disabled>Demo openen</button>
+  </div>
+  <div id="demoFout"></div>
+</div>
+
+<!-- ── Cijfers ─────────────────────────────────────────────────────────────── -->
+<div class="kaart">
+  <h2>Gebruik</h2>
+  <div class="rij">
+    <label style="margin:0">Laatste</label>
+    <select id="periode" style="width:auto">
+      <option value="14">14 dagen</option>
+      <option value="30" selected>30 dagen</option>
+      <option value="90">90 dagen</option>
+    </select>
+    <button id="haal">Ophalen</button>
+  </div>
+  <div id="cijfers" style="margin-top:12px"><p class="hint">Nog niet opgehaald.</p></div>
+</div>
+
+<!-- ── Team opzoeken ───────────────────────────────────────────────────────── -->
+<div class="kaart">
+  <h2>Team opzoeken</h2>
+  <p class="hint">Een lijst van alle teams is er bewust niet: de beveiliging staat geen
+    opsomming toe, anders zou een onraadbare teamcode niets waard zijn. Je kunt wel
+    één team opzoeken als je de code hebt.</p>
+  <label>Teamcode</label>
+  <div class="rij">
+    <input id="teamcode" placeholder="bijv. k7m2xq9rtb4p" autocapitalize="none" spellcheck="false" style="flex:1">
+    <button id="zoek">Zoek</button>
+  </div>
+  <div id="team" style="margin-top:12px"></div>
+</div>
+
+<script>
+// De configuratie is dezelfde als in de app; hij staat toch al in index.html en is
+// niet geheim. De beveiliging zit in de regels, niet in het verbergen hiervan.
+const FB_CONFIG={"apiKey":"AIzaSyDwrfF3mDmievts5mme5fOlRJ3O3fhKGb8","authDomain":"hockey-app-teaming.firebaseapp.com","projectId":"hockey-app-teaming","storageBucket":"hockey-app-teaming.firebasestorage.app","messagingSenderId":"527542328518","appId":"1:527542328518:web:e2537891c7941d09568bc7"};
+
+const $=id=>document.getElementById(id);
+let db=null, uid=null, magBeheren=false;
+
+function laad(src){return new Promise((ok,fout)=>{const s=document.createElement('script');
+  s.src=src;s.onload=ok;s.onerror=()=>fout(new Error('kan '+src+' niet laden'));document.head.appendChild(s);});}
+
+function toonFout(waar,e){
+  const p=document.createElement('div'); p.className='fout';
+  p.textContent=waar+': '+(e&&e.message||e);
+  return p;
+}
+// Zonder verbinding is elke knop zinloos, en 'Cannot read properties of null' zegt
+// niemand iets. Eén controle vooraf, met een melding die wél iets zegt.
+function verbonden(doel){
+  if(db)return true;
+  if(doel){ doel.innerHTML=''; doel.appendChild(toonFout('Geen verbinding',
+    new Error('De pagina heeft geen verbinding met Firebase. Controleer je internet en laad opnieuw.'))); }
+  return false;
+}
+
+async function start(){
+  try{
+    await laad('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+    await laad('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js');
+    await laad('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
+    firebase.initializeApp(FB_CONFIG);
+    const c=await firebase.auth().signInAnonymously();
+    uid=c.user.uid;
+    db=firebase.firestore();
+    $('uid').textContent=uid;
+    await bepaalRol();
+    await demoLezen();
+  }catch(e){
+    $('uid').textContent='\u2014';
+    $('rolUit').textContent='';
+    $('rolUit').appendChild(toonFout('Verbinden mislukt',e));
+    $('demoVlag').className='vlag dicht'; $('demoVlag').textContent='onbekend';
+  }
+}
+
+// Anoniem inloggen geeft per browser een eigen kenmerk. Wis je je browsergegevens,
+// dan krijg je een nieuw kenmerk en moet je het opnieuw in de lijst zetten. Dat is de
+// prijs van inloggen zonder account; voor een pagina die je zelf een paar keer per
+// seizoen opent is dat te overzien.
+async function bepaalRol(){
+  try{
+    const d=await db.collection('beheer').doc('beheerders').get();
+    const uids=(d.exists&&Array.isArray(d.data().uids))?d.data().uids:[];
+    magBeheren=uids.includes(uid);
+  }catch(e){ magBeheren=false; }
+  ['bewaar','sluit','open'].forEach(id=>$(id).disabled=!magBeheren);
+  $('rolUit').innerHTML = magBeheren
+    ? 'Je staat in de beheerderslijst. Je kunt de cijfers lezen en de demo omzetten.'
+    : 'Je staat <b>niet</b> in de beheerderslijst. Zet het kenmerk hierboven in de '
+      + 'Firebase-console in <span class="kenmerk">beheer/beheerders</span>, veld '
+      + '<span class="kenmerk">uids</span>, en laad deze pagina opnieuw.';
+}
+
+// ── Noodrem ────────────────────────────────────────────────────────────────
+async function demoLezen(){
+  try{
+    const d=await db.collection('beheer').doc('demo').get();
+    const v=d.exists?(d.data()||{}):{};
+    const dicht=v.open===false;
+    $('demoVlag').className='vlag '+(dicht?'dicht':'open');
+    $('demoVlag').textContent=dicht?'gesloten':'open';
+    if(v.dagen)$('dagen').value=v.dagen;
+    $('boodschap').value=v.boodschap||'';
+    if(!d.exists){
+      $('demoFout').appendChild(toonFout('Let op',
+        new Error('beheer/demo bestaat nog niet. Bewaren maakt hem aan.')));
+    }
+  }catch(e){ $('demoFout').appendChild(toonFout('Demo-instelling lezen mislukt',e)); }
+}
+async function demoSchrijven(open){
+  $('demoFout').innerHTML='';
+  if(!verbonden($('demoFout')))return;
+  const dagen=Number($('dagen').value)||14;
+  if(dagen<1||dagen>399){ $('demoFout').appendChild(toonFout('Ongeldig',
+    new Error('De demoperiode moet tussen 1 en 399 dagen liggen.'))); return; }
+  try{
+    await db.collection('beheer').doc('demo').set(
+      {open:!!open, dagen:Math.round(dagen), boodschap:$('boodschap').value.trim()});
+    await demoLezen();
+  }catch(e){ $('demoFout').appendChild(toonFout('Bewaren mislukt',e)); }
+}
+$('bewaar').onclick=()=>demoSchrijven($('demoVlag').textContent!=='gesloten');
+$('sluit').onclick =()=>{ if(confirm('De demo sluiten voor iedereen?'))demoSchrijven(false); };
+$('open').onclick  =()=>demoSchrijven(true);
+$('kopieerUid').onclick=async()=>{
+  if(!uid)return;
+  try{ await navigator.clipboard.writeText(uid); $('kopieerUid').textContent='Gekopieerd'; }
+  catch(e){ $('kopieerUid').textContent='Selecteer en kopieer zelf'; }
+};
+
+// ── Cijfers ────────────────────────────────────────────────────────────────
+// Eén document per dag, met de datum als sleutel. We halen ze per dag op in plaats
+// van met een bereikvraag: dat vraagt geen index en het zijn er hooguit negentig.
+const VELDEN=['opening','terugkeer','vanaf_beginscherm','schema_gemaakt','timer_gestart','kaart'];
+const KOPPEN={opening:'nieuw',terugkeer:'terug',vanaf_beginscherm:'beginscherm',
+  schema_gemaakt:'schema\u2019s',timer_gestart:'timer',kaart:'kaarten'};
+$('haal').onclick=async()=>{
+  const n=Number($('periode').value);
+  const doel=$('cijfers');
+  if(!verbonden(doel))return;
+  doel.innerHTML='<p class="hint">Ophalen\u2026</p>';
+  const dagen=[];
+  for(let i=0;i<n;i++){
+    const d=new Date(Date.now()-i*864e5);
+    dagen.push(d.toISOString().slice(0,10));
+  }
+  try{
+    const docs=await Promise.all(dagen.map(d=>db.collection('demostats').doc(d).get()));
+    const rijen=docs.map((d,i)=>({dag:dagen[i], v:d.exists?(d.data()||{}):null}))
+                    .filter(r=>r.v);
+    if(!rijen.length){
+      doel.innerHTML='<p class="hint">Geen cijfers in deze periode. '
+        +'Krijg je hier niets terwijl je zeker weet dat de demo gebruikt is, '
+        +'controleer dan of je kenmerk in de beheerderslijst staat.</p>';
+      return;
+    }
+    const tot={}; VELDEN.forEach(v=>tot[v]=0);
+    rijen.forEach(r=>VELDEN.forEach(v=>tot[v]+=Number(r.v[v]||0)));
+    let h='<table><thead><tr><th>dag</th>'
+      +VELDEN.map(v=>'<th>'+KOPPEN[v]+'</th>').join('')+'</tr></thead><tbody>';
+    rijen.forEach(r=>{
+      h+='<tr><td>'+r.dag.slice(5)+'</td>'
+        +VELDEN.map(v=>'<td>'+(r.v[v]||'\u2014')+'</td>').join('')+'</tr>';
+    });
+    h+='<tr class="totaal"><td>totaal</td>'
+      +VELDEN.map(v=>'<td>'+tot[v]+'</td>').join('')+'</tr></tbody></table>'
+      +'<p class="hint" style="margin-top:10px">'
+      +'<b>nieuw</b> is een toestel dat de demo voor het eerst opende, '
+      +'<b>terug</b> een toestel dat op een latere dag terugkwam. '
+      +'Er wordt niets bijgehouden dat naar een persoon of toestel te herleiden is, '
+      +'dus wie de demo gebruikt kun je hier niet zien \u2014 alleen hoeveel.</p>';
+    doel.innerHTML=h;
+  }catch(e){
+    doel.innerHTML='';
+    doel.appendChild(toonFout('Cijfers ophalen mislukt',e));
+    doel.appendChild(Object.assign(document.createElement('p'),
+      {className:'hint',textContent:'Meestal betekent dit dat je kenmerk niet in de beheerderslijst staat.'}));
+  }
+};
+
+// ── Team opzoeken ──────────────────────────────────────────────────────────
+$('zoek').onclick=async()=>{
+  const code=$('teamcode').value.trim().toLowerCase();
+  const doel=$('team');
+  if(!verbonden(doel))return;
+  if(!code){ doel.innerHTML='<p class="hint">Vul een teamcode in.</p>'; return; }
+  doel.innerHTML='<p class="hint">Zoeken\u2026</p>';
+  try{
+    const d=await db.collection('teams').doc(code).get();
+    if(!d.exists){ doel.innerHTML='<p class="hint">Geen team met deze code.</p>'; return; }
+    const v=d.data()||{};
+    const eds=Array.isArray(v.editors)?v.editors:[];
+    const co=v.coaches||{};
+    const dag=t=>t?new Date(Number(t)).toLocaleString('nl-NL',
+      {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'\u2014';
+    let h='<table><thead><tr><th>naam</th><th>rol</th><th>sinds</th><th>laatst actief</th></tr></thead><tbody>';
+    const ids=new Set(Object.keys(co).concat(eds));
+    if(!ids.size)h+='<tr><td colspan="4">Nog niemand gekoppeld.</td></tr>';
+    ids.forEach(id=>{
+      const c=co[id]||{};
+      const rol=(v.owner===id)?'eigenaar':(eds.includes(id)?'coach':'kijker');
+      h+='<tr><td>'+(c.naam||'<span class="kenmerk">'+id.slice(0,10)+'\u2026</span>')+'</td>'
+        +'<td>'+rol+'</td><td>'+dag(c.sinds)+'</td><td>'+dag(c.laatst)+'</td></tr>';
+    });
+    h+='</tbody></table>'
+      +'<p class="hint" style="margin-top:10px">Iemand verwijderen doe je in de '
+      +'Firebase-console: <span class="kenmerk">teams / '+code+'</span>, veld '
+      +'<span class="kenmerk">editors</span>. Deze pagina kan dat niet \u2014 alleen de '
+      +'eigenaar van een team mag die lijst wijzigen, en dat ben jij hier niet.</p>';
+    doel.innerHTML=h;
+  }catch(e){
+    doel.innerHTML='';
+    doel.appendChild(toonFout('Team ophalen mislukt',e));
+  }
+};
+
+start();
+</script>
+</body>
+</html>
