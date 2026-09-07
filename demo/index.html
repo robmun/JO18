@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="196">
+<meta name="app-version" content="197">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -4304,121 +4304,102 @@ function zetTijdweergave(m){
 // functie, zodat de twee plekken niet uit elkaar kunnen lopen.
 function regelGaatOver(r,id){ return r.p1===id||r.p2===id; }
 
-// ── Speeltijd per speler ──
-// De planner verdeelt de minuten gelijk, dus bij een ongestoorde wedstrijd komt
-// iedereen op hetzelfde getal uit en zegt deze lijst weinig. Hij verdient zijn plek
-// juist als het misloopt: na een blessure, een kaart, of met een regel als
-// 'maximaal 25 minuten' lopen de getallen uiteen, en dan wil je zien hoe erg.
+// ── Geplande speeltijd per speler ──
+// De planner verdeelt de minuten gelijk, dus bij een gewone selectie komt iedereen op
+// hetzelfde getal uit en zegt deze lijst weinig. Hij verdient zijn plek juist als er
+// regels in het spel zijn: 'niet in Q3 en Q4', 'maximaal 25 minuten', een keeper die
+// maar twee kwarten op doel staat. Dan lopen de getallen uiteen en wil je zien hoe erg.
 //
-// Straftijd telt mee als gespeeld. Dat gaat vanzelf goed: een speler met een kaart
-// blijft in het schema staan, alleen zijn plek op het veld wordt leeg getekend.
+// Alleen het plan. Er stond eerder ook wat er tot dat moment werkelijk gespeeld was,
+// maar dat klopt alleen als de app weet welke kwarten al gelopen hebben — en dat weet
+// hij niet betrouwbaar: de klok kent alleen het kwart waar je nu in staat, niet of de
+// vorige echt zijn uitgespeeld. Een getal dat er soms naast zit is erger dan geen
+// getal, dus die kolom is eruit.
 //
-// De vaste keeper staat helemaal niet in de blokken en hoort ook niet in deze lijst;
-// hij speelt de hele wedstrijd. Wie maar in één of twee kwarten keept doet in de
-// andere kwarten gewoon mee, en die veldminuten tellen wel — met een aantekening,
-// anders lijkt hij ineens de helft minder te spelen dan de rest.
+// Hoeveel minuten staat iedereen volgens het schema gepland? Puur het plan; wat er
+// tijdens de wedstrijd werkelijk gespeeld wordt houdt de app niet bij. Dat zou pas
+// kloppen als hij ook weet welke kwarten al gelopen hebben, en die wetenschap heeft
+// hij niet betrouwbaar — de klok kent alleen het kwart waar je nu in staat.
 function speeltijdPerSpeler(){
   const sch=state.schedule;
   if(!sch)return null;
   const perQ=sch.perQ, blokMin=17.5/perQ, B=perQ*4;
-  // Hoe ver is de wedstrijd? Vóór de aftrap nul, dus dan is alleen 'verwacht' gevuld.
-  const nuMin = klok.q==null ? 0 : (klok.q-1)*17.5 + Math.min(klok.sec,17.5*60)/60;
   const uit={};
-  const zet=(id,vak,m)=>{ if(!id)return; (uit[id]=uit[id]||{verwacht:0,gespeeld:0})[vak]+=m; };
-  // Tijd op doel telt mee als speeltijd. De keeper staat niet in de blokken, dus die
-  // moet hier apart bij: een vaste keeper staat de hele wedstrijd, een vervanger in
-  // de kwarten die de coachregel noemt. Zonder dit stond een keeper die twee kwarten
-  // keept en twee kwarten meespeelt op de helft van de rest, onder een kop die
-  // 'Speeltijd' heet — dat leest als achterstand terwijl hij alles heeft gespeeld.
+  const zet=(id,m)=>{ if(!id)return; uit[id]=(uit[id]||0)+m; };
+  // Tijd op doel telt mee. De keeper staat niet in de blokken, dus die komt hier
+  // apart bij: een vaste keeper de hele wedstrijd, een vervanger in de kwarten die
+  // zijn coachregel noemt. Zonder dit stond een keeper die twee kwarten keept en
+  // twee kwarten meespeelt op de helft van de rest, onder een kop die over speeltijd
+  // gaat — dat leest als achterstand terwijl hij alles speelt.
   const keptQs={};
   if(state.keeperId)keptQs[state.keeperId]=[1,2,3,4];
   for(const r of (state.rules||[])){
     if(r.type!=='gk'||!r.p1)continue;
     keptQs[r.p1]=(keptQs[r.p1]||[]).concat(r.qs||[]);
   }
-  for(const [id,qs] of Object.entries(keptQs)){
-    for(const q of new Set(qs)){
-      zet(id,'verwacht',17.5);
-      zet(id,'gespeeld',Math.max(0,Math.min(nuMin-(q-1)*17.5,17.5)));
-    }
-  }
-  for(let b=0;b<B;b++){
-    const van=b*blokMin, tot=van+blokMin;
-    const gespeeld=Math.max(0,Math.min(nuMin,tot)-van);
-    Object.values(sch.assignments[b]||{}).forEach(id=>{
-      zet(id,'verwacht',blokMin);
-      if(gespeeld>0)zet(id,'gespeeld',gespeeld);
-    });
-  }
-  return {perSpeler:uit, gestart:nuMin>0};
+  for(const [id,qs] of Object.entries(keptQs))
+    for(const q of new Set(qs))zet(id,17.5);
+  for(let b=0;b<B;b++)
+    Object.values(sch.assignments[b]||{}).forEach(id=>zet(id,blokMin));
+  return uit;
 }
 function speeltijdHTML(){
-  const st=speeltijdPerSpeler();
-  if(!st)return '';
-  // Spelers van wie de beschikbaarheid bewust is ingeperkt. Die spelen minder omdat
-  // jij dat zo hebt ingesteld, niet omdat de verdeling scheef is — dus geen rode
+  const min=speeltijdPerSpeler();
+  if(!min)return '';
+  // Regels die de geplande tijd van iemand doen afwijken. Die spelen minder (of meer)
+  // omdat jij dat zo hebt ingesteld, niet omdat de verdeling scheef is — dus geen rode
   // markering, wél de reden erbij zodat je niet gaat zoeken.
-  const beperkt=new Map();
-  if(state.keeperId)beperkt.set(state.keeperId,'keeper');
+  const reden=new Map();
+  if(state.keeperId)reden.set(state.keeperId,'keeper');
   for(const r of (state.rules||[])){
     if(!r.p1)continue;
-    // Met de kwarten erbij, want zijn totaal ligt hoger dan dat van de rest en dat
+    // Met de kwarten erbij, want een wisselkeeper komt hóger uit dan de rest en dat
     // moet je kunnen thuisbrengen: keeptijd telt mee, veldtijd komt daarbovenop.
-    if(r.type==='gk')beperkt.set(r.p1,'keept '+((r.qs||[]).map(q=>'Q'+q).join('+')||'ook'));
-    else if(r.type==='noq')beperkt.set(r.p1,'niet in '+noqQs(r).map(q=>'Q'+q).join('+'));
-    else if(r.type==='half')beperkt.set(r.p1,'alleen '+(r.half===1?'1e':'2e')+' helft');
-    else if(r.type==='minutes'&&r.mm==='max')beperkt.set(r.p1,'max '+r.min+' min');
+    if(r.type==='gk')reden.set(r.p1,'keept '+((r.qs||[]).map(q=>'Q'+q).join('+')||'ook'));
+    else if(r.type==='noq')reden.set(r.p1,'niet in '+noqQs(r).map(q=>'Q'+q).join('+'));
+    else if(r.type==='half')reden.set(r.p1,'alleen '+(r.half===1?'1e':'2e')+' helft');
+    else if(r.type==='minutes')reden.set(r.p1,(r.mm==='max'?'max ':'min ')+r.min+' min');
   }
-  // De hele selectie, niet alleen wie er in het schema staat. Wie vandaag is
-  // afgemeld hoort er ook bij te staan — anders moet je gaan uitzoeken of iemand
-  // ontbreekt omdat hij niet speelt of omdat je hem over het hoofd zag. Gasten doen
-  // alleen mee als ze vandaag ook echt in het schema staan.
-  const inSchema=new Set(Object.keys(st.perSpeler));
-  // Alfabetisch op voornaam, met dezelfde korte naam als op het veld. Eerder stond de
-  // kortste speeltijd bovenaan, maar zoek je één speler op omdat een ouder ernaar
-  // vraagt, dan wil je hem kunnen vinden; de rode markering wijst de afwijkers toch
-  // al aan.
+  // De hele selectie, niet alleen wie er in het schema staat. Wie is afgemeld hoort er
+  // ook bij — anders moet je uitzoeken of iemand ontbreekt omdat hij niet speelt of
+  // omdat je hem over het hoofd zag. Gasten alleen als ze in het schema staan.
+  const inSchema=new Set(Object.keys(min));
   const rijen=state.players
     .filter(p=>!p.guest || inSchema.has(p.id))
-    .map(p=>({id:p.id, naam:pKort(p.id)||p.name||'(naamloos)', aanwezig:!!p.present,
-              verwacht:(st.perSpeler[p.id]||{}).verwacht||0,
-              gespeeld:(st.perSpeler[p.id]||{}).gespeeld||0}))
+    .map(p=>({id:p.id, naam:pKort(p.id)||p.name||'(naamloos)',
+              aanwezig:!!p.present, minuten:min[p.id]||0}))
     .sort((a,b)=>a.naam.localeCompare(b.naam,'nl',{sensitivity:'base'}));
   if(!rijen.length)return '';
-  // Toetsen tegen de mediaan, niet tegen de hoogste. Krijgt één speler juist méér
-  // dan de rest, dan zou 'onder de hoogste' de hele ploeg rood kleuren terwijl er
-  // niets aan de hand is. De mediaan is wat de meesten spelen; wie daar meer dan een
-  // minuut onder zit is de uitzondering die je wilt zien.
-  // De mediaan over de spelers zónder beperking: anders trekken zij de norm omlaag
-  // en lijkt de rest ineens te véél te spelen.
+  // Toetsen tegen de mediaan van de aanwezige spelers zónder eigen regel. Tegen de
+  // hoogste zou de hele ploeg rood kleuren zodra één speler juist méér krijgt, en met
+  // de beperkte spelers erin zou de norm omlaag worden getrokken.
   const meedoen=rijen.filter(r=>r.aanwezig);
-  const vrij=meedoen.filter(r=>!beperkt.has(r.id)).map(r=>r.verwacht).sort((a,b)=>a-b);
-  const gesorteerd=(vrij.length?vrij:meedoen.map(r=>r.verwacht).sort((a,b)=>a-b)).sort((a,b)=>a-b);
-  const mediaan=gesorteerd[Math.floor(gesorteerd.length/2)];
-  // Meer dan één blok onder de mediaan. Eén blok verschil is onvermijdelijk zodra
-  // het aantal veldspelers niet netjes in de blokken past — met dertien spelers op
-  // tien plekken krijgt een deel er negen en een deel tien. Op een drempel van één
-  // minuut kleurde daardoor de halve ploeg rood terwijl er niets aan de hand was.
+  const vrij=meedoen.filter(r=>!reden.has(r.id)).map(r=>r.minuten).sort((a,b)=>a-b);
+  const norm=(vrij.length?vrij:meedoen.map(r=>r.minuten).sort((a,b)=>a-b));
+  if(!norm.length)return '';
+  const mediaan=norm[Math.floor(norm.length/2)];
+  // Meer dan één blok onder de mediaan. Eén blok verschil is onvermijdelijk zodra het
+  // aantal veldspelers niet netjes in de blokken past — met dertien spelers op tien
+  // plekken krijgt een deel er negen en een deel tien.
   const blokMin=17.5/(state.schedule?state.schedule.perQ:3);
-  const minder=r=>r.aanwezig&&!beperkt.has(r.id)&&r.verwacht<mediaan-blokMin-0.1;
-  if(!gesorteerd.length)return '';
-  const gelijk=Math.round(gesorteerd[gesorteerd.length-1])-Math.round(gesorteerd[0])<=0;
-  return `<div class="card"><h2>Speeltijd <span class="eenheid">(in min.)</span> <span class="sub">${st.gestart?'gespeeld / verwacht':'verwacht'}</span></h2>
+  const minder=r=>r.aanwezig&&!reden.has(r.id)&&r.minuten<mediaan-blokMin-0.1;
+  const gelijk=Math.round(norm[norm.length-1])-Math.round(norm[0])<=0;
+  return `<div class="card"><h2>Geplande speeltijd <span class="eenheid">(in min.)</span></h2>
     <div class="sptijd">${rijen.map(r=>`
       <div class="sprij${minder(r)?' minder':''}${r.aanwezig?'':' weg'}">
         <span class="spnaam">${esc(r.naam)}${
           !r.aanwezig?' <i>afwezig</i>'
-          :beperkt.has(r.id)?` <i>${esc(beperkt.get(r.id))}</i>`:''}</span>
-        <span class="spmin">${
-          !r.aanwezig?'<b>0</b>'
-          :st.gestart?`${Math.round(r.gespeeld)} <b>/ ${Math.round(r.verwacht)}</b>`
-          :`<b>${Math.round(r.verwacht)}</b>`}</span>
+          :reden.has(r.id)?` <i>${esc(reden.get(r.id))}</i>`:''}</span>
+        <span class="spmin"><b>${r.aanwezig?Math.round(r.minuten):0}</b></span>
       </div>`).join('')}</div>
     <p class="hint" style="margin:10px 0 0">${gelijk
-      ? 'Iedereen komt op hetzelfde aantal minuten uit \u2014 zo hoort het.'
-      : 'Wie duidelijk minder speelt dan de rest is gemarkeerd. Wie minder speelt door een eigen regel niet; daar staat de reden achter zijn naam.'}
-      De hele selectie staat er op alfabet, ook wie vandaag is afgemeld. Tijd op doel telt mee als speeltijd, en straftijd van een kaart ook.</p></div>`;
+      ? 'Iedereen staat op hetzelfde aantal minuten gepland \u2014 zo hoort het.'
+      : 'Wie duidelijk minder gepland staat dan de rest is gemarkeerd.'}
+      Staat er iets achter een naam, dan komt zijn afwijkende tijd uit een regel die je zelf hebt ingesteld:
+      niet in bepaalde kwarten, alleen een halve wedstrijd, een maximum of minimum aantal minuten, of tijd op doel.
+      Tijd op doel telt mee als speeltijd. De hele selectie staat er, ook wie is afgemeld.</p></div>`;
 }
+
 
 // ── Kaart: hoe de klok loopt ──
 // Elke keuze laat meteen zien wát hij oplevert: het getal dat op dat moment op de
@@ -5397,8 +5378,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=196;
-const VERSIE_LABEL='26.9.36';
+const APP_VERSION=197;
+const VERSIE_LABEL='26.9.37';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
