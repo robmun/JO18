@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="204">
+<meta name="app-version" content="205">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -292,6 +292,17 @@ body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,
 /* Afgemeld: wel in de lijst, maar duidelijk op de achtergrond. */
 .sprij.weg{opacity:.5}
 .sprij.weg .spnaam{text-decoration:line-through;text-decoration-color:rgba(255,255,255,.35)}
+/* De hele regel is aantikbaar; een klein pijltje verraadt dat er iets achter zit. */
+.sprij[data-spschema]{cursor:pointer;border-radius:var(--r-sm);margin:0 -4px;padding-left:4px;padding-right:4px}
+.sprij[data-spschema]:active{background:rgba(255,255,255,.08)}
+body.sun .sprij[data-spschema]:active{background:rgba(15,32,64,.08)}
+.spnaam::after{content:'\203A';margin-left:5px;color:var(--dim);font-weight:700;opacity:.7}
+.sprij.weg .spnaam::after{content:none}
+/* Het schema van één speler, per kwart. */
+.qschema{display:flex;flex-direction:column;gap:7px;margin-top:4px}
+.qrij{display:flex;gap:10px;align-items:baseline;font-size:var(--fs-md);line-height:1.35}
+.qrij b{flex:0 0 26px;color:var(--txt);font-weight:800}
+.qrij span{flex:1;color:var(--dim)}
 body.sun .sprij.minder .spnaam,body.sun .sprij.minder .spmin b{color:#a01a10}
 
 /* ---------- Tabblad Meer ---------- */
@@ -4493,6 +4504,88 @@ function zetTijdweergave(m){
 // functie, zodat de twee plekken niet uit elkaar kunnen lopen.
 function regelGaatOver(r,id){ return r.p1===id||r.p2===id; }
 
+// ── Het schema van één speler ──
+// Tik op een naam in de speeltijdkaart en je ziet wat híj de hele wedstrijd doet.
+// Puntsgewijs per kwart, want dat scan je langs de lijn sneller dan een verhaal.
+// De lopende zin zit eronder als kopieerknop: die is juist prettig om naar een
+// speler of ouder te sturen.
+//
+// De blokken worden samengevoegd zolang de plek niet verandert. Anders lees je bij
+// drie blokken per kwart drie keer dezelfde positie, en dat is precies het soort
+// opsomming waar je doorheen kijkt.
+function spelerBlokken(pid){
+  const sch=state.schedule; if(!sch)return null;
+  const perQ=sch.perQ, blokMin=17.5/perQ;
+  const keptQs=new Set();
+  if(state.keeperId===pid)[1,2,3,4].forEach(q=>keptQs.add(q));
+  (state.rules||[]).forEach(r=>{ if(r.type==='gk'&&r.p1===pid)(r.qs||[]).forEach(q=>keptQs.add(q)); });
+  const kwarten=[];
+  for(let q=0;q<4;q++){
+    if(keptQs.has(q+1)){ kwarten.push([{plek:'keeper',van:0,tot:17.5}]); continue; }
+    const stukken=[];
+    for(let m=0;m<perQ;m++){
+      const a=sch.assignments[q*perQ+m]||{};
+      const pos=Object.keys(a).find(k=>a[k]===pid)||null;
+      const plek=pos?(POSMAP[pos]?POSMAP[pos].name:pos):'bank';
+      const laatste=stukken[stukken.length-1];
+      if(laatste&&laatste.plek===plek)laatste.tot=(m+1)*blokMin;
+      else stukken.push({plek, van:m*blokMin, tot:(m+1)*blokMin});
+    }
+    kwarten.push(stukken);
+  }
+  return kwarten;
+}
+// Eén kwart in woorden: 'start op links achter, na 12 min naar de bank'.
+function kwartZin(stukken){
+  if(!stukken||!stukken.length)return 'speelt niet';
+  if(stukken.length===1){
+    const p=stukken[0].plek;
+    if(p==='keeper')return 'keept het hele kwart';
+    if(p==='bank')return 'het hele kwart op de bank';
+    return 'het hele kwart '+p.toLowerCase();
+  }
+  const woord=p=>p==='bank'?'de bank':p==='keeper'?'het doel':p.toLowerCase();
+  let zin=stukken[0].plek==='bank'?'begint op de bank':'start op '+woord(stukken[0].plek);
+  for(let i=1;i<stukken.length;i++){
+    const s=stukken[i];
+    zin+=', na '+fmtMin(Math.round(s.van))+' min naar '+woord(s.plek);
+  }
+  return zin;
+}
+function spelerSchemaTekst(pid){
+  const k=spelerBlokken(pid); if(!k)return '';
+  const p=byId(pid);
+  const min=(speeltijdPerSpeler()||{})[pid]||0;
+  return (p?p.name:'Speler')+' — '+Math.round(min)+' minuten gepland\n'
+    + k.map((st,i)=>'Q'+(i+1)+': '+kwartZin(st)+'.').join('\n');
+}
+function toonSpelerSchema(pid){
+  const p=byId(pid); if(!p)return;
+  if(!p.present){
+    confirmDialog({title:p.name||pKort(pid), body:'Vandaag afgemeld, dus niet in het schema opgenomen.',
+      okLabel:'Sluiten', cancelLabel:'', onOk:()=>{}});
+    return;
+  }
+  const k=spelerBlokken(pid);
+  if(!k){ toast('Genereer eerst een opstelling'); return; }
+  const min=(speeltijdPerSpeler()||{})[pid]||0;
+  const rijen=k.map((st,i)=>`<div class="qrij"><b>Q${i+1}</b><span>${esc(kwartZin(st))}</span></div>`).join('');
+  confirmDialog({
+    title:p.name||pKort(pid),
+    bodyHtml:`<div class="qschema">${rijen}</div>
+      <p class="hint" style="margin:10px 0 0">${Math.round(min)} minuten gepland.
+      Dit is het plan; blessures, kaarten en herplannen kunnen het onderweg veranderen.</p>
+      <button class="btn ghost full" id="kopieerSpeler" style="margin-top:10px">Kopieer als tekst</button>`,
+    okLabel:'Sluiten', cancelLabel:'', onOk:()=>{}
+  });
+  const kb=document.getElementById('kopieerSpeler');
+  if(kb)kb.onclick=async()=>{
+    try{ await navigator.clipboard.writeText(spelerSchemaTekst(pid));
+         toast('Gekopieerd \u2014 plak het in een bericht'); }
+    catch(e){ onthoudFout('kopi\u00ebren',e); toast('Kopi\u00ebren lukt niet; maak een schermafbeelding'); }
+  };
+}
+
 // ── Geplande speeltijd per speler ──
 // De planner verdeelt de minuten gelijk, dus bij een gewone selectie komt iedereen op
 // hetzelfde getal uit en zegt deze lijst weinig. Hij verdient zijn plek juist als er
@@ -4575,7 +4668,7 @@ function speeltijdHTML(){
   const gelijk=Math.round(norm[norm.length-1])-Math.round(norm[0])<=0;
   return `<div class="card"><h2>Geplande speeltijd <span class="eenheid">(in min.)</span></h2>
     <div class="sptijd">${rijen.map(r=>`
-      <div class="sprij${minder(r)?' minder':''}${r.aanwezig?'':' weg'}">
+      <div class="sprij${minder(r)?' minder':''}${r.aanwezig?'':' weg'}" data-spschema="${r.id}" role="button" tabindex="0">
         <span class="spnaam">${esc(r.naam)}${
           !r.aanwezig?' <i>afwezig</i>'
           :reden.has(r.id)?` <i>${esc(reden.get(r.id))}</i>`:''}</span>
@@ -5316,6 +5409,11 @@ function bind(v){
   };
   // Alleen de knoptekst bijwerken, niet de hele kaart hertekenen: bij een volledige
   // render springt de pagina terug naar boven en verlies je je plek in de lijst.
+  // Tik op een naam in de speeltijdkaart: het schema van die ene speler.
+  v.querySelectorAll('[data-spschema]').forEach(el=>{
+    el.onclick=()=>toonSpelerSchema(el.dataset.spschema);
+    el.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toonSpelerSchema(el.dataset.spschema); } };
+  });
   v.querySelectorAll('[data-gebweg]').forEach(el=>el.onclick=()=>gebeurtenisWeg(el.dataset.gebweg));
   v.querySelectorAll('[data-selvink]').forEach(el=>el.onchange=()=>{
     if(el.checked)_selGekozen.add(el.dataset.selvink); else _selGekozen.delete(el.dataset.selvink);
@@ -5594,8 +5692,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=204;
-const VERSIE_LABEL='26.9.44';
+const APP_VERSION=205;
+const VERSIE_LABEL='26.9.45';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
