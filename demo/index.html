@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="195">
+<meta name="app-version" content="196">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -309,7 +309,9 @@ body.sun .sprij.minder .spnaam,body.sun .sprij.minder .spmin b{color:#a01a10}
   background:rgba(255,255,255,.08);border:1px solid var(--stroke);
   font-size:var(--fs-xs);font-weight:800;letter-spacing:.06em}
 .keuze.aan .keuzebadge{background:#fff;color:#12408f;border-color:#fff}
-.keuzetekst{flex:1;font-size:var(--fs-xs);color:var(--dim);line-height:1.35}
+/* Eigen kleur in plaats van --dim: die kwam op 4,37 uit tegen de kaartachtergrond,
+   net onder de norm. */
+.keuzetekst{flex:1;font-size:var(--fs-xs);color:#a8bade;line-height:1.35}
 body.sun .keuzetekst{color:#2a4470}
 .keuzevb{flex:0 0 auto;font-variant-numeric:tabular-nums;font-weight:800;font-size:var(--fs-md);color:var(--txt);opacity:.85}
 body.sun .keuze{background:#fff;border-color:#c9d6ea}
@@ -507,12 +509,18 @@ body.sun .veldklok{border-color:#fff}
 /* Aanwezig was fel groen: zestien schreeuwende pillen voor de nórmale toestand.
    Nu rustig; afwezig krijgt amber, want dat is wat je zoekt. */
 .sw input:checked + i{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.30)}
-.sw input:not(:checked) + i{background:linear-gradient(135deg,#d2952f,#9c6a16);border-color:rgba(255,225,170,.5)}
+/* Het woord staat rechts, dus op het donkere eind van het verloop. Dat eind is een
+   tint donkerder gemaakt zodat wit er ook formeel leesbaar op is; het amber blijft
+   herkenbaar als 'afwezig'. */
+.sw input:not(:checked) + i{background:linear-gradient(135deg,#cf8f26,#835206);border-color:rgba(255,225,170,.5)}
 .sw input:checked + i:before{left:calc(100% - 24px)}
 /* Woordje in het schuifje, aan de kant waar de knop niet staat */
 .sw i:after{position:absolute;top:0;line-height:28px;font-size:8.5px;font-weight:700;
   letter-spacing:0;white-space:nowrap;pointer-events:none;transition:.18s;
-  content:attr(data-off);right:8px;color:rgba(255,255,255,.62)}
+  /* Vol wit, niet 62%. Op het amber van 'afwezig' kwam die doorzichtigheid uit op een
+     contrast van 2,8 terwijl kleine vette letters 4,5 nodig hebben. Het is ook geen
+     ondergeschikt woordje: het is juist de stand die je zoekt. */
+  content:attr(data-off);right:8px;color:#fff}
 .sw input:checked + i:after{content:attr(data-on);right:auto;left:8px;color:#fff}
 .sw.wide{width:86px}
 /* .editpane label heeft flex:1; het schuifje mag niet meerekken */
@@ -557,7 +565,12 @@ select,option{font-size:var(--fs-base)}
 /* Aanwezig is de normale toestand en hoort niet te schreeuwen; afwezig is de
    uitzondering waar je zaterdagochtend naar zoekt. Vandaar deze omkering:
    het schuifje was fel groen bij aanwezig, nu is het rustig, en afwezig valt op. */
-.dim-row{opacity:.55}
+/* Een afgemelde speler mag naar de achtergrond, maar niet het schuifje: dat is juist
+   waar je naar zoekt, en het woord 'afwezig' staat erin. Doorzichtigheid op de hele
+   rij dimt tekst én ondergrond samen, waardoor het contrast van dat woord op 2,8
+   uitkwam — en dan helpt een andere tekstkleur niets, want die wordt net zo hard
+   meegedimd. Daarom dimmen we de onderdelen los, en het schuifje niet. */
+.dim-row > *:not(.sw){opacity:.55}
 .dim-row .pname b{text-decoration:line-through;text-decoration-thickness:1.5px;
   text-decoration-color:rgba(255,190,120,.85)}
 .sel.lockedalt,.sel:disabled{opacity:.4;cursor:not-allowed}
@@ -4782,7 +4795,9 @@ function renderQuarter(q){
       veld+=`<div class="chip" style="left:${pos.x}%;top:${pos.y}%;opacity:.45"><div class="ball" style="border-style:dashed;background:none">·</div><div class="pos">${pos.kort}</div></div>`;
     }
   }
-  if(keeper)veld+=`<div class="chip kpc" style="left:50%;top:93%"><div class="ball keeperball${keeper.id===capt?' capt':''}">${KEEPER_HELM}${keeper.id===capt?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(keeper.name)}</div></div>`;
+  // pKort, net als alle andere spelers op het veld: hier stond de volledige naam,
+  // waardoor een keeper met voor- én achternaam buiten zijn plaatje liep.
+  if(keeper)veld+=`<div class="chip kpc" style="left:50%;top:93%"><div class="ball keeperball${keeper.id===capt?' capt':''}">${KEEPER_HELM}${keeper.id===capt?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(pKort(keeper.id))}</div></div>`;
   veld+=`</div>`                                      // einde fieldwrap
     +(isWide()?groteKlokHTML(benchIds.length)+`</div>`:'')   // klok over het veld, einde veldrij
     +`${(CLOUD.on&&CLOUD.role==='viewer')?'':`<p class="hint" style="margin-top:10px">Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor ${toonBlok===0?'de start van dit kwart':'dit moment in het kwart'}.</p>`}</div>`;
@@ -5382,8 +5397,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=195;
-const VERSIE_LABEL='26.9.35';
+const APP_VERSION=196;
+const VERSIE_LABEL='26.9.36';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
