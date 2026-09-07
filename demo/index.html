@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="205">
+<meta name="app-version" content="206">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1901,7 +1901,91 @@ function onthoudFout(waar,e){
   try{
     _fouten.unshift({t:new Date().toLocaleTimeString('nl-NL'),waar,wat:String(e&&e.message||e)});
     if(_fouten.length>20)_fouten.pop();
+    foutTel(waar);
   }catch(x){}
+}
+
+// ── Techniek- en fouttellers ──
+// Wat er wordt opgeteld staat in emmertjes, nooit als regel per toestel: soort
+// toestel, iOS-versie, schermmaat, of de app vanaf het beginscherm draait, en welke
+// versie van de app. Een regel per toestel zou een vingerafdruk worden — schermmaat
+// plus versie plus tijdzone is behoorlijk uniek — en dan is het een persoonsgegeven
+// in plaats van statistiek.
+//
+// Wat er níét in gaat: namen, teamcodes, de inhoud van een fout. Alleen de categorie,
+// dus 'opslaan' of 'genereren', want die tekst kan een spelersnaam bevatten.
+const TECHNIEK_MAX_FOUTEN = 5;   // hoogstens vijf fouten per sessie doorgeven
+let _foutenGeteld = 0, _telBezig = false;
+
+// Het model is niet te achterhalen: Apple heeft dat uit de user-agent gehaald, en
+// een iPad meldt zich sinds iPadOS 13 als een Mac. Het aantal aanraakpunten is het
+// enige verschil. De schermmaat komt in de buurt maar is vaak niet uniek.
+function toestelEmmers(){
+  const ua=navigator.userAgent||'';
+  let soort='onbekend';
+  if(/iPhone/.test(ua))soort='iPhone';
+  else if(/iPad/.test(ua))soort='iPad';
+  else if(/Macintosh/.test(ua))soort=(navigator.maxTouchPoints>1)?'iPad':'Mac';
+  else if(/Android/.test(ua))soort='Android';
+  else if(/Windows/.test(ua))soort='Windows';
+  const m=ua.match(/(?:iPhone )?OS (\d+)[_.](\d+)/)||ua.match(/Android (\d+)/);
+  const v=ua.match(/Version\/(\d+)/);
+  const ios=m?m[1]:(v?('safari'+v[1]):'onbekend');
+  const b=Math.min(screen.width,screen.height), h=Math.max(screen.width,screen.height);
+  return {
+    soort, ios,
+    scherm: b+'x'+h,
+    standalone: (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)
+                || navigator.standalone ? 'ja' : 'nee',
+    appversie: String(VERSIE_LABEL).replace(/\./g,'_'),   // punten mogen niet in een sleutel
+    omgeving: DEMO?'demo':'app'
+  };
+}
+// Sleutels mogen geen punt of schuine streep bevatten; dat zijn padscheidingen.
+function veiligeSleutel(t){
+  return String(t||'onbekend').toLowerCase().replace(/[^a-z0-9]+/g,'_').slice(0,40)||'onbekend';
+}
+function week(){
+  const d=new Date(); const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  t.setUTCDate(t.getUTCDate()+4-(t.getUTCDay()||7));
+  const start=new Date(Date.UTC(t.getUTCFullYear(),0,1));
+  const nr=Math.ceil(((t-start)/864e5+1)/7);
+  return t.getUTCFullYear()+'-W'+String(nr).padStart(2,'0');
+}
+async function techniekSchrijf(velden){
+  if(_telBezig)return;
+  if(navigator.onLine===false)return;
+  _telBezig=true;
+  try{
+    await firebaseKlaar();
+    const inc=firebase.firestore.FieldValue.increment(1);
+    const doel={laatst:Date.now()};
+    velden.forEach(k=>doel[k]=inc);
+    await firebase.firestore().collection('techniek').doc(week())
+      .set(doel,{merge:true});
+  }catch(e){
+    // Bewust niet via onthoudFout: dat zou zichzelf weer aanroepen.
+    try{ _fouten.unshift({t:new Date().toLocaleTimeString('nl-NL'),
+      waar:'techniekteller',wat:String(e&&e.message||e)}); }catch(x){}
+  }finally{ _telBezig=false; }
+}
+// Eén keer per dag per toestel, anders telt elke keer openen mee.
+function techniekTel(){
+  try{
+    const dag=new Date().toISOString().slice(0,10);
+    if(localStorage.getItem(SLEUTEL('gw_tech'))===dag)return;
+    localStorage.setItem(SLEUTEL('gw_tech'),dag);
+  }catch(e){}
+  const e=toestelEmmers();
+  techniekSchrijf(['soort.'+veiligeSleutel(e.soort),'ios.'+veiligeSleutel(e.ios),
+    'scherm.'+veiligeSleutel(e.scherm),'standalone.'+e.standalone,
+    'appversie.'+veiligeSleutel(e.appversie),'omgeving.'+e.omgeving]);
+}
+function foutTel(waar){
+  if(_foutenGeteld>=TECHNIEK_MAX_FOUTEN)return;   // een lus mag de teller niet vullen
+  if(/techniekteller|demoteller/.test(String(waar)))return;
+  _foutenGeteld++;
+  techniekSchrijf(['fouten.'+veiligeSleutel(waar)]);
 }
 function inputHash(state){
   return JSON.stringify({
@@ -4853,7 +4937,13 @@ function renderUitleg(){
       ook zonder internet \u2014 handig op een sportpark met slecht bereik.</p></div>`;
   h+=`<div class="card"><h2>Goed om te weten</h2>
     <p class="hint" style="margin:0 0 8px">De namen van je spelers staan alleen op dit toestel. Er is geen
-      account en geen inlog. Zonder samenwerken gaat er niets naar internet.</p>
+      account en geen inlog. Zonder samenwerken gaat er geen enkel spelersgegeven naar internet.</p>
+    <p class="hint" style="margin:0 0 8px">Wel telt de app \u00e9\u00e9n keer per dag mee welk soort toestel,
+      welke iOS-versie, welke schermmaat en welke versie van de app er draait, plus hoe vaak er een
+      fout optreedt en van welke soort. Opgeteld in groepen, niet per toestel, zodat het niet naar
+      iemand te herleiden is. Er gaan geen namen, geen teamcode en geen fouttekst mee \u2014 alleen
+      de categorie, want een foutmelding kan een spelersnaam bevatten. Zo zie ik op welke toestellen
+      de app draait en waar hij stukgaat.</p>
     <p class="hint" style="margin:0">De app gaat uit van een elftal met vier kwarten van 17,5 minuut.
       Achttal, zestal en zaalhockey worden niet ondersteund.</p></div>`;
   // Back-up, schudden en diagnose staan onder een eigen kop, ná de uitleg. Ze
@@ -5692,8 +5782,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=205;
-const VERSIE_LABEL='26.9.45';
+const APP_VERSION=206;
+const VERSIE_LABEL='26.9.46';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
@@ -5780,6 +5870,10 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 window.addEventListener('pageshow',()=>checkForUpdate());
 window.addEventListener('focus',()=>checkForUpdate());
 setInterval(()=>{if(document.visibilityState==='visible')checkForUpdate();},60000);
+// Techniektellers: één keer per dag per toestel, ruim ná het tekenen van het scherm.
+// Dit is het enige dat de gewone app uit zichzelf naar internet stuurt, en het bevat
+// geen namen, geen teamcode en geen inhoud — alleen emmertjes.
+setTimeout(techniekTel,4000);
 
 
 
