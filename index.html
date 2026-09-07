@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="197">
+<meta name="app-version" content="200">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -2844,7 +2844,7 @@ document.addEventListener('keydown',e=>{
   if(h&&h.querySelector('.modal')){ e.preventDefault(); closeModal(); }
 });
 function confirmDialog(opts){
-  // opts: {title, body, bodyHtml, okLabel, cancelLabel, danger, onOk}
+  // opts: {title, body, bodyHtml, okLabel, cancelLabel, danger, onOk, onCancel}
   // 'body' wordt ontsmet en is dus altijd veilig; 'bodyHtml' niet, want daar is
   // opmaak nodig — een opsomming van wat er vervalt leest een stuk beter dan één
   // lange zin. Wie bodyHtml gebruikt ontsmet zijn eigen variabelen met esc().
@@ -2860,9 +2860,14 @@ function confirmDialog(opts){
     </div></div>`;
   const back=document.getElementById('mback');
   const mc=document.getElementById('mcancel');   // ontbreekt bij een melding zonder keuze
-  if(mc)mc.onclick=closeModal;
-  back.onclick=e=>{if(e.target===back)closeModal();};
-  document.getElementById('mok').onclick=()=>{closeModal();opts.onOk&&opts.onOk();};
+  // onCancel is nodig als er iets aan de andere kant op een antwoord wacht — de timer
+  // stelt zijn vragen via ons en houdt zolang een terugroep vast.
+  let beslist=false;
+  const af=()=>{ if(beslist)return; beslist=true; closeModal(); opts.onCancel&&opts.onCancel(); };
+  if(mc)mc.onclick=af;
+  back.onclick=e=>{if(e.target===back)af();};
+  document.getElementById('mok').onclick=()=>{ if(beslist)return; beslist=true;
+    closeModal(); opts.onOk&&opts.onOk(); };
 }
 function cloudSetupDialog(){
   const h=document.getElementById('modalHost');
@@ -3231,6 +3236,12 @@ function groteKlokHTML(bankAantal){
 // Naar het timertabblad springen. Zit in een eigen functie omdat drie klokken hem
 // aanroepen: die op het veld, de zwevende bij het scrollen, en de grote op de tablet.
 function naarTimer(){
+  // Ook als je al op het tabblad staat: de tik betekent 'laat me de lopende klok zien',
+  // dus de timer springt terug naar het kwart waarin hij loopt.
+  try{
+    const ifr=document.querySelector('#timerHost iframe');
+    if(ifr&&ifr.contentWindow)ifr.contentWindow.postMessage({ghcNaarActief:true},location.origin);
+  }catch(e){}
   if(activeTab==='timer')return;
   activeTab='timer'; selChip=null;
   render();
@@ -3360,6 +3371,17 @@ function kaartTijd(sec){
 // Het blok dat nú bezig is in kwart q (of het startblok als de klok stilstaat).
 // De wedstrijd is bezig zodra de klok loopt of gepauzeerd op een tijd staat.
 function wedstrijdBezig(){return klok.q!=null && (klok.loopt || klok.sec>0);}
+// ── Is de wedstrijd begonnen? ──
+// wedstrijdBezig() kijkt alleen naar het kwart waar de klok nú in staat. Tussen twee
+// kwarten in — Q1 uitgespeeld, Q2 nog op nul — is dat false, en dan kwam 'Opstelling
+// genereren' weer tevoorschijn. Ook na 'Reset kwart' of een verkeerde kwartkeuze.
+// Daarom een vlag die blijft staan zodra de klok één keer heeft gelopen. Die gaat er
+// alleen af als je bewust een nieuwe wedstrijd begint.
+function wedstrijdGestart(){ return !!state.wedstrijdGestart; }
+function markeerGestart(){
+  if(state.wedstrijdGestart)return;
+  state.wedstrijdGestart=true; save();
+}
 function huidigBlok(q){const lb=levendBlok(q);return lb==null?0:lb;}
 function levendBlok(q){
   if(!state.schedule)return null;
@@ -3781,16 +3803,19 @@ function regenerate(){
   // dan is deze knop weer zichtbaar, en hij maakt de héle wedstrijd opnieuw. Ook de
   // kwarten die je al gespeeld hebt. De app kan niet zien of die echt gespeeld zijn
   // of dat je nog aan het voorbereiden bent, dus vraagt hij het.
-  if(klok.q!=null && klok.q>1 && !_regenBevestigd){
-    const gespeeld=Array.from({length:klok.q-1},(_,i)=>'Q'+(i+1)).join(' en ');
+  if(wedstrijdGestart() && !_regenBevestigd){
     confirmDialog({
-      title:'Alles opnieuw genereren?',
-      bodyHtml:esc(gespeeld)+' '+(klok.q===2?'is':'zijn')+' volgens de klok al gespeeld. '
-        +'Opnieuw genereren maakt de hele wedstrijd van voren af aan, inclusief die '
-        +(klok.q===2?'opstelling':'opstellingen')+'.<br><br>Wil je alleen de rest aanpassen, '
-        +'gebruik dan \u2018Herplan vanaf dit kwart\u2019 \u2014 dan blijft wat gespeeld is staan.',
-      okLabel:'Toch opnieuw', danger:true,
-      onOk:()=>{ _regenBevestigd=true; try{ regenerate(); } finally { _regenBevestigd=false; } }
+      title:'Nieuwe wedstrijd beginnen?',
+      bodyHtml:'De wedstrijd is al begonnen. Opnieuw genereren maakt de hele wedstrijd '
+        +'van voren af aan, ook de kwarten die al gespeeld zijn, en wist blessures en kaarten.'
+        +'<br><br>Wil je alleen de rest aanpassen, gebruik dan \u2018Herplan vanaf dit kwart\u2019 '
+        +'\u2014 dan blijft staan wat gespeeld is.',
+      okLabel:'Nieuwe wedstrijd', danger:true,
+      onOk:()=>{
+        _regenBevestigd=true;
+        try{ state.wedstrijdGestart=false; regenerate(); }
+        finally { _regenBevestigd=false; }
+      }
     });
     return;
   }
@@ -3855,7 +3880,10 @@ function spelerActies(pid,q){
     if(act==='blessure'){
       snapshot('blessure '+p.name);
       p.uit=true;
-      if(!herplanVanafNu(p.name+' even niet inzetbaar',false,{type:'blessure',pid:p.id})){delete p.uit;render();}
+      // Eerst de noodwissel in het lopende blok, daarna pas het schema vanaf het
+      // volgende wisselmoment. Zo verandert er nú maar één ding op het veld.
+      const nood=noodwissel(p.id);
+      if(!herplanVanafNu(p.name+' even niet inzetbaar',true,{type:'blessure',pid:p.id},nood)){delete p.uit;render();}
       return;
     }
     if(act==='weg'){
@@ -3863,7 +3891,8 @@ function spelerActies(pid,q){
       const wasUit=!!p.uit;
       delete p.uit; p.present=false;
       const gelukt = wedstrijdBezig()
-        ? herplanVanafNu(p.name+' vandaag niet meer',false,{type:'weg',pid:p.id})
+        ? (()=>{ const nood=noodwissel(p.id);
+                 return herplanVanafNu(p.name+' vandaag niet meer',true,{type:'weg',pid:p.id},nood); })()
         : herplanHeleWedstrijd(p.name+' afgemeld');
       if(!gelukt){p.present=true;if(wasUit)p.uit=true;render();}
       return;
@@ -3888,13 +3917,18 @@ function spelerActies(pid,q){
       // Hij stond nog gewoon in het schema, dus er valt niets te herplannen.
       // Stond het wisselmoment tijdens zijn straftijd, dan is hij inmiddels gewisseld
       // en komt hij op de bank terug in plaats van op zijn oude plek.
-      const a=state.schedule.assignments[q*state.schedule.perQ+huidigBlok(q)]||{};
-      const pos=Object.keys(a).find(k=>a[k]===p.id);
-      noteerGebeurtenis(q, pos&&POSMAP[pos]
-        ? p.name+' komt na zijn '+soort+' terug op '+POSMAP[pos].name.toLowerCase()+'.'
-        : p.name+' mag na zijn '+soort+' weer meedoen en volgt verder het wisselschema.');
+      // Tijdens zijn straftijd kan er een wisselmoment voorbij zijn gekomen; dan staat
+      // hij in het huidige blok niet meer op zijn oude plek, of helemaal op de bank.
+      // 'Volgt verder het wisselschema' liet de coach dat zelf uitzoeken.
+      const inz=volgendeInzet(p.id);
+      const zin = inz&&inz.nu
+        ? p.name+' mag terug en gaat naar '+(inz.plek||'het veld')+'.'
+        : inz
+          ? p.name+' mag terug, maar staat volgens het schema nu op de bank; hij komt '+inzetZin(inz)+'.'
+          : p.name+' mag terug, maar staat volgens het schema de rest van de wedstrijd op de bank.';
+      noteerGebeurtenis(q, zin);
       save(); render();
-      toast(pos?p.name+' staat weer op het veld':p.name+' doet weer mee volgens het schema');
+      toast(inz&&inz.nu ? p.name+' terug op '+(inz.plek||'het veld') : p.name+' mag terug \u2014 staat op de bank');
       return;
     }
     if(act==='terug'){
@@ -3904,10 +3938,50 @@ function spelerActies(pid,q){
       // Stond hij nog in het blok dat in beeld staat (dat gebeurt als de klok is
       // gereset), dan halen we hem daar eerst uit.
       haalUitHuidigBlok(p.id);
-      if(!herplanVanafNu(p.name+' weer beschikbaar \u2014 op de bank',true,{type:'terug',pid:p.id})){p.uit=true;render();}
+      if(!herplanVanafNu(p.name+' weer beschikbaar',true,{type:'terug',pid:p.id})){
+        // Herplannen mislukt: hij is niet ingedeeld, dus zetten we hem terug op
+        // 'niet inzetbaar' \u2014 anders staat hij als beschikbaar in beeld terwijl er
+        // niets voor hem geregeld is. Dat moet je weten, niet raden.
+        p.uit=true; render();
+        toast('Herplannen lukt niet \u2014 '+p.name+' staat nog op niet inzetbaar');
+        return;
+      }
+      // Nu pas kijken waar hij volgens het nieuwe schema terugkomt.
+      const inz=volgendeInzet(p.id);
+      const zin=p.name+' is weer beschikbaar en staat '+inzetZin(inz)+'.';
+      planInfo=[zin];
+      gebeurtenissen().slice(-1).forEach(g=>{ if(g&&g.tekst&&/weer inzetbaar/.test(g.tekst))g.tekst=zin; });
+      save(); render();
+      toast(inz&&!inz.nu ? p.name+' komt terug '+inzetZin(inz).replace('bij de wissel ','') : zin);
       return;
     }
   });
+}
+// ── Wanneer komt deze speler volgens het schema (weer) in het veld? ──
+// Geeft het eerstvolgende blok vanaf nu waarin hij staat, met de tijd erbij in de
+// klokrichting die de coach heeft gekozen. Null als hij de rest van de wedstrijd op
+// de bank blijft. Nodig om na een blessure of een kaart niet 'volgt verder het
+// wisselschema' te hoeven zeggen — daar heeft niemand iets aan langs de lijn.
+function volgendeInzet(pid,vanafBlok){
+  const sch=state.schedule; if(!sch)return null;
+  const perQ=sch.perQ, B=perQ*4, blokMin=17.5/perQ;
+  const start=vanafBlok!=null?vanafBlok:(huidigQ()*perQ+huidigBlok(huidigQ()));
+  for(let b=Math.max(0,start);b<B;b++){
+    if(Object.values(sch.assignments[b]||{}).indexOf(pid)<0)continue;
+    const q=Math.floor(b/perQ), m=b%perQ;
+    const pos=Object.keys(sch.assignments[b]).find(k=>sch.assignments[b][k]===pid);
+    return {blok:b, kwart:q+1, nu:b===start, minuut:Math.round(m*blokMin),
+            pos, plek:POSMAP[pos]?POSMAP[pos].name.toLowerCase():null};
+  }
+  return null;
+}
+// Korte zin: 'nu op rechtsachter', 'bij de wissel na 12 min in Q3 op de spits', of
+// 'de rest van de wedstrijd op de bank'.
+function inzetZin(inz){
+  if(!inz)return 'de rest van de wedstrijd op de bank';
+  if(inz.nu)return 'nu op '+(inz.plek||'het veld');
+  const wanneer=inz.minuut?'na '+fmtMin(inz.minuut)+' min in Q'+inz.kwart:'bij de start van Q'+inz.kwart;
+  return 'bij de wissel '+wanneer+' op '+(inz.plek||'het veld');
 }
 // Haal een speler uit het blok dat nu in beeld staat en zet er iemand van de bank
 // voor in de plaats. Nodig bij een terugkeer met een stilstaande klok: dat blok wordt
@@ -3945,7 +4019,7 @@ function herplanHeleWedstrijd(label){
 // Vergelijkt het oude en het nieuwe schema en vertelt in gewone taal wat er
 // veranderd is: eerst wat er nú op het veld gebeurt, daarna wat er verderop schuift.
 // Eén zin voor in het wisselschema: wie ging eruit, wie kwam ervoor in de plaats.
-function tekstVanGebeurtenis(g,oud,nieuw,vanaf){
+function tekstVanGebeurtenis(g,oud,nieuw,vanaf,nood){
   const naam=pKort(g.pid);
   if(g.type==='kaart'){
     const k=KAARTEN[g.soort]||{min:0,naam:'kaart'};
@@ -3957,9 +4031,14 @@ function tekstVanGebeurtenis(g,oud,nieuw,vanaf){
   }
   if(g.type==='terug')return naam+' is weer inzetbaar en zit op de bank.';
   if(g.type==='weg')return naam+' is afgemeld voor de rest van de wedstrijd.';
+  // Is er een noodwissel gedaan, dan is dát het verhaal: één speler eruit, één erin.
+  // Wat er daarna bij het volgende wisselmoment gebeurt staat verderop in het schema.
+  if(nood){
+    const plek0=POSMAP[nood.pos]?POSMAP[nood.pos].name.toLowerCase():'';
+    return naam+' raakt geblesseerd en gaat er meteen uit; '+pKort(nood.in)
+      +(plek0?' komt erin op '+plek0:' komt erin')+'.';
+  }
   const a=oud[vanaf]||{}, b=nieuw[vanaf]||{};
-  // Wie neemt zijn plek over? Dat is de speler die nu op zijn oude positie staat.
-  // Het herplannen verschuift vaak meer, maar dát is niet wat je hier wilt lezen.
   const pos=Object.keys(a).find(k=>a[k]===g.pid);
   const vervanger=pos?b[pos]:null;
   if(!vervanger)return naam+' raakt geblesseerd en gaat eruit.';
@@ -4024,7 +4103,46 @@ function gebeurtenisWeg(id){
   toast('Melding weggedrukt \u2014 schud om terug te halen');
 }
 function wisGebeurtenissen(){ state.gebeurtenissen=[]; }
-function herplanVanafNu(label,vanafVolgende,gebeurtenis){
+// ── Noodwissel bij een acute blessure ──
+// Volledig herplannen vanaf het lopende blok mag dan eerlijker zijn, in de dug-out is
+// het onbruikbaar: naast de geblesseerde kunnen ineens ook drie anderen van plek of
+// van bank wisselen, terwijl het spel doorgaat. Wat je op dat moment wilt is één
+// wissel: hij eruit, één bankspeler erin, de rest blijft staan. De bredere
+// herverdeling volgt vanzelf bij het eerstvolgende geplande wisselmoment.
+//
+// Wie komt erin? Iemand die op de bank zit, in die linie mag spelen, en van hen degene
+// die tot nu toe het minst heeft gespeeld — met een voorkeur voor wie die positie in
+// zijn voorkeuren heeft staan.
+function kiesNoodvervanger(blokAsg,pos,gespeeld){
+  const opVeld=new Set(Object.values(blokAsg));
+  const lijn=POSMAP[pos]?POSMAP[pos].line:null;
+  const kandidaten=state.players.filter(p=>
+    p.present && !p.uit && !p.kaart && p.id!==state.keeperId && !opVeld.has(p.id)
+    && (!lijn || magInLinie(p,lijn)));
+  if(!kandidaten.length)return null;
+  const rang=p=>{
+    const i=(p.prefs||[]).indexOf(pos);
+    return (i>=0?i:9)*1000 + (gespeeld[p.id]||0);
+  };
+  return kandidaten.sort((a,b)=>rang(a)-rang(b))[0].id;
+}
+function noodwissel(pid){
+  const sch=state.schedule; if(!sch)return null;
+  const perQ=sch.perQ, q=huidigQ(), blok=q*perQ+huidigBlok(q);
+  const asg=sch.assignments[blok]; if(!asg)return null;
+  const pos=Object.keys(asg).find(k=>asg[k]===pid);
+  if(!pos)return null;                       // stond niet op het veld: niets te doen
+  const gespeeld={};
+  state.players.forEach(p=>gespeeld[p.id]=0);
+  for(let b=0;b<=blok;b++)
+    Object.values(sch.assignments[b]||{}).forEach(id=>{ if(gespeeld[id]!=null)gespeeld[id]++; });
+  const inv=kiesNoodvervanger(asg,pos,gespeeld);
+  if(!inv)return null;
+  asg[pos]=inv;
+  return {blok,pos,in:inv};
+}
+
+function herplanVanafNu(label,vanafVolgende,gebeurtenis,nood){
   if(!state.schedule){toast('Genereer eerst een opstelling');return false;}
   const sch=state.schedule, perQ=sch.perQ, B=perQ*4;
   // Het aantal wisselmomenten ligt vast zodra de wedstrijd loopt: de blokgrenzen
@@ -4069,10 +4187,14 @@ function herplanVanafNu(label,vanafVolgende,gebeurtenis){
   const wanneer=(blokIndex>=perQ)
     ? 'Q'+(Math.floor(vanaf/perQ)+1)+' vanaf de start'
     : 'Q'+(q+1)+(min?' na '+min+' min':' vanaf de start');
-  planInfo=[label+' \u2014 schema aangepast vanaf '+wanneer+'. '
+  planInfo=[(nood
+      ? label+' \u2014 nu meteen alleen '+pKort(nood.in)+' erin op '
+        +(POSMAP[nood.pos]?POSMAP[nood.pos].name.toLowerCase():'zijn plek')
+        +'; de rest van het veld blijft staan. Vanaf '+wanneer+' is de verdeling bijgewerkt. '
+      : label+' \u2014 schema aangepast vanaf '+wanneer+'. ')
     +beschrijfHerplan(oudAssign,fresh.assignments,vanaf,perQ,!!vanafVolgende)];
   if(_subsWacht)planInfo.push(_subsWacht);
-  if(gebeurtenis)noteerGebeurtenis(q,tekstVanGebeurtenis(gebeurtenis,oudAssign,fresh.assignments,vanaf));
+  if(gebeurtenis)noteerGebeurtenis(q,tekstVanGebeurtenis(gebeurtenis,oudAssign,fresh.assignments,vanaf,nood));
   save();render();sendSwapTimesToTimer();
   toast(label);
   return true;
@@ -4087,15 +4209,21 @@ function replanFromQuarter(fromQ){
   snapshot('herplannen vanaf Q'+(fromQ+1));
   const oldSched=state.schedule;
   const oldPerQ=oldSched.perQ;
-  const fresh=buildSchedule(state);
-  // bewaar de al gespeelde kwarten uit het oude schema, neem de rest uit het nieuwe
+  // Blokindeling vastzetten zodra de wedstrijd is begonnen. Zonder dit koos het nieuwe
+  // schema opnieuw zijn eigen aantal blokken; kwam daar een ander getal uit, dan
+  // pasten de al gespeelde kwarten er niet meer in en werd stilzwijgend het héle
+  // nieuwe schema overgenomen — inclusief de kwarten die al gespeeld waren.
+  const fresh=buildSchedule(state, wedstrijdGestart()?{forcePerQ:oldPerQ}:{});
   const perQ=fresh.perQ;
   if(perQ===oldPerQ){
     // zelfde blokindeling: plak per blok
     for(let q=0;q<fromQ;q++){
       for(let m=0;m<perQ;m++){ fresh.assignments[q*perQ+m]=oldSched.assignments[q*perQ+m]; }
     }
-  } // bij andere blokindeling nemen we het verse schema in zijn geheel (kan niet netjes plakken)
+  }else{
+    // Kan alleen nog vóór de aftrap gebeuren; dan is er niets om te bewaren.
+    onthoudFout('herplannen',new Error('blokindeling wijzigde van '+oldPerQ+' naar '+perQ));
+  }
   state.schedule=fresh;
   state.genHash=inputHash(state);
   const conflicts=detectRuleConflicts().concat(formConflicts()).concat(nietGehaaldeRegels(state.schedule));
@@ -4838,10 +4966,18 @@ function renderQuarter(q){
   tekst+=`</div>`;
   if(!(CLOUD.on&&CLOUD.role==='viewer')){
     if(canUndo())tekst+=`<button class="btn ghost full" id="undoBtn" style="margin-bottom:8px">&#8634; Ongedaan maken (${esc(undoLabel())})${_undoStack.length>1?' &middot; '+_undoStack.length+' stappen':''}</button>`;
+    // Welke knoppen er staan hangt af van de blijvende status, niet van de klokstand.
+    // 'De klok staat op nul' betekende eerder 'er is niets aan de hand', maar dat is
+    // ook waar tijdens een pauze, na een reset, of tussen twee kwarten in.
     if(wedstrijdBezig()){
-      // De wedstrijd loopt: geen herplanknoppen. Wat er onderweg misgaat regel je door
-      // een speler aan te tikken; het schema zelf laat je met rust.
-      tekst+=`<p class="hint" style="margin:0 0 10px">De wedstrijd loopt. Tik een speler aan om te wisselen of een blessure door te geven; opnieuw genereren kan pas als de klok op nul staat.</p>`;
+      // De klok loopt of staat middenin een kwart: alleen de speler zelf aantikken.
+      tekst+=`<p class="hint" style="margin:0 0 10px">De wedstrijd loopt. Tik een speler aan om te wisselen of een blessure door te geven; herplannen kan zodra je de klok pauzeert.</p>`;
+    }else if(wedstrijdGestart()){
+      // Begonnen maar op dit moment stil: herplannen mag, opnieuw genereren zit achter
+      // de vraag 'Nieuwe wedstrijd beginnen?' en heet daarom ook zo.
+      if(q>0)tekst+=`<button class="btn full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
+      tekst+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Nieuwe wedstrijd beginnen&#8230;</button>`;
+      tekst+=`<p class="hint" style="margin:0 0 10px">Herplannen laat de gespeelde kwarten staan. Het aantal wisselmomenten per kwart ligt vast zolang deze wedstrijd loopt.</p>`;
     }else{
       tekst+=`<button class="btn gevaar full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
       if(q>0)tekst+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
@@ -5378,8 +5514,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=197;
-const VERSIE_LABEL='26.9.37';
+const APP_VERSION=200;
+const VERSIE_LABEL='26.9.40';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
@@ -5912,6 +6048,17 @@ window.addEventListener('message',e=>{
     render();
     return;
   }
+  if(e.data.ghcVraag){
+    // De timer heeft geen eigen venster en laat ons de vraag stellen.
+    const v=e.data.ghcVraag;
+    const ifr=document.querySelector('#timerHost iframe');
+    const terug=ja=>{ try{ ifr&&ifr.contentWindow&&ifr.contentWindow.postMessage(
+      {ghcAntwoord:{id:v.id,ja:ja}},location.origin); }catch(x){} };
+    confirmDialog({title:String(v.titel||''), body:String(v.tekst||''),
+      okLabel:String(v.ok||'Doorgaan'), danger:!!v.gevaar,
+      onOk:()=>terug(true), onCancel:()=>terug(false)});
+    return;
+  }
   if(e.data.ghcTimerThema){
     // De timer kent licht, donker en zon; de app alleen zon aan of uit. Donker en
     // licht vallen dus allebei onder 'uit' — dat is de stand waarin de app zijn
@@ -5930,6 +6077,10 @@ window.addEventListener('message',e=>{
   if(e.data.ghcKlok){ klokPush(e.data.ghcKlok); return; }
   if(e.data.ghcStand){
     const st=e.data.ghcStand;
+    // Zodra de klok één keer heeft gelopen is de wedstrijd begonnen, en dat blijft zo.
+    // ghcStand is het bericht dat de timer altijd stuurt; ghcKlok komt alleen bij live
+    // samenwerken, dus daar kon deze vlag niet aan hangen.
+    if(st.loopt)markeerGestart();
     // Springt de klok naar een ander kwart, dan volgt het wedstrijdtabblad weer
     // vanzelf. Een eigen keuze is bedoeld om even vooruit te kijken, niet om het
     // beeld voorgoed vast te zetten — anders sta je in Q4 nog naar Q1 te kijken.
