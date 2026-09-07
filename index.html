@@ -1280,6 +1280,48 @@ function linesOf(p){
 }
 function magInLinie(p,linie){return linesOf(p).includes(linie);}
 
+// ── Verboden posities (regel 'nopos') ──
+// Anders dan de linies bij de speler is dit een coachregel: 'nooit linksvoor' hoort
+// bij deze wedstrijd en bij deze afspraak, niet bij wat een speler kan. Daarom staat
+// het op Regels en niet op de spelerskaart.
+//
+// Een verbod geldt ook voor de verwante posities, maar alleen als de verboden plek
+// in die speelvorm niet bestaat. Zeg je 'nooit spits' en speel je 4-4-2 — waar geen
+// spits is, wel spits links en spits rechts — dan is een verbod dat letterlijk op
+// 'spits' slaat een verbod dat nergens over gaat. Bestaat de plek wél, dan blijft
+// het verbod letterlijk: 'nooit midden midden' hoort niet stilletjes ook links en
+// rechts midden af te sluiten.
+function verbodenPosities(pid,rules,POS){
+  const rs=rules||(typeof state!=='undefined'?state.rules:[])||[];
+  const uit=new Set();
+  for(const r of rs){
+    if(r.type!=='nopos'||r.p1!==pid||!POSMAP[r.pos])continue;
+    uit.add(r.pos);
+    if(POS&&!POS.some(p=>p.id===r.pos)){
+      for(const p of POS){ if((p.eq||[]).includes(r.pos))uit.add(p.id); }
+    }
+  }
+  return uit;
+}
+// ── Maximaal aantal posities per wedstrijd (regel 'maxpos') ──
+// Keepen telt niet mee: de keeper zit niet in deze verdeling, en een vervangkeeper
+// wordt in zijn keeperkwarten uit het veld gehaald voordat de posities verdeeld worden.
+function maxPosRule(rules){
+  const rs=rules||(typeof state!=='undefined'?state.rules:[])||[];
+  const r=rs.find(x=>x.type==='maxpos'&&Number(x.n)>=2&&Number(x.n)<=4);
+  return r?Number(r.n):null;
+}
+// ── Hoe hard is een afspraak? ──
+// Deze getallen waren allemaal 10000, waardoor een vaste positie en een verboden
+// linie elkaar precies opheften en de uitkomst afhing van de volgorde in de lijst.
+// Nu is de rangorde expliciet, en elk niveau is een factor tien zwaarder dan het
+// volgende, zodat een lagere afspraak nooit een hogere kan overstemmen.
+// Ter vergelijking: de voorkeuren en bonussen samen komen niet boven de 4200 uit.
+const STRAF_NOPOS = 1e8;   // coach zegt: hier nooit
+const STRAF_LOCK  = 1e6;   // coach zegt: hier altijd
+const STRAF_LINIE = 1e4;   // speler mag niet in deze linie
+const STRAF_MAXPOS= 1e3;   // dit zou zijn (N+1)-ste positie worden
+
 // Versie van de opgeslagen gegevens; zie migrateState() verderop.
 const STATE_V=4;
 // Zestien verzonnen spelers voor de demo. Bewust namen die niet op een bestaand
@@ -1406,6 +1448,67 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
   const elig={},caps={};
   fieldPlayers.forEach(p=>{elig[p.id]=eligibleVec(p,perQ,rules);caps[p.id]=elig[p.id].filter(Boolean).length;});
   const ids=fieldPlayers.map(p=>p.id);
+  // ── Linie-dekking van een blok ──
+  // Tien plekken moeten elke minuut gevuld worden, en elke plek zit in een linie.
+  // Zitten er in de tien gekozen spelers te weinig die achterin mogen, dan komt daar
+  // onvermijdelijk iemand te staan die dat niet mag. De positieverdeling kan dat niet
+  // meer repareren: die krijgt de selectie kant en klaar aangeleverd. Daarom keek er
+  // tot nu toe niemand naar, en stond er zaterdag een verdediger op links voor.
+  //
+  // Exact rekenen kan met de stelling van Hall: voor elke combinatie van linies moet
+  // het aantal plekken in die linies kleiner of gelijk zijn aan het aantal gekozen
+  // spelers dat in minstens \u00e9\u00e9n van die linies uit de voeten kan. Bij drie linies zijn
+  // dat zeven combinaties \u2014 goedkoop genoeg om per blok te doen.
+  const _spelerOp=Object.fromEntries(fieldPlayers.map(p=>[p.id,p]));
+  const _plekCache={},_linieCache={};
+  const plekkenPerLinie=b=>{
+    const q=Math.floor(b/perQ);
+    if(_plekCache[q])return _plekCache[q];
+    const n={voor:0,midden:0,achter:0};
+    positionsOfQ(q,rules).forEach(p=>{n[p.line]++;});
+    return (_plekCache[q]=n);
+  };
+  // In welke linies kan deze speler dit kwart werkelijk staan? Een verbod op alle
+  // plekken van een linie sluit die linie ook af.
+  const linieVan=(pid,b)=>{
+    const q=Math.floor(b/perQ), sleutel=pid+'|'+q;
+    if(_linieCache[sleutel])return _linieCache[sleutel];
+    const POS=positionsOfQ(q,rules);
+    const verboden=verbodenPosities(pid,rules,POS);
+    const p=_spelerOp[pid];
+    const uit=LINE_IDS.filter(l=>magInLinie(p,l)&&POS.some(x=>x.line===l&&!verboden.has(x.id)));
+    return (_linieCache[sleutel]=uit);
+  };
+  // Kan deze halve selectie nog tot een dekkende tien worden aangevuld? Hiermee kan
+  // de blokkeuze v\u00f3\u00f3rkomen dat ze zich klemzet, in plaats van achteraf te repareren.
+  // Achteraf repareren kost namelijk speeltijd: elke ruil haalt iemand weg die er op
+  // grond van eerlijkheid juist hoorde te staan.
+  const dekkingBlijftMogelijk=(sel,rest,slotsLeft,b)=>{
+    const nodig=plekkenPerLinie(b);
+    for(let m=1;m<8;m++){
+      const deel=LINE_IDS.filter((_,i)=>m&(1<<i));
+      let plekken=0; deel.forEach(l=>{plekken+=nodig[l];});
+      let heb=0; for(const id of sel){ if(linieVan(id,b).some(l=>deel.includes(l)))heb++; }
+      const tekort=plekken-heb;
+      if(tekort<=0)continue;
+      if(tekort>slotsLeft)return false;
+      let vrij=0; for(const id of rest){ if(linieVan(id,b).some(l=>deel.includes(l)))vrij++; }
+      if(tekort>vrij)return false;
+    }
+    return true;
+  };
+  const linieTekort=(set,b)=>{
+    const nodig=plekkenPerLinie(b);
+    let ergste=0;
+    for(let m=1;m<8;m++){
+      const deel=LINE_IDS.filter((_,i)=>m&(1<<i));
+      let plekken=0; deel.forEach(l=>{plekken+=nodig[l];});
+      let mensen=0;
+      for(const id of set){ if(linieVan(id,b).some(l=>deel.includes(l)))mensen++; }
+      if(plekken-mensen>ergste)ergste=plekken-mensen;
+    }
+    return ergste;
+  };
   // Min/max-minuten regels omrekenen naar blokken (1 blok = 17.5/perQ minuten)
   const blockMin=17.5/perQ;
   const maxBlk={},minBlk={};
@@ -1474,7 +1577,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
       }
       return ids.indexOf(a)-ids.indexOf(c);
     });
-    const sel=new Set(),skipped=[];
+    const sel=new Set(),skipped=[],uitgesteld=[];
     // rotate-paren: kies per blok wie van het paar speelt (afwisselend p1/p2)
     rotateBlocked.clear();
     for(let ri=0;ri<rotates.length;ri++){
@@ -1513,9 +1616,46 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
         const mustPlay=(t[id]-played[id])>=remFrom[id][b]-1e-9;
         if(!mustPlay){skipped.push(id);continue;}
       }
+      // Zou hij meenemen de linie-dekking onmogelijk maken? Dan schuift hij door naar
+      // het volgende blok; daar staat hij door zijn oplopende achterstand vooraan.
+      const rest=cands.filter(x=>x!==id&&!sel.has(x)&&!rotateBlocked.has(x)
+        &&!(b===0&&startBench.has(x))&&!(maxBlk[x]!=null&&played[x]>=maxBlk[x]));
+      const proef=new Set(sel); proef.add(id);
+      if(!dekkingBlijftMogelijk(proef,rest,10-proef.size,b)){uitgesteld.push(id);continue;}
       sel.add(id);
     }
     for(const id of skipped){if(sel.size>=10)break;if(maxBlk[id]!=null&&played[id]>=maxBlk[id])continue;sel.add(id);}
+    for(const id of uitgesteld){if(sel.size>=10)break;if(maxBlk[id]!=null&&played[id]>=maxBlk[id])continue;sel.add(id);}
+    // Dekt deze tien de linies? Zo niet: ruil de speler die het minst nodig is voor
+    // iemand die het gat vult. Wie vastligt door een andere afspraak blijft staan;
+    // liever een tekort dan een gebroken regel.
+    if(linieTekort(sel,b)>0){
+      const vast=new Set([...(endForce[b]||[]),...(b===0?startBase:[]),
+        ...rotates.flatMap(r=>[r.p1,r.p2]),...(q3like&&b===q3Block&&blocks[0]?blocks[0]:[])]);
+      for(let poging=0;poging<6;poging++){
+        const tekort=linieTekort(sel,b);
+        if(!tekort)break;
+        // wie kan erbij? in volgorde van wie het hardst aan spelen toe is
+        const erbij=cands.filter(id=>!sel.has(id)&&!rotateBlocked.has(id)
+          &&!(b===0&&startBench.has(id))&&!(maxBlk[id]!=null&&played[id]>=maxBlk[id]));
+        let beste=null;
+        for(const in_ of erbij){
+          for(const uit of sel){
+            if(vast.has(uit))continue;
+            const proef=new Set(sel); proef.delete(uit); proef.add(in_);
+            const nieuw=linieTekort(proef,b);
+            if(nieuw>=tekort)continue;
+            // van de gelijkwaardige ruilen: haal de speler eruit die het minst
+            // achterloopt op zijn eerlijke aandeel, en zet die erin die het meest achterloopt
+            const winst=(t[in_]-played[in_])-(t[uit]-played[uit]);
+            const kandidaat={in_,uit,nieuw,winst};
+            if(!beste||nieuw<beste.nieuw||(nieuw===beste.nieuw&&winst>beste.winst))beste=kandidaat;
+          }
+        }
+        if(!beste)break;
+        sel.delete(beste.uit); sel.add(beste.in_);
+      }
+    }
     blocks.push(sel);
     ids.forEach(i=>{ if(sel.has(i)){played[i]++;bench[i]=0;} else if(elig[i][b])bench[i]++; });
   }
@@ -1541,6 +1681,9 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
           const conf=conflictsWith(lo,tmp);
           const allowConf=(t[lo]-played[lo])>1.0; // ver onder doel: regel mag wijken
           if(conf&&!allowConf)continue;
+          // Minuten gladstrijken mag geen linie leeghalen die net gevuld was.
+          tmp.add(lo);
+          if(linieTekort(tmp,b)>linieTekort(blocks[b],b))continue;
           blocks[b].delete(hi);blocks[b].add(lo);played[hi]--;played[lo]++;swapped=true;break;
         }
         if(swapped)break;
@@ -1613,11 +1756,19 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
 function assignAll(blockSets,perQ,rules,byId,vast){
   const B=perQ*4, out=[];
   const q3like=rules.some(r=>r.type==='q3likeq1');
+  const maxPos=maxPosRule(rules);
+  // Welke posities heeft iemand deze wedstrijd al gehad? Dit is het enige stuk
+  // geheugen dat over de blokken heen loopt; alle andere afwegingen zijn per blok.
+  // Blokken die bij een herplanning letterlijk worden overgenomen tellen mee, anders
+  // zou de teller halverwege de wedstrijd op nul beginnen.
+  const gebruikt={};
+  const onthoud=asg=>{ for(const posId in asg){ const pid=asg[posId];
+    if(!pid)continue; (gebruikt[pid]=gebruikt[pid]||new Set()).add(posId); } };
   let prev=null,q1a=null;
   for(let b=0;b<B;b++){
     if(vast&&b<vast.vanaf&&vast.assignments&&vast.assignments[b]){
       const kopie=Object.assign({},vast.assignments[b]);
-      out.push(kopie); prev=kopie;
+      out.push(kopie); prev=kopie; onthoud(kopie);
       if(b===0)q1a=kopie;
       continue;
     }
@@ -1638,12 +1789,20 @@ function assignAll(blockSets,perQ,rules,byId,vast){
       if(alt)locks[pid]=alt.id; else delete locks[pid];
     }
     const short=ids.length<10;
+    // Verboden posities voor de spelers die nu op het veld staan, uitgerekend voor
+    // de speelvorm van dit kwart (zie verbodenPosities).
+    const verboden={};
+    for(const pid of ids)verboden[pid]=verbodenPosities(pid,rules,POS);
     const score=(pid,pos)=>{
       const p=byId[pid];let s=0;
       // bij minder dan 10 spelers: laat een gat liefst voorin vallen
       s+=pos.line==='achter'?(short?60:6):(pos.line==='midden'?(short?30:3):0);
-      if(locks[pid]) s+=(pos.id===locks[pid])?10000:-10000;
-      if(!magInLinie(p,pos.line)) s-=10000;   // speler mag niet in deze linie
+      if(locks[pid]) s+=(pos.id===locks[pid])?STRAF_LOCK:-STRAF_LOCK;
+      if(verboden[pid]&&verboden[pid].has(pos.id)) s-=STRAF_NOPOS;
+      if(!magInLinie(p,pos.line)) s-=STRAF_LINIE;   // speler mag niet in deze linie
+      // Zou dit een nieuwe positie worden terwijl hij er al genoeg heeft gehad?
+      if(maxPos&&gebruikt[pid]&&gebruikt[pid].size>=maxPos&&!gebruikt[pid].has(pos.id))
+        s-=STRAF_MAXPOS;
       const prefs=p.prefs||[];
       const i=prefs.indexOf(pos.id);
       if(i===0)s+=100;else if(i===1)s+=80;else if(i===2)s+=60;
@@ -1685,7 +1844,8 @@ function assignAll(blockSets,perQ,rules,byId,vast){
     // Te lange doorschuifketens korter maken. Zie kortKetens hieronder; de start van
     // Q3 slaan we over als die gelijk moet blijven aan Q1, want dan zou de reparatie
     // juist die afspraak breken.
-    if(prev && !(q3like && b===perQ*2)) kortKetens(prev,asg,POS,byId,locks);
+    if(prev && !(q3like && b===perQ*2)) kortKetens(prev,asg,POS,byId,locks,verboden);
+    onthoud(asg);
     out.push(asg);prev=asg;if(b===0)q1a=asg;
   }
   return out;
@@ -1708,9 +1868,10 @@ function assignAll(blockSets,perQ,rules,byId,vast){
 // waarin iemand mag spelen worden nooit geschonden. Lukt het daardoor niet, dan
 // blijft de keten lang — beter dat dan een opstelling die de afspraken breekt.
 const MAX_KETEN=3;      // streefwaarde: invaller, vertrekker en hooguit één doorschuiver
-function kortKetens(prev,asg,POS,byId,locks){
+function kortKetens(prev,asg,POS,byId,locks,verboden){
   const legaal=(pid,posId)=>{
     if(locks[pid]&&locks[pid]!==posId)return false;
+    if(verboden&&verboden[pid]&&verboden[pid].has(posId))return false;
     const pos=POS.find(p=>p.id===posId);
     return !!pos && magInLinie(byId[pid],pos.line);
   };
@@ -2699,6 +2860,12 @@ function valideerStand(s){
         if(!r.qs.length)return weg('geen geldig kwart');
         return true;
       }
+      case 'maxpos': {   // maximaal aantal posities per wedstrijd
+        r.n=Number(r.n);
+        if(!(r.n>=2&&r.n<=4))return weg('aantal posities onbruikbaar');
+        return true;
+      }
+      case 'nopos':      // nooit op deze positie
       case 'pos':        // vaste positie
       case 'condpos':    // positie als een andere speler er niet staat
       case 'rotate': {   // wisselen van positie met een ander
@@ -3207,6 +3374,143 @@ function linieBotsingen(){
   }
   return uit;
 }
+// ── Past dit team \u00fcberhaupt in deze speelvorm? ──
+// Dit is de melding die er niet was toen Joris linksvoor bleek te staan. Zijn de
+// linies bij de spelers zo ingevuld dat er in een linie minder spelers mogen staan
+// dan er plekken zijn, dan m\u00f3\u00e9t er iemand op een plek komen waar hij niet hoort
+// \u2014 hoe de planner ook rekent. Tien plekken moeten elke minuut gevuld worden.
+// Dat is geen fout van de verdeling maar van de invoer, en dus hoort de app het te
+// zeggen v\u00f3\u00f3rdat je zaterdag naar het veld kijkt en je afvraagt wat er misging.
+function bezettingsProblemen(){
+  const uit=[];
+  const rs=state.rules||[];
+  const aanwezig=state.players.filter(p=>p.present&&!p.uit);
+  const vaste=aanwezig.find(p=>p.id===state.keeperId)||null;
+  const gkByQ={};
+  rs.filter(r=>r.type==='gk').forEach(r=>(r.qs||[]).forEach(q=>{if(!gkByQ[q])gkByQ[q]=r.p1;}));
+  // Per linie: hoeveel plekken zijn er, en wie mag daar staan?
+  const perQuart=[];
+  for(let q=0;q<4;q++){
+    const POS=positionsOfQ(q,rs);
+    const veld=aanwezig.filter(p=>(!vaste||p.id!==vaste.id)&&p.id!==gkByQ[q+1]
+      &&!rs.some(r=>r.type==='noq'&&r.p1===p.id&&noqQs(r).includes(q+1)));
+    const rij={};
+    for(const l of LINE_IDS){
+      const plekken=POS.filter(p=>p.line===l);
+      if(!plekken.length)continue;
+      const mag=veld.filter(p=>{
+        if(!magInLinie(p,l))return false;
+        const verboden=verbodenPosities(p.id,rs,POS);
+        return plekken.some(x=>!verboden.has(x.id));   // minstens \u00e9\u00e9n plek open
+      });
+      // Krap is al een probleem: zijn er precies zoveel spelers als plekken, dan kan
+      // niemand van hen ooit rust krijgen zonder dat er een vreemde op die plek staat.
+      if(mag.length<=plekken.length)rij[l]={nodig:plekken.length,mag:mag.length};
+    }
+    perQuart.push(rij);
+  }
+  // Vier keer dezelfde melding is drie keer te veel, en twee linies met precies
+  // hetzelfde probleem horen in \u00e9\u00e9n zin. Eerst per linie bundelen over de kwarten,
+  // daarna de linies die woord voor woord hetzelfde zouden opleveren samenvoegen.
+  const perLinie={};
+  perQuart.forEach((rij,q)=>{
+    for(const l in rij){
+      const sleutel=l+'|'+rij[l].nodig+'|'+rij[l].mag;
+      (perLinie[sleutel]=perLinie[sleutel]||{l,...rij[l],qs:[]}).qs.push(q+1);
+    }
+  });
+  const samen={};
+  for(const k in perLinie){
+    const g=perLinie[k];
+    const sleutel=g.qs.join(',')+'|'+g.nodig+'|'+g.mag;
+    (samen[sleutel]=samen[sleutel]||{...g,lijnen:[]}).lijnen.push(g.l);
+  }
+  const opsom=arr=>arr.map(l=>LINES[l]).reduce((a,b,i)=>i===0?b:(i===arr.length-1?a+' en de '+b:a+', de '+b),'');
+  for(const k in samen){
+    const g=samen[k];
+    const waar=g.qs.length===4?'De hele wedstrijd':('In '+g.qs.map(q=>'Q'+q).join(' + '));
+    const namen=opsom(g.lijnen), enkel=g.lijnen.length===1;
+    const staart=`Vink bij een paar spelers op Spelers de ${namen} aan, of kies een speelvorm met minder plekken daar.`;
+    if(g.mag<g.nodig){
+      uit.push(`${waar} zijn er ${g.nodig} plekken in de ${namen}, maar mogen er maar ${g.mag} `
+        +`spelers staan. Er ${enkel?'komt':'komen'} dus ${enkel?'iemand':'spelers'} te staan die dat volgens `
+        +`hun instellingen niet ${enkel?'mag':'mogen'}. ${staart}`);
+    }else{
+      uit.push(`${waar} zijn er precies ${g.nodig} spelers voor de ${g.nodig} plekken in de ${namen}. `
+        +`Zij kunnen dus nooit rusten: zodra \u00e9\u00e9n van hen naar de bank gaat, staat daar iemand die `
+        +`daar niet hoort. ${staart}`);
+    }
+  }
+  return uit;
+}
+// ── Wat is er in het schema werkelijk gebroken? ──
+// De melding hierboven gaat over de invoer; deze over de uitkomst. Ze vervangen
+// elkaar niet: een schema kan ook zonder tekort ergens door een afspraak heen gaan,
+// bijvoorbeeld doordat een vaste positie zwaarder weegt.
+function gebrokenAfspraken(sch){
+  if(!sch||!sch.assignments)return [];
+  const rs=state.rules||[];
+  const maxPos=maxPosRule(rs);
+  const linie={},verbod={},posities={};
+  for(let b=0;b<sch.perQ*4;b++){
+    const a=sch.assignments[b]||{}, q=Math.floor(b/sch.perQ);
+    const POS=positionsOfQ(q,rs);
+    for(const posId in a){
+      const pid=a[posId], p=byId(pid); if(!p)continue;
+      (posities[pid]=posities[pid]||new Set()).add(posId);
+      const l=POSMAP[posId]&&POSMAP[posId].line;
+      if(l&&!magInLinie(p,l)){
+        if(!linie[pid])linie[pid]={l:new Set(),q:new Set()};
+        linie[pid].l.add(l); linie[pid].q.add(q+1);
+      }
+      if(verbodenPosities(pid,rs,POS).has(posId))
+        (verbod[pid]=verbod[pid]||new Set()).add(posId);
+    }
+  }
+  const uit=[];
+  for(const pid in verbod)
+    uit.push(`${pName(pid)} staat toch op ${[...verbod[pid]].map(x=>POSMAP[x]?POSMAP[x].name.toLowerCase():x).join(' en ')}, `
+      +`terwijl daar een regel tegen is. Er was geen andere plek voor hem \u2014 kijk of de regel kan vervallen.`);
+  for(const pid in linie)
+    uit.push(`${pName(pid)} staat in ${[...linie[pid].q].map(q=>'Q'+q).join(' + ')} in de `
+      +`${[...linie[pid].l].map(l=>LINES[l]).join(' en de ')}, terwijl hij daar volgens Spelers niet mag staan.`);
+  if(maxPos)for(const pid in posities){
+    if(posities[pid].size>maxPos)
+      uit.push(`${pName(pid)} staat op ${posities[pid].size} verschillende posities, terwijl het maximum ${maxPos} is.`);
+  }
+  return uit;
+}
+// ── Wat kosten de linie-vinkjes aan speeltijd? ──
+// Sinds de linies echt hard zijn, betaalt de eerlijke verdeling de rekening: staan er
+// achterin vier plekken en voorin drie, en mag iedereen maar in \u00e9\u00e9n linie staan, dan
+// speelt een verdediger onvermijdelijk langer dan een aanvaller. Dat is geen fout,
+// maar de coach ziet alleen rode streepjes bij de speeltijd en weet niet waarom.
+// Daarom rekenen we het na op het schema zelf \u2014 schatten zou hier verkeerde getallen
+// opleveren zodra sommige spelers in twee linies mogen.
+function linieSpeeltijd(sch){
+  if(!sch||!sch.minutes)return [];
+  const groepen={};
+  for(const p of state.players){
+    if(!p.present||p.uit)continue;
+    if(state.keeperId&&p.id===state.keeperId)continue;
+    const min=sch.minutes[p.id]; if(min==null)continue;
+    const sleutel=linesOf(p).slice().sort().join('+');
+    (groepen[sleutel]=groepen[sleutel]||[]).push(min);
+  }
+  const rijen=Object.keys(groepen).filter(k=>k!==LINE_IDS.slice().sort().join('+'))
+    .map(k=>({k,n:groepen[k].length,gem:groepen[k].reduce((a,b)=>a+b,0)/groepen[k].length}));
+  if(rijen.length<2)return [];
+  const alle=Object.keys(groepen).map(k=>({k,gem:groepen[k].reduce((a,b)=>a+b,0)/groepen[k].length}));
+  alle.sort((a,b)=>b.gem-a.gem);
+  const blokMin=17.5/(sch.perQ||3);
+  if(alle[0].gem-alle[alle.length-1].gem<=blokMin+0.1)return [];
+  const naam=k=>k.split('+').map(l=>LINES[l]).join(' en de ');
+  const hoog=alle[0],laag=alle[alle.length-1];
+  return [`Wie alleen in de ${naam(hoog.k)} mag staan komt op ongeveer ${Math.round(hoog.gem)} minuten, `
+    +`wie alleen in de ${naam(laag.k)} mag op ${Math.round(laag.gem)}. Dat komt door de linie-vinkjes op Spelers: `
+    +`het aantal plekken per linie ligt vast, dus hoe minder spelers er in een linie mogen, hoe langer die spelen. `
+    +`Vink bij een paar spelers een tweede linie aan als je de speeltijd gelijker wilt.`];
+}
 function warnBoxesHTML(){
   let w='';
   if(timerMismatch!==null)
@@ -3222,6 +3526,15 @@ function warnBoxesHTML(){
   // hij voorin stond. Nu staat het er gewoon bij.
   for(const c of linieBotsingen()){
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(c)}</div></div>`;
+  }
+  for(const c of bezettingsProblemen()){
+    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(c)}</div></div>`;
+  }
+  for(const c of gebrokenAfspraken(state.schedule)){
+    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(c)}</div></div>`;
+  }
+  for(const c of linieSpeeltijd(state.schedule)){
+    w+=`<div class="warnbox info"><div class="wi">${ico("info")}</div><div class="wt">${esc(c)}</div></div>`;
   }
   if(DEMO && demoDicht()){
     const eigen=(_beheer&&typeof _beheer.boodschap==='string'&&_beheer.boodschap.trim())||'';
@@ -3249,6 +3562,8 @@ function ruleSentence(r){
     case 'start':  return `${n(r.p1)} begint ${r.start==='base'?'in de basis':'op de bank'}`;
     case 'endstrong': return `${n(r.p1)} speelt zeker ${r.amt==='min10'?'de laatste ~10 minuten':'het hele laatste kwart'}`;
     case 'noline': return `${n(r.p1)} speelt nooit in de ${LINES[r.line]}`;
+    case 'nopos':  return `${n(r.p1)} speelt nooit ${POSMAP[r.pos]?POSMAP[r.pos].name.toLowerCase():r.pos}`;
+    case 'maxpos': return `Iedereen staat op maximaal ${r.n} verschillende posities`;
     case 'rotate': return `${n(r.p1)} en ${n(r.p2)} wisselen elkaar af op ${POSMAP[r.pos]?POSMAP[r.pos].name.toLowerCase():r.pos}`;
     case 'q3likeq1': return `Start Q3 gelijk aan start Q1`;
     case 'gk': return `${n(r.p1)} keept ${(r.qs||[]).length===4?'de hele wedstrijd':(r.qs||[]).map(q=>'Q'+q).join(' + ')}`;
@@ -3758,9 +4073,11 @@ function renderRegels(){
       <option value="q3likeq1" ${t==='q3likeq1'?'selected':''}>Start Q3 gelijk aan start Q1</option>
       <option value="condpos" ${t==='condpos'?'selected':''}>Vaste positie als ander niet meespeelt</option>
       <option value="pos" ${t==='pos'?'selected':''}>Speelt altijd op vaste positie</option>
+      <option value="nopos" ${t==='nopos'?'selected':''}>Speelt nooit op een bepaalde positie</option>
+      <option value="maxpos" ${t==='maxpos'?'selected':''}>Maximaal aantal posities per wedstrijd</option>
     </select>
     ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.</p>'
-      :(t==='form'||t==='subs')?''   // deze regels gelden voor het hele team, niet voor één speler
+      :(t==='form'||t==='subs'||t==='maxpos')?''   // deze regels gelden voor het hele team, niet voor één speler
       :`<div class="frow"><label class="hint">Speler</label><select class="sel" id="nrP1">${popts(newRule.p1)}</select></div>`}`;
   if(t==='endstrong')html+=`<div class="frow"><label class="hint">Hoeveel van het einde?</label><select class="sel" id="nrEndAmt">
       <option value="q4">Het hele laatste kwart (Q4)</option>
@@ -3770,6 +4087,13 @@ function renderRegels(){
     <div class="qpick" style="display:flex;gap:6px">${[1,2,3,4].map(q=>`<label class="qp" style="flex:1"><input type="checkbox" class="nrGKq" value="${q}" ${(newRule.qs||[]).includes(q)?'checked':''}> Q${q}</label>`).join('')}</div></div>`;
   if(t==='apart')html+=`<div class="frow"><label class="hint">Niet samen met</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
   if(t==='pos'||t==='condpos')html+=`<div class="frow"><label class="hint">Positie</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
+  if(t==='nopos')html+=`<div class="frow"><label class="hint">Nooit op positie</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>
+    <p class="hint" style="margin:2px 0 6px">Harder dan een voorkeur: de planner zet hem hier niet neer, ook niet als hij daardoor krap komt te zitten. Wil je een hele linie afsluiten, doe dat dan met de vinkjes bij de speler op <b>Spelers</b> \u2014 dat scheelt drie regels.</p>`;
+  if(t==='maxpos'){
+    const n=newRule.n||3;
+    html+=`<div class="frow"><label class="hint">Maximaal aantal posities</label><select class="sel" id="nrMaxPos">${[2,3,4].map(k=>`<option value="${k}" ${n===k?'selected':''}>${k} posities</option>`).join('')}</select></div>
+    <p class="hint" style="margin:2px 0 6px">Geldt voor iedereen. Keepen telt niet mee: wie een kwart keept, houdt daarna zijn volledige aantal. Twee posities is streng \u2014 bij drie wisselmomenten per kwart betekent het dat iemand vier blokken lang op dezelfde plek staat.</p>`;
+  }
   if(t==='condpos')html+=`<div class="frow"><label class="hint">…als deze speler niet meespeelt</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
   if(t==='subs'){
     const n=newRule.n||2, bl=q=>fmtMin(Math.round(17.5/(q+1)*10)/10);
@@ -4533,12 +4857,17 @@ const UITLEG=[
    'Tabblad <b>Spelers</b>: zet aan wie er is, vul rugnummers in en kies per speler '
    +'maximaal drie voorkeursposities. Wie keept geef je \u2018Keeper\u2019 als eerste voorkeur. '
    +'Per speler kun je ook aangeven in welke linies hij mag spelen \u2014 achter, midden, voor \u2014 '
-   +'en dat is een harde grens. Gastspelers voeg je onderaan toe.'],
+   +'en dat is een harde grens: de planner zet hem daar niet buiten, ook niet als hij daardoor '
+   +'krap komt te zitten. Let op wat dat kost. Mogen er in een linie evenveel of minder spelers '
+   +'staan dan er plekken zijn, dan kunnen die spelers nooit rusten en loopt de speeltijd uiteen. '
+   +'De app rekent dat na en zegt het erbij. Gastspelers voeg je onderaan toe.'],
   ['u2','Coachregels',
    'Tabblad <b>Regels</b>: leg vast wat er voor jouw team geldt. Hoeveel wisselmomenten per '
-   +'kwart, welke speelvorm, wie vast op een positie staat, wie liever niet samen spelen, '
+   +'kwart, welke speelvorm, wie vast op een positie staat en wie er juist nooit mag staan, '
+   +'op hoeveel verschillende posities iedereen hoogstens komt, wie liever niet samen spelen, '
    +'minimum- of maximumminuten, wie in de basis begint en wie het einde speelt. '
-   +'Regels gaan v\u00f3\u00f3r voorkeuren; botsen er twee, dan zegt de app dat erbij.'],
+   +'Regels gaan v\u00f3\u00f3r voorkeuren; botsen er twee, dan zegt de app dat erbij \u2014 en twee regels '
+   +'die elkaar uitsluiten komen er niet in.'],
   ['u3','Opstelling genereren',
    'Tabblad <b>Wedstrijd</b>: tik op \u2018Opstelling genereren\u2019 en er staat een schema voor alle '
    +'vier de kwarten, met alle wisselmomenten uitgeschreven. Het uitgangspunt is dat iedereen '
@@ -5554,6 +5883,7 @@ function bind(v){
     const _ty=g('#nrType');
     let r;
     if(_ty==='subs'){r={id:'r'+Date.now(),type:'subs'};}
+    else if(_ty==='maxpos'){r={id:'r'+Date.now(),type:'maxpos'};}
     else if(_ty==='form'){r={id:'r'+Date.now(),type:'form'};}
     else if(_ty==='q3likeq1'){r={id:'r'+Date.now(),type:_ty};}
     else if(_ty==='gk'){
@@ -5564,7 +5894,8 @@ function bind(v){
     }
     else {r={id:'r'+Date.now(),type:_ty,p1:g('#nrP1')};}
     if(r.type==='apart'||r.type==='condpos')r.p2=g('#nrP2');
-    if(r.type==='pos'||r.type==='condpos')r.pos=g('#nrPos');
+    if(r.type==='pos'||r.type==='condpos'||r.type==='nopos')r.pos=g('#nrPos');
+    if(r.type==='maxpos')r.n=Number(g('#nrMaxPos'));
     if(r.type==='subs'){
       r.n=Number(g('#nrSubs'))||2;
       if(state.rules.some(x=>x.type==='subs')){toast('Deze regel bestaat al');return;}
@@ -5588,6 +5919,17 @@ function bind(v){
     if(r.type==='rotate'){r.p2=g('#nrP2');r.pos=g('#nrPos');}
     if((r.type==='apart'||r.type==='condpos'||r.type==='rotate')&&r.p1===r.p2){toast('Kies twee verschillende spelers');return;}
     if(r.type==='q3likeq1'&&state.rules.some(x=>x.type==='q3likeq1')){toast('Deze regel bestaat al');return;}
+    if(r.type==='maxpos'&&state.rules.some(x=>x.type==='maxpos')){toast('Er staat al een maximum \u2014 verwijder dat eerst');return;}
+    // Twee afspraken die elkaar uitsluiten hoort de app niet zelf op te lossen.
+    if(r.type==='nopos'){
+      if(state.rules.some(x=>x.type==='nopos'&&x.p1===r.p1&&x.pos===r.pos)){toast('Deze regel bestaat al');return;}
+      const bots=state.rules.find(x=>['pos','condpos','rotate'].includes(x.type)&&x.pos===r.pos&&(x.p1===r.p1||x.p2===r.p1));
+      if(bots){toast('Dat botst met \u2018'+ruleSentence(bots)+'\u2019');return;}
+    }
+    if(['pos','condpos','rotate'].includes(r.type)){
+      const bots=state.rules.find(x=>x.type==='nopos'&&x.pos===r.pos&&(x.p1===r.p1||x.p1===r.p2));
+      if(bots){toast('Dat botst met \u2018'+ruleSentence(bots)+'\u2019');return;}
+    }
     state.rules.push(r);save();render();toast('Regel toegevoegd');
   };
   // Chips ruilen
@@ -5626,6 +5968,32 @@ function chipTap(pid){
       if(r.type==='half'&&r.p1===id&&r.half!==half)found.push(`${pName(id)} hoort volgens de regels alleen de ${r.half===1?'eerste':'tweede'} helft te spelen.`);
       if(r.type==='noq'&&r.p1===id&&noqQs(r).includes(q+1))found.push(`Een regel zegt dat ${pName(id)} niet in Q${q+1} speelt.`);
       if(r.type==='pos'&&r.p1===id){const np=Object.keys(asg).find(k=>asg[k]===id);if(np&&np!==r.pos)found.push(`${pName(id)} staat normaal vast op ${POSMAP[r.pos]?POSMAP[r.pos].name:r.pos}.`);}
+    }
+  }
+  // Een handmatige ruil mag alles, maar niet stilletjes: wat je met een tik doorbreekt
+  // hoort net zo zichtbaar te zijn als wat de planner niet waarmaakt.
+  for(const id of [pid,selChip]){
+    const np=Object.keys(asg).find(k=>asg[k]===id);
+    if(!np)continue;
+    const POS=positionsOfQ(q,state.rules);
+    if(verbodenPosities(id,state.rules,POS).has(np))
+      found.push(`Een regel zegt dat ${pName(id)} nooit ${POSMAP[np]?POSMAP[np].name.toLowerCase():np} speelt.`);
+    const lijn=POSMAP[np]&&POSMAP[np].line, sp=byId(id);
+    if(lijn&&sp&&!magInLinie(sp,lijn))
+      found.push(`${pName(id)} mag volgens Spelers niet in de ${LINES[lijn]} staan.`);
+  }
+  // Het maximum aantal posities kan door een ruil worden overschreden; dat zie je
+  // pas als je het hele schema naloopt, dus zegt de app het meteen.
+  const maxPos=maxPosRule(state.rules);
+  if(maxPos){
+    for(const id of [pid,selChip]){
+      const gehad=new Set();
+      for(let bb=0;bb<state.schedule.perQ*4;bb++){
+        const a2=state.schedule.assignments[bb]||{};
+        for(const k in a2)if(a2[k]===id)gehad.add(k);
+      }
+      if(gehad.size>maxPos)
+        found.push(`${pName(id)} komt hiermee op ${gehad.size} posities, terwijl het maximum ${maxPos} is.`);
     }
   }
   swapWarnings=found.filter((x,i)=>found.indexOf(x)===i);
@@ -5782,9 +6150,9 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=206;
-const VERSIE_LABEL='26.9.46';
-const VERSIE_DATUM='4 september 2026';
+const APP_VERSION=207;
+const VERSIE_LABEL='26.9.47';
+const VERSIE_DATUM='7 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
@@ -5948,7 +6316,11 @@ function ztControleer(st,sch,naam,fout){
   }
   // Eerlijkheid meten heeft alleen zin zonder regels die iemands speeltijd inperken:
   // een speler die Q2 en Q4 mist hoort juist minder te spelen.
-  const beperkend=(st.rules||[]).some(r=>['noq','minutes','gk','rotate','endstrong'].includes(r.type));
+  // Linie-vinkjes horen in dit rijtje thuis: zijn de linies ongelijk bezet, dan ligt
+  // het verschil in speeltijd vast in de invoer en niet in de verdeling. De app zegt
+  // dat apart tegen de coach (zie linieSpeeltijd); een testfout maken heeft geen zin.
+  const beperkend=(st.rules||[]).some(r=>['noq','minutes','gk','rotate','endstrong','maxpos'].includes(r.type))
+    || st.players.some(p=>p.present&&Array.isArray(p.lines)&&p.lines.length&&p.lines.length<LINE_IDS.length);
   const m=Object.values(sch.minutes||{});
   if(!beperkend&&m.length){
     const spreiding=Math.max(...m)-Math.min(...m), blokMin=17.5/perQ;
@@ -5982,6 +6354,48 @@ function zelftest(){
     ztControleer(st,sch,'vaste positie',fout);
     if(sch)for(let b=0;b<sch.perQ*4;b++){const a=sch.assignments[b];
       for(const pos in a)if(a[pos]==='p0'&&pos!=='vs')fout('vaste positie: p0 staat op '+pos);}
+  });
+  test('Regel: nooit op een bepaalde positie',()=>{
+    // p0 heeft 'lv' als eerste voorkeur; het verbod moet daar zwaarder wegen.
+    const st=ztTeam(15,{rules:[{id:'x',type:'nopos',p1:'p0',pos:'lv'}]});
+    const sch=buildSchedule(st);
+    ztControleer(st,sch,'nopos',fout);
+    if(sch)for(let b=0;b<sch.perQ*4;b++){const a=sch.assignments[b];
+      if(a['lv']==='p0')fout('nopos: p0 staat toch op links voor in blok '+b);}
+  });
+  test('Regel: verbod werkt door op verwante plek',()=>{
+    // In 4-4-2 bestaat 'spits' niet, wel spits links en spits rechts. Een verbod op
+    // spits hoort daar niet leeg te lopen.
+    const st=ztTeam(15,{rules:[{id:'f',type:'form',form:'4-4-2',qs:[1,2,3,4]},
+                               {id:'x',type:'nopos',p1:'p1',pos:'sp'}]});
+    const sch=buildSchedule(st);
+    ztControleer(st,sch,'nopos-verwant',fout);
+    if(sch)for(let b=0;b<sch.perQ*4;b++){const a=sch.assignments[b];
+      if(a['sl']==='p1'||a['sr']==='p1')fout('nopos: p1 staat toch in de spits in blok '+b);}
+  });
+  test('Regel: maximaal aantal posities',()=>{
+    for(const n of [2,3,4]){
+      const st=ztTeam(15,{rules:[{id:'m',type:'maxpos',n}]});
+      const sch=buildSchedule(st);
+      ztControleer(st,sch,'maxpos '+n,fout);
+      if(!sch)continue;
+      const gehad={};
+      for(let b=0;b<sch.perQ*4;b++){const a=sch.assignments[b];
+        for(const pos in a)(gehad[a[pos]]=gehad[a[pos]]||new Set()).add(pos);}
+      for(const id in gehad)if(gehad[id].size>n)
+        fout('maxpos '+n+': '+id+' staat op '+gehad[id].size+' posities');
+    }
+  });
+  test('Linies worden niet gebroken als het kan',()=>{
+    // Vijf spelers per linie, 4-3-3: precies genoeg om de linies te respecteren.
+    const sp=[{id:'k',name:'Keep',num:1,prefs:['keeper','',''],present:true,guest:false}];
+    [['voor','sp'],['midden','mm'],['achter','vs']].forEach(([l,p])=>{
+      for(let i=0;i<5;i++)sp.push({id:l+i,name:l+i,num:sp.length+1,prefs:[p,'',''],
+        present:true,guest:false,lines:[l]});
+    });
+    const st={v:STATE_V,players:sp,keeperId:'k',rules:[],schedule:null,genHash:null};
+    const sch=buildSchedule(st);
+    ztControleer(st,sch,'linies hard',fout);
   });
   test('Regel: niet in bepaalde kwarten',()=>{
     const st=ztTeam(15,{rules:[{id:'n',type:'noq',p1:'p1',qs:[2,4]}]});
