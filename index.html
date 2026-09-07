@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="202">
+<meta name="app-version" content="203">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -3371,6 +3371,14 @@ function kaartTijd(sec){
 // Het blok dat nú bezig is in kwart q (of het startblok als de klok stilstaat).
 // De wedstrijd is bezig zodra de klok loopt of gepauzeerd op een tijd staat.
 function wedstrijdBezig(){return klok.q!=null && (klok.loopt || klok.sec>0);}
+// Drie verschillende vragen die eerder op één hoop lagen:
+//   klokLoopt()      de klok telt op dit moment door
+//   kwartHeeftTijd() er staat tijd op het lopende kwart
+//   wedstrijdBezig() een van beide — te grof om de knoppen op te baseren
+// De melding beloofde 'herplannen kan zodra je pauzeert', maar de knop hing aan
+// wedstrijdBezig(), en die blijft na pauzeren gewoon waar. Dus kwam die knop nooit.
+function klokLoopt(){ return !!klok.loopt; }
+function kwartHeeftTijd(){ return klok.q!=null && klok.sec>0; }
 // ── Is de wedstrijd begonnen? ──
 // wedstrijdBezig() kijkt alleen naar het kwart waar de klok nú in staat. Tussen twee
 // kwarten in — Q1 uitgespeeld, Q2 nog op nul — is dat false, en dan kwam 'Opstelling
@@ -4980,20 +4988,26 @@ function renderQuarter(q){
     // Welke knoppen er staan hangt af van de blijvende status, niet van de klokstand.
     // 'De klok staat op nul' betekende eerder 'er is niets aan de hand', maar dat is
     // ook waar tijdens een pauze, na een reset, of tussen twee kwarten in.
-    if(wedstrijdBezig()){
-      // De klok loopt of staat middenin een kwart: alleen de speler zelf aantikken.
-      tekst+=`<p class="hint" style="margin:0 0 10px">De wedstrijd loopt. Tik een speler aan om te wisselen of een blessure door te geven; herplannen kan zodra je de klok pauzeert.</p>`;
+    // Herplannen gaat over het wedstrijdpunt, niet over wat je toevallig bekijkt.
+    // huidigQ() geeft het bekeken kwart terug, dus wie terugbladerde naar Q1 kreeg
+    // 'Herplan vanaf Q1' te zien terwijl Q3 al bezig was.
+    const actiefQ = klok.q!=null ? klok.q-1 : 0;
+    const elders = q!==actiefQ ? `Je bekijkt Q${q+1}; de wedstrijd staat in Q${actiefQ+1}. ` : '';
+    if(klokLoopt()){
+      // Alleen terwijl de klok écht doortelt is het schema onaanraakbaar.
+      tekst+=`<p class="hint" style="margin:0 0 10px">De klok loopt. Tik een speler aan om te wisselen of een blessure door te geven; herplannen kan zodra je pauzeert.</p>`;
+    }else if(wedstrijdGestart() && kwartHeeftTijd()){
+      // Gepauzeerd middenin een kwart. Vanaf het begin van dít kwart herplannen zou
+      // spelers van het veld halen die er al staan, dus gaat het vanaf het volgende
+      // wisselmoment: wat nu op het veld staat blijft, de rest wordt bijgewerkt.
+      tekst+=`<button class="btn full" id="replanNuBtn" style="margin-bottom:8px">&#9654; Herplan vanaf het volgende wisselmoment</button>`;
+      tekst+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Nieuwe wedstrijd beginnen&#8230;</button>`;
+      tekst+=`<p class="hint" style="margin:0 0 10px">${elders}De klok staat stil in Q${actiefQ+1}. Wie er nu op het veld staat blijft staan; vanaf het volgende wisselmoment wordt er opnieuw verdeeld met de spelers die er nu zijn.</p>`;
     }else if(wedstrijdGestart()){
-      // Herplannen gaat over het wedstrijdpunt, niet over wat je toevallig bekijkt.
-      // huidigQ() geeft het bekeken kwart terug, dus wie terugbladerde naar Q1 kreeg
-      // 'Herplan vanaf Q1' te zien terwijl Q3 al bezig was — dat zou gespeelde kwarten
-      // overschrijven.
-      const actiefQ = klok.q!=null ? klok.q-1 : 0;
-      // Begonnen maar op dit moment stil: herplannen mag, opnieuw genereren zit achter
-      // de vraag 'Nieuwe wedstrijd beginnen?' en heet daarom ook zo.
+      // Tussen twee kwarten in: het hele volgende kwart mag opnieuw.
       if(actiefQ>0)tekst+=`<button class="btn full" id="replanBtn" data-q="${actiefQ}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${actiefQ+1} met huidige spelers</button>`;
       tekst+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Nieuwe wedstrijd beginnen&#8230;</button>`;
-      tekst+=`<p class="hint" style="margin:0 0 10px">${q!==actiefQ?`Je bekijkt Q${q+1}; de wedstrijd staat in Q${actiefQ+1}. `:''}Herplannen laat de gespeelde kwarten staan en begint altijd bij het kwart waar de wedstrijd nu is. Het aantal wisselmomenten per kwart ligt vast zolang deze wedstrijd loopt.</p>`;
+      tekst+=`<p class="hint" style="margin:0 0 10px">${elders}Herplannen laat de gespeelde kwarten staan en begint altijd bij het kwart waar de wedstrijd nu is. Het aantal wisselmomenten per kwart ligt vast zolang deze wedstrijd loopt.</p>`;
     }else{
       tekst+=`<button class="btn gevaar full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
       if(q>0)tekst+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
@@ -5130,6 +5144,14 @@ function bind(v){
   if(vnb)vnb.onclick=()=>{ snapshot('wijziging verwerken'); herplanVanafNu('Wijziging verwerkt',true); };
   const rb=v.querySelector('#replanBtn');
   if(rb)rb.onclick=()=>replanFromQuarter(Number(rb.dataset.q));
+  // Gepauzeerd middenin een kwart: alleen vanaf het volgende wisselmoment, zodat wie
+  // er nu op het veld staat blijft staan.
+  const rpn=v.querySelector('#replanNuBtn');
+  if(rpn)rpn.onclick=()=>{
+    if(wijzigenGeblokkeerd())return;
+    snapshot('herplannen vanaf het volgende wisselmoment');
+    herplanVanafNu('Herplan vanaf het volgende wisselmoment',true);
+  };
   const ub=v.querySelector('#undoBtn');
   if(ub)ub.onclick=doUndo;
   v.querySelectorAll('[data-goplayers]').forEach(b=>b.onclick=()=>{activeTab='spelers';render();document.getElementById('view').scrollTop=0;});
@@ -5530,8 +5552,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=202;
-const VERSIE_LABEL='26.9.42';
+const APP_VERSION=203;
+const VERSIE_LABEL='26.9.43';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update

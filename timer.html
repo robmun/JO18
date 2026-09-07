@@ -1156,7 +1156,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 202;
+    var TIMER_VERSION = 203;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
@@ -1252,9 +1252,14 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
         startBtn.classList.toggle('pause', running);
         startBtn.disabled = false; startBtn.style.opacity = '';
       } else if (running) {
-        startBtn.textContent = 'Pauzeer Q' + currentQuarter + ' eerst';
-        startBtn.classList.remove('pause');
-        startBtn.disabled = true; startBtn.style.opacity = '.45';
+        // Werkende knop, geen mededeling. Hij pauzeert het lopende kwart en laat je
+        // op het kwart dat je bekijkt staan; daarna wordt hij vanzelf 'Start Q3'.
+        // Eerder stond hier een uitgeschakelde knop met dezelfde tekst, en moest de
+        // coach terug naar Q2, pauzeren, weer naar Q3 en dan starten — vier tikken
+        // langs de lijn voor iets wat er één hoort te zijn.
+        startBtn.textContent = 'Pauzeer Q' + currentQuarter;
+        startBtn.classList.add('pause');
+        startBtn.disabled = false; startBtn.style.opacity = '';
       } else {
         startBtn.textContent = 'Start Q' + bekekenQuarter;
         startBtn.classList.remove('pause');
@@ -1455,7 +1460,12 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     document.getElementById('minusMin').addEventListener('click', function () { nudgeMinute(-60); });
     startBtn.addEventListener('click', function () {
       if (bekekenQuarter === currentQuarter) { toggleStartPause(); return; }
-      if (running) return;                      // knop staat uit; hier komen we niet
+      if (!magBedienen()) { vraagOvernemen(); return; }
+      if (running) {
+        // Pauzeer het lopende kwart, blijf kijken naar het kwart dat in beeld staat.
+        stopTimer(); meldKlok();
+        return;
+      }
       // Een nieuw kwart starten sluit het vorige af. Staat dat vorige nog niet op
       // 17:30, dan is dat het vermelden waard: misschien vergat je te pauzeren, of
       // misschien werd er echt eerder afgefloten.
@@ -1567,7 +1577,14 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
         try { parent.postMessage({ ghcTimerThema: nieuw }, location.origin); } catch (e) {}
       }
     });
-    qButtons.forEach(btn => btn.addEventListener('click', () => { if (!magBedienen()) { vraagOvernemen(); return; } changeQuarter(Number(btn.dataset.q)); meldKlok(); }));
+    // Kwartbolletjes zijn kijken, geen bedienen. Een mede-coach die de klok niet
+    // bedient kreeg hier de vraag om hem over te nemen zodra hij Q3 wilde inzien —
+    // terwijl datzelfde bladeren op het wedstrijdtabblad gewoon mag. Klokrechten zijn
+    // nu alleen nodig voor Start, Pauze, Reset, ±1 minuut en het activeren van een
+    // ander kwart via 'Start Q…'.
+    qButtons.forEach(btn => btn.addEventListener('click', () => {
+      changeQuarter(Number(btn.dataset.q));
+    }));
 
     // Liep de klok toen de app werd weggehaald, dan hier weer aanzetten: pas op dit
     // punt bestaan startTimer en de knoppen.
