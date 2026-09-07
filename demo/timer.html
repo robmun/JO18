@@ -1147,7 +1147,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 200;
+    var TIMER_VERSION = 201;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
@@ -1400,13 +1400,13 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     //   bekekenQuarter  het kwart dat je op de wijzerplaat ziet
     // Meestal hetzelfde; ze lopen alleen uiteen zolang je vooruit- of terugkijkt.
     var bekekenQuarter = currentQuarter;
+    // Een bolletje verandert alléén wat je bekijkt. Ook bij een stilstaande klok: een
+    // ander kwart wordt pas actief als je op 'Start Q…' drukt. Stond hier eerder een
+    // uitzondering voor de gepauzeerde klok, maar juist dan sloeg de app het afsluiten
+    // van het vorige kwart stilzwijgend over — Q2 op 17:30, tik Q3, en Q3 was meteen
+    // actief zonder dat iemand iets had bevestigd.
     function changeQuarter(q) {
-      if (running) {
-        // Loopt de klok, dan is dit alleen kijken. Q blijft waar hij was.
-        bekekenQuarter = q;
-      } else {
-        currentQuarter = q; bekekenQuarter = q;
-      }
+      bekekenQuarter = q;
       buildTicks();
       _saveState();
       updateUI();
@@ -1452,6 +1452,18 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       // misschien werd er echt eerder afgefloten.
       var oud = currentQuarter, nieuw = bekekenQuarter;
       var stand = quarterElapsed(oud);
+      function ga() {
+        currentQuarter = nieuw;
+        buildTicks(); updateUI();
+        startTimer(); meldKlok();
+        if (window.parent !== window) {
+          try { parent.postMessage({ghcQuarter: nieuw}, location.origin); } catch (err) {}
+        }
+      }
+      // Staat het kwart dat je verlaat nog op nul, dan is er niets af te sluiten. Dat
+      // is de gewone gang van zaken vóór de aftrap: een coach die in Q2 wil beginnen
+      // omdat hij later invalt, hoeft geen vraag over een kwart dat nooit liep.
+      if (stand < 1) { ga(); return; }
       var rond = Math.abs(stand - QLEN) < 30;
       vraag({
         titel: 'Q' + nieuw + ' starten?',
@@ -1460,14 +1472,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
           : 'Q' + oud + ' staat nog op ' + fmt(stand) + '. Wil je Q' + oud
             + ' toch afsluiten en Q' + nieuw + ' starten?',
         ok: 'Start Q' + nieuw, gevaar: !rond
-      }, function () {
-        currentQuarter = nieuw;
-        buildTicks(); updateUI();
-        startTimer(); meldKlok();
-        if (window.parent !== window) {
-          try { parent.postMessage({ghcQuarter: nieuw}, location.origin); } catch (err) {}
-        }
-      });
+      }, ga);
     });
     // Reset zette met één tik de tijd op nul. Dat is te makkelijk: het gooit de
     // gespeelde tijd van het kwart weg en laat de app denken dat het kwart nog moet
