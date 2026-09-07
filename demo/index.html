@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="203">
+<meta name="app-version" content="204">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1096,10 +1096,37 @@ function demoStart(){
     return t;
   }catch(e){ return Date.now(); }
 }
-function demoDagenOver(){
-  return Math.ceil((demoStart()+DEMO_DAGEN*864e5-Date.now())/864e5);
+// ── Noodrem op afstand ──
+// Eén document in Firestore, 'beheer/demo', dat de demo bij het openen leest:
+//   { open: true, dagen: 14, boodschap: "" }
+// Zet 'open' op false en de demo gaat op slot bij iedereen — ook bij wie hem al op
+// zijn beginscherm heeft staan. Dat is de enige manier om hem echt te stoppen: de map
+// van de server halen helpt niet, want de app draait offline verder uit zijn eigen
+// opslag. De demoperiode staat er ook in, zodat je hem kunt verlengen of inkorten
+// zonder een nieuwe versie te uploaden.
+let _beheer = null;                       // null = nog niet gelezen
+function demoDagen(){
+  const d = _beheer && Number(_beheer.dagen);
+  return (d && d>0 && d<400) ? d : DEMO_DAGEN;
 }
-function demoVerlopen(){ return demoDagenOver()<=0; }
+function demoDicht(){ return !!(_beheer && _beheer.open===false); }
+function demoDagenOver(){
+  return Math.ceil((demoStart()+demoDagen()*864e5-Date.now())/864e5);
+}
+function demoVerlopen(){ return demoDicht() || demoDagenOver()<=0; }
+async function beheerLezen(){
+  if(!DEMO)return;
+  try{
+    await firebaseKlaar();
+    const d=await firebase.firestore().collection('beheer').doc('demo').get();
+    _beheer = d.exists ? (d.data()||{}) : {};
+    if(demoDicht()||demoDagen()!==DEMO_DAGEN)render();
+  }catch(e){
+    // Niet kunnen lezen mag de demo niet blokkeren: dan zou een storing bij Firebase
+    // de app onbruikbaar maken. Hij draait gewoon door op de ingebouwde veertien dagen.
+    onthoudFout('beheer lezen',e);
+  }
+}
 // Alles terugzetten naar de beginstand. Onmisbaar in een demo: wie de opstelling
 // in de war heeft gehaald wil met één tik opnieuw kunnen beginnen.
 function demoReset(){
@@ -1153,6 +1180,16 @@ function demoTips(){
 // op het toestel staan en gaat nergens heen.
 const TELLER_COLL='demostats';
 let _tellerBezig=false;
+// Firebase laden en anoniem inloggen. Stond twee keer bijna identiek in de code.
+async function firebaseKlaar(){
+  if(typeof firebase==='undefined'||!firebase.apps){
+    await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+    await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js');
+    await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
+  }
+  if(!firebase.apps.length)firebase.initializeApp(FB_CONFIG);
+  if(!firebase.auth().currentUser)await firebase.auth().signInAnonymously();
+}
 async function demoTel(wat){
   if(!DEMO)return;
   try{
@@ -1169,20 +1206,20 @@ async function demoTel(wat){
     }
     if(_tellerBezig)return;
     _tellerBezig=true;
-    if(typeof firebase==='undefined'||!firebase.apps){
-      await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
-      await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js');
-      await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
-    }
-    if(!firebase.apps.length)firebase.initializeApp(FB_CONFIG);
-    if(!firebase.auth().currentUser)await firebase.auth().signInAnonymously();
+    await firebaseKlaar();
     const db=firebase.firestore();
     const veld={};
     veld[wat]=firebase.firestore.FieldValue.increment(1);
     veld.laatst=Date.now();
     await db.collection(TELLER_COLL).doc(vandaag).set(veld,{merge:true});
     _tellerBezig=false;
-  }catch(e){ _tellerBezig=false; /* tellen mag nooit de app in de weg zitten */ }
+  }catch(e){
+    _tellerBezig=false;
+    // Tellen mag de app nooit in de weg zitten, maar stil mislukken evenmin: de
+    // beveiligingsregels eisen gehele getallen binnen een grens, en als daar ooit
+    // iets aan verschuift tel je maandenlang niets zonder het te merken.
+    onthoudFout('demoteller ('+wat+')',e);
+  }
 }
 function demoNietBeschikbaar(wat){
   confirmDialog({title:'Niet in de demo',
@@ -3090,6 +3127,11 @@ function warnBoxesHTML(){
   // hij voorin stond. Nu staat het er gewoon bij.
   for(const c of linieBotsingen()){
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(c)}</div></div>`;
+  }
+  if(DEMO && demoDicht()){
+    const eigen=(_beheer&&typeof _beheer.boodschap==='string'&&_beheer.boodschap.trim())||'';
+    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${
+      esc(eigen||'De demonstratie is gesloten. Wijzigen kan niet meer; kijken kan gewoon. Vragen? robertmunnichs@gmail.com')}</div></div>`;
   }
   if(versieJsonMist)
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">version.json loopt achter op de app (versie ${VERSIE_LABEL}). Zolang dat zo is krijgen andere toestellen geen melding dat er een nieuwe versie klaarstaat. Upload version.json opnieuw naar GitHub.</div></div>`;
@@ -5552,8 +5594,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=203;
-const VERSIE_LABEL='26.9.43';
+const APP_VERSION=204;
+const VERSIE_LABEL='26.9.44';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
@@ -6332,6 +6374,7 @@ if(DEMO){
   CLOUD.on=false;   // samenwerken bestaat niet in de demo
   // Tellen gebeurt op de achtergrond en nooit voordat het scherm er staat.
   setTimeout(()=>{
+    beheerLezen();      // noodrem en demoperiode ophalen
     demoTel('opening');
     const vanaf=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;
     if(vanaf)demoTel('vanaf_beginscherm');
