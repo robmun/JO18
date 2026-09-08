@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="207">
+<meta name="app-version" content="213">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1192,14 +1192,25 @@ function demoTips(){
 const TELLER_COLL='demostats';
 let _tellerBezig=false;
 // Firebase laden en anoniem inloggen. Stond twee keer bijna identiek in de code.
-async function firebaseKlaar(){
-  if(typeof firebase==='undefined'||!firebase.apps){
-    await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
-    await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js');
-    await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
-  }
-  if(!firebase.apps.length)firebase.initializeApp(FB_CONFIG);
-  if(!firebase.auth().currentUser)await firebase.auth().signInAnonymously();
+// Eén gedeelde belofte, geen controle vooraf. Er stond hier 'is firebase al geladen?'
+// en daarop werd het laden overgeslagen — maar 'firebase' bestaat al zodra het eerste
+// van de drie scripts binnen is. Wie op dat moment als tweede binnenkwam sloeg het
+// laden over en riep firebase.auth() aan terwijl dat script er nog niet was:
+// 'firebase.auth is not a function'. Met één caller viel dat niet op; sinds de
+// techniek- en fouttellers erbij kwamen zijn het er drie die tegelijk starten.
+let _fbBelofte=null;
+function firebaseKlaar(){
+  if(_fbBelofte)return _fbBelofte;
+  _fbBelofte=(async()=>{
+    if(typeof firebase==='undefined'||!firebase.auth||!firebase.firestore){
+      await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+      await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js');
+      await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
+    }
+    if(!firebase.apps.length)firebase.initializeApp(FB_CONFIG);
+    if(!firebase.auth().currentUser)await firebase.auth().signInAnonymously();
+  })().catch(e=>{ _fbBelofte=null; throw e; });   // mislukt? volgende keer opnieuw proberen
+  return _fbBelofte;
 }
 async function demoTel(wat){
   if(!DEMO)return;
@@ -2795,6 +2806,9 @@ function neemStandOver(s,herkomst){
   if(r.klachten.length){
     onthoudFout('stand '+herkomst,new Error(r.klachten.slice(0,4).join('; ')));
     setTimeout(()=>toast('Enkele gegevens waren onbruikbaar en zijn hersteld'),300);
+    // Meteen wegschrijven, anders staat dezelfde rommel er bij de volgende keer nog
+    // en krijg je die melding elke keer opnieuw te zien.
+    if(herkomst==='uit de opslag')setTimeout(()=>{ try{ save(); }catch(e){} },600);
   }
   return true;
 }
@@ -3237,6 +3251,12 @@ function warnBoxesHTML(){
   // hij voorin stond. Nu staat het er gewoon bij.
   for(const c of linieBotsingen()){
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(c)}</div></div>`;
+  }
+  if(updateKlem){
+    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">De update is niet aangekomen.
+      Deze app draait nog op versie ${VERSIE_LABEL} terwijl er versie ${esc(String(updateKlem.verwacht||'?'))} klaarstaat.
+      Meestal betekent dit dat <b>index.html</b> niet is bijgewerkt in deze map \u2014 alleen version.json.
+      Upload index.html opnieuw${DEMO?' naar de map demo':''} en probeer het nog eens.</div></div>`;
   }
   if(DEMO && demoDicht()){
     const eigen=(_beheer&&typeof _beheer.boodschap==='string'&&_beheer.boodschap.trim())||'';
@@ -5797,8 +5817,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=207;
-const VERSIE_LABEL='26.9.47';
+const APP_VERSION=213;
+const VERSIE_LABEL='26.9.54';
 const VERSIE_DATUM='4 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
@@ -5846,11 +5866,13 @@ async function checkForUpdate(){
     if(m&&Number(m[1])>APP_VERSION)showUpdateBar(lab?lab[1]:String(m[1]));
   }catch(e){/* offline of file:// — stil overslaan */}
 }
+let _updVersie=0;
 function showUpdateBar(v){
   const d=document.createElement('div');
   d.id='updBar';
   d.innerHTML=`<div class="txt"><b>Nieuwe versie beschikbaar (${esc(String(v))})</b>Tik op vernieuwen om de update te laden.</div>
     <button class="upd">Vernieuwen</button><button class="dis" aria-label="Sluiten">&#10005;</button>`;
+  _updVersie=v;
   d.querySelector('.upd').onclick=applyUpdate;
   d.querySelector('.dis').onclick=()=>{_updDismissed=true;d.remove();};
   document.body.appendChild(d);
@@ -5874,10 +5896,35 @@ async function applyUpdate(){
       const sc=r.scope||'';
       return sc.startsWith(location.origin+location.pathname.replace(/[^/]*$/,''));
     });
-    await Promise.all(eigen.map(r=>r.update()));
+    // Afmelden in plaats van bijwerken. update() haalt de nieuwe worker op, maar die
+    // blijft wachten tot de oude alle vensters heeft losgelaten — en tot die tijd
+    // serveert de oude gewoon door. Afmelden haalt hem weg; bij het herladen meldt
+    // de app zich opnieuw aan. Offline werkt dus even niet, tot die ene herlading.
+    await Promise.all(eigen.map(r=>r.unregister().catch(()=>r.update())));
   }catch(e){onthoudFout('sw vernieuwen',e);}
-  location.reload();
+  // Onthouden wat we verwáchtten, zodat we na het herladen kunnen zien of het gelukt
+  // is. Zonder dit kwam de banner alleen maar terug, zonder te zeggen waarom.
+  try{ localStorage.setItem(SLEUTEL('gw_updpoging'),
+    JSON.stringify({verwacht:_updVersie||0, was:APP_VERSION, t:Date.now()})); }catch(e){}
+  // reload() mag de HTML uit de browsercache halen; met een eigen adres kan dat niet.
+  const pad=location.pathname+'?v='+Date.now()+location.hash;
+  location.replace(pad);
 }
+
+let updateKlem=null;
+// Na het herladen: is de update werkelijk aangekomen? Zo niet, dan ligt het niet aan
+// de app maar aan wat er op de server staat, en dat hoort er met zoveel woorden bij.
+function updateNagaan(){
+  let poging=null;
+  try{ poging=JSON.parse(localStorage.getItem(SLEUTEL('gw_updpoging'))||'null'); }catch(e){}
+  if(!poging)return;
+  try{ localStorage.removeItem(SLEUTEL('gw_updpoging')); }catch(e){}
+  if(Date.now()-Number(poging.t||0)>5*60000)return;      // oude poging, niet meer relevant
+  if(APP_VERSION>Number(poging.was||0))return;            // gelukt
+  updateKlem={verwacht:poging.verwacht};
+  render();
+}
+
 setTimeout(checkForUpdate,2500);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkForUpdate();});
 // iOS hervat de app soms zonder visibilitychange; vang ook deze signalen op,
@@ -5889,6 +5936,7 @@ setInterval(()=>{if(document.visibilityState==='visible')checkForUpdate();},6000
 // Dit is het enige dat de gewone app uit zichzelf naar internet stuurt, en het bevat
 // geen namen, geen teamcode en geen inhoud — alleen emmertjes.
 setTimeout(techniekTel,4000);
+updateNagaan();
 
 
 
@@ -6475,13 +6523,27 @@ function schuddenAanzetten(vanKnop){
       // iOS vraagt toestemming, en dat mag alleen direct na een aanraking.
       DeviceMotionEvent.requestPermission()
         .then(r=>{ if(r==='granted')zet(); else {_schudStatus='geweigerd'; if(vanKnop){toast('Toestemming geweigerd');render();}} })
-        .catch(e=>{ _schudStatus='geweigerd'; onthoudFout('bewegingssensor',e); if(vanKnop)render(); });
+        .catch(e=>{
+          _schudStatus='geweigerd';
+          try{ localStorage.setItem(SLEUTEL('gw_schudnee'),'1'); }catch(x){}
+          // Alleen melden als de coach er zelf om vroeg; anders is het geen storing.
+          if(vanKnop){ onthoudFout('bewegingssensor',e); render(); }
+        });
     }else zet();
   }catch(e){ _schudStatus='kan niet'; onthoudFout('bewegingssensor',e); }
 }
+// Bij de eerste aanraking proberen we schudden aan te zetten. Op iOS mag de vraag om
+// de bewegingssensor alleen direct ná een aanraking — maar 'pointerdown' telt daar
+// niet altijd als zodanig, en dan komt er elke keer 'requires a user gesture' in de
+// foutenlijst zonder dat er iets aan de hand is. We slaan de vraag daarom over als
+// hij al eens is geweigerd, en melden een geweigerd gebaar niet als fout: dat is geen
+// storing maar de normale gang van zaken. Via de knop op het tabblad Meer lukt het
+// wél, want dat is onmiskenbaar een aanraking.
 document.addEventListener('pointerdown',function eerste(){
   document.removeEventListener('pointerdown',eerste);
-  schuddenAanzetten(false);
+  let eerderGeweigerd=false;
+  try{ eerderGeweigerd=localStorage.getItem(SLEUTEL('gw_schudnee'))==='1'; }catch(e){}
+  if(!eerderGeweigerd)schuddenAanzetten(false);
 },{once:true});
 
 // ── Zonstand ──
