@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="213">
+<meta name="app-version" content="214">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -280,11 +280,18 @@ body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,
 /* ---------- Speeltijd per speler ---------- */
 .sptijd{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px}
 @media (max-width:359px){ .sptijd{grid-template-columns:1fr} }
-.sprij{display:flex;align-items:baseline;gap:6px;padding:3px 0;min-width:0}
+.sprij{display:flex;align-items:baseline;gap:5px;padding:3px 0;min-width:0}
 .spnaam{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:var(--fs-sm);color:var(--txt)}
 .spnaam i{font-size:var(--fs-xs);color:var(--dim);font-style:normal}
 .card h2 .eenheid{font-size:var(--fs-xs);font-weight:600;color:var(--dim);letter-spacing:0}
+/* De posities staan tussen naam en minuten. De naam wijkt als eerste (ellipsis),
+   want een afgekapte naam is nog te herkennen en een afgekapte positielijst niet. */
+.sppos{flex:0 0 auto;font-size:var(--fs-xs);color:var(--dim);font-variant-numeric:tabular-nums;
+  white-space:nowrap}
+.spkop{padding-bottom:1px;font-size:var(--fs-xs);color:var(--dim);text-transform:uppercase;
+  letter-spacing:.04em;border-bottom:1px solid rgba(255,255,255,.10);margin-bottom:3px}
+.spkop .sppos,.spkop .spmin{font-size:var(--fs-xs);color:var(--dim)}
 .spmin{flex:0 0 auto;font-variant-numeric:tabular-nums;font-size:var(--fs-sm);color:var(--dim)}
 .spmin b{color:var(--txt);font-weight:800}
 /* Alleen wie achterloopt krijgt nadruk; als iedereen gelijk uitkomt blijft het rustig. */
@@ -297,12 +304,16 @@ body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,
 .sprij[data-spschema]:active{background:rgba(255,255,255,.08)}
 body.sun .sprij[data-spschema]:active{background:rgba(15,32,64,.08)}
 .spnaam::after{content:'\203A';margin-left:5px;color:var(--dim);font-weight:700;opacity:.7}
-.sprij.weg .spnaam::after{content:none}
+.sprij.weg .spnaam::after,.spkop .spnaam::after{content:none}
 /* Het schema van één speler, per kwart. */
 .qschema{display:flex;flex-direction:column;gap:7px;margin-top:4px}
 .qrij{display:flex;gap:10px;align-items:baseline;font-size:var(--fs-md);line-height:1.35}
 .qrij b{flex:0 0 26px;color:var(--txt);font-weight:800}
 .qrij span{flex:1;color:var(--dim)}
+/* De samenvatting onder de kwarten: eigen label, dus geen vaste kolombreedte, en
+   een streep erboven zodat het niet als vijfde kwart wordt gelezen. */
+.posrij{margin-top:3px;padding-top:10px;border-top:1px solid rgba(255,255,255,.10)}
+.posrij b{flex:0 0 auto}
 body.sun .sprij.minder .spnaam,body.sun .sprij.minder .spmin b{color:#a01a10}
 
 /* ---------- Tabblad Meer ---------- */
@@ -1192,12 +1203,13 @@ function demoTips(){
 const TELLER_COLL='demostats';
 let _tellerBezig=false;
 // Firebase laden en anoniem inloggen. Stond twee keer bijna identiek in de code.
-// Eén gedeelde belofte, geen controle vooraf. Er stond hier 'is firebase al geladen?'
-// en daarop werd het laden overgeslagen — maar 'firebase' bestaat al zodra het eerste
-// van de drie scripts binnen is. Wie op dat moment als tweede binnenkwam sloeg het
-// laden over en riep firebase.auth() aan terwijl dat script er nog niet was:
-// 'firebase.auth is not a function'. Met één caller viel dat niet op; sinds de
-// techniek- en fouttellers erbij kwamen zijn het er drie die tegelijk starten.
+// Eén gedeelde belofte, en de controle kijkt naar firebase.auth in plaats van naar
+// firebase zelf. Er stond 'is firebase er al?' en daarop werd het laden overgeslagen —
+// maar 'firebase' bestaat al zodra het eerste van de drie scripts binnen is. Wie op
+// dat moment als tweede binnenkwam sloeg het laden over en riep firebase.auth() aan
+// terwijl dat script er nog niet was: 'firebase.auth is not a function'. Met één
+// aanroeper viel dat niet op; met de techniek- en fouttellers erbij zijn het er drie
+// die tegelijk starten.
 let _fbBelofte=null;
 function firebaseKlaar(){
   if(_fbBelofte)return _fbBelofte;
@@ -1209,7 +1221,7 @@ function firebaseKlaar(){
     }
     if(!firebase.apps.length)firebase.initializeApp(FB_CONFIG);
     if(!firebase.auth().currentUser)await firebase.auth().signInAnonymously();
-  })().catch(e=>{ _fbBelofte=null; throw e; });   // mislukt? volgende keer opnieuw proberen
+  })().catch(e=>{ _fbBelofte=null; throw e; });   // mislukt? volgende keer opnieuw
   return _fbBelofte;
 }
 async function demoTel(wat){
@@ -1291,6 +1303,49 @@ function linesOf(p){
 }
 function magInLinie(p,linie){return linesOf(p).includes(linie);}
 
+// ── Verboden posities (regel 'nopos') ──
+// Anders dan de linies bij de speler is dit een coachregel: 'nooit linksvoor' hoort
+// bij deze wedstrijd en bij deze afspraak, niet bij wat een speler kan. Daarom staat
+// het op Regels en niet op de spelerskaart.
+//
+// Een verbod geldt ook voor de verwante posities, maar alleen als de verboden plek
+// in die speelvorm niet bestaat. Zeg je 'nooit spits' en speel je 4-4-2 — waar geen
+// spits is, wel spits links en spits rechts — dan is een verbod dat letterlijk op
+// 'spits' slaat een verbod dat nergens over gaat. Bestaat de plek wél, dan blijft
+// het verbod letterlijk: 'nooit midden midden' hoort niet stilletjes ook links en
+// rechts midden af te sluiten.
+function verbodenPosities(pid,rules,POS){
+  const rs=rules||(typeof state!=='undefined'?state.rules:[])||[];
+  const uit=new Set();
+  for(const r of rs){
+    if(r.type!=='nopos'||r.p1!==pid||!POSMAP[r.pos])continue;
+    uit.add(r.pos);
+    if(POS&&!POS.some(p=>p.id===r.pos)){
+      for(const p of POS){ if((p.eq||[]).includes(r.pos))uit.add(p.id); }
+    }
+  }
+  return uit;
+}
+// ── Maximaal aantal posities per wedstrijd (regel 'maxpos') ──
+// Keepen telt niet mee: de keeper zit niet in deze verdeling, en een vervangkeeper
+// wordt in zijn keeperkwarten uit het veld gehaald voordat de posities verdeeld worden.
+function maxPosRule(rules){
+  const rs=rules||(typeof state!=='undefined'?state.rules:[])||[];
+  const r=rs.find(x=>x.type==='maxpos'&&Number(x.n)>=2&&Number(x.n)<=4);
+  return r?Number(r.n):null;
+}
+// ── Hoe hard is een afspraak? ──
+// Deze getallen waren allemaal 10000, waardoor een vaste positie en een verboden
+// linie elkaar precies opheften en de uitkomst afhing van de volgorde in de lijst.
+// Nu is de rangorde expliciet, en elk niveau is een factor tien zwaarder dan het
+// volgende, zodat een lagere afspraak nooit een hogere kan overstemmen.
+// Ter vergelijking: de voorkeuren en bonussen samen komen niet boven de 4200 uit.
+const STRAF_NOPOS = 1e8;   // coach zegt: hier nooit
+const STRAF_LOCK  = 1e6;   // coach zegt: hier altijd
+const STRAF_LINIE = 1e4;   // speler mag niet in deze linie
+const STRAF_MAXPOS= 1e3;   // dit zou zijn (N+1)-ste positie worden
+const BONUS_BEKEND= 250;   // plek waar hij al stond, zolang er een maximum geldt
+
 // Versie van de opgeslagen gegevens; zie migrateState() verderop.
 const STATE_V=4;
 // Zestien verzonnen spelers voor de demo. Bewust namen die niet op een bestaand
@@ -1335,10 +1390,11 @@ function defaultPlayers(){return DEMO?demoPlayers():[
 function defaultRules(){
   // In de demo een paar sprekende regels, zodat je meteen ziet wat ze doen.
   if(DEMO)return [
-    {id:'dr1',type:'subs',   n:2},
+    {id:'dr1',type:'subs',   n:3},
     {id:'dr2',type:'minutes',p1:'d09', mm:'min', min:35},
     {id:'dr3',type:'apart',  p1:'d02', p2:'d03'},
-    {id:'dr4',type:'start',  p1:'d16', start:'bench'}
+    {id:'dr4',type:'start',  p1:'d16', start:'bench'},
+    {id:'dr5',type:'maxpos', n:3}
   ];
   return [
   {id:'r1',type:'noq',    p1:'hidde', qs:[3,4]},
@@ -1417,6 +1473,67 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
   const elig={},caps={};
   fieldPlayers.forEach(p=>{elig[p.id]=eligibleVec(p,perQ,rules);caps[p.id]=elig[p.id].filter(Boolean).length;});
   const ids=fieldPlayers.map(p=>p.id);
+  // ── Linie-dekking van een blok ──
+  // Tien plekken moeten elke minuut gevuld worden, en elke plek zit in een linie.
+  // Zitten er in de tien gekozen spelers te weinig die achterin mogen, dan komt daar
+  // onvermijdelijk iemand te staan die dat niet mag. De positieverdeling kan dat niet
+  // meer repareren: die krijgt de selectie kant en klaar aangeleverd. Daarom keek er
+  // tot nu toe niemand naar, en stond er zaterdag een verdediger op links voor.
+  //
+  // Exact rekenen kan met de stelling van Hall: voor elke combinatie van linies moet
+  // het aantal plekken in die linies kleiner of gelijk zijn aan het aantal gekozen
+  // spelers dat in minstens één van die linies uit de voeten kan. Bij drie linies zijn
+  // dat zeven combinaties — goedkoop genoeg om per blok te doen.
+  const _spelerOp=Object.fromEntries(fieldPlayers.map(p=>[p.id,p]));
+  const _plekCache={},_linieCache={};
+  const plekkenPerLinie=b=>{
+    const q=Math.floor(b/perQ);
+    if(_plekCache[q])return _plekCache[q];
+    const n={voor:0,midden:0,achter:0};
+    positionsOfQ(q,rules).forEach(p=>{n[p.line]++;});
+    return (_plekCache[q]=n);
+  };
+  // In welke linies kan deze speler dit kwart werkelijk staan? Een verbod op alle
+  // plekken van een linie sluit die linie ook af.
+  const linieVan=(pid,b)=>{
+    const q=Math.floor(b/perQ), sleutel=pid+'|'+q;
+    if(_linieCache[sleutel])return _linieCache[sleutel];
+    const POS=positionsOfQ(q,rules);
+    const verboden=verbodenPosities(pid,rules,POS);
+    const p=_spelerOp[pid];
+    const uit=LINE_IDS.filter(l=>magInLinie(p,l)&&POS.some(x=>x.line===l&&!verboden.has(x.id)));
+    return (_linieCache[sleutel]=uit);
+  };
+  // Kan deze halve selectie nog tot een dekkende tien worden aangevuld? Hiermee kan
+  // de blokkeuze vóórkomen dat ze zich klemzet, in plaats van achteraf te repareren.
+  // Achteraf repareren kost namelijk speeltijd: elke ruil haalt iemand weg die er op
+  // grond van eerlijkheid juist hoorde te staan.
+  const dekkingBlijftMogelijk=(sel,rest,slotsLeft,b)=>{
+    const nodig=plekkenPerLinie(b);
+    for(let m=1;m<8;m++){
+      const deel=LINE_IDS.filter((_,i)=>m&(1<<i));
+      let plekken=0; deel.forEach(l=>{plekken+=nodig[l];});
+      let heb=0; for(const id of sel){ if(linieVan(id,b).some(l=>deel.includes(l)))heb++; }
+      const tekort=plekken-heb;
+      if(tekort<=0)continue;
+      if(tekort>slotsLeft)return false;
+      let vrij=0; for(const id of rest){ if(linieVan(id,b).some(l=>deel.includes(l)))vrij++; }
+      if(tekort>vrij)return false;
+    }
+    return true;
+  };
+  const linieTekort=(set,b)=>{
+    const nodig=plekkenPerLinie(b);
+    let ergste=0;
+    for(let m=1;m<8;m++){
+      const deel=LINE_IDS.filter((_,i)=>m&(1<<i));
+      let plekken=0; deel.forEach(l=>{plekken+=nodig[l];});
+      let mensen=0;
+      for(const id of set){ if(linieVan(id,b).some(l=>deel.includes(l)))mensen++; }
+      if(plekken-mensen>ergste)ergste=plekken-mensen;
+    }
+    return ergste;
+  };
   // Min/max-minuten regels omrekenen naar blokken (1 blok = 17.5/perQ minuten)
   const blockMin=17.5/perQ;
   const maxBlk={},minBlk={};
@@ -1485,7 +1602,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
       }
       return ids.indexOf(a)-ids.indexOf(c);
     });
-    const sel=new Set(),skipped=[];
+    const sel=new Set(),skipped=[],uitgesteld=[];
     // rotate-paren: kies per blok wie van het paar speelt (afwisselend p1/p2)
     rotateBlocked.clear();
     for(let ri=0;ri<rotates.length;ri++){
@@ -1524,9 +1641,46 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
         const mustPlay=(t[id]-played[id])>=remFrom[id][b]-1e-9;
         if(!mustPlay){skipped.push(id);continue;}
       }
+      // Zou hij meenemen de linie-dekking onmogelijk maken? Dan schuift hij door naar
+      // het volgende blok; daar staat hij door zijn oplopende achterstand vooraan.
+      const rest=cands.filter(x=>x!==id&&!sel.has(x)&&!rotateBlocked.has(x)
+        &&!(b===0&&startBench.has(x))&&!(maxBlk[x]!=null&&played[x]>=maxBlk[x]));
+      const proef=new Set(sel); proef.add(id);
+      if(!dekkingBlijftMogelijk(proef,rest,10-proef.size,b)){uitgesteld.push(id);continue;}
       sel.add(id);
     }
     for(const id of skipped){if(sel.size>=10)break;if(maxBlk[id]!=null&&played[id]>=maxBlk[id])continue;sel.add(id);}
+    for(const id of uitgesteld){if(sel.size>=10)break;if(maxBlk[id]!=null&&played[id]>=maxBlk[id])continue;sel.add(id);}
+    // Dekt deze tien de linies? Zo niet: ruil de speler die het minst nodig is voor
+    // iemand die het gat vult. Wie vastligt door een andere afspraak blijft staan;
+    // liever een tekort dan een gebroken regel.
+    if(linieTekort(sel,b)>0){
+      const vast=new Set([...(endForce[b]||[]),...(b===0?startBase:[]),
+        ...rotates.flatMap(r=>[r.p1,r.p2]),...(q3like&&b===q3Block&&blocks[0]?blocks[0]:[])]);
+      for(let poging=0;poging<6;poging++){
+        const tekort=linieTekort(sel,b);
+        if(!tekort)break;
+        // wie kan erbij? in volgorde van wie het hardst aan spelen toe is
+        const erbij=cands.filter(id=>!sel.has(id)&&!rotateBlocked.has(id)
+          &&!(b===0&&startBench.has(id))&&!(maxBlk[id]!=null&&played[id]>=maxBlk[id]));
+        let beste=null;
+        for(const in_ of erbij){
+          for(const uit of sel){
+            if(vast.has(uit))continue;
+            const proef=new Set(sel); proef.delete(uit); proef.add(in_);
+            const nieuw=linieTekort(proef,b);
+            if(nieuw>=tekort)continue;
+            // van de gelijkwaardige ruilen: haal de speler eruit die het minst
+            // achterloopt op zijn eerlijke aandeel, en zet die erin die het meest achterloopt
+            const winst=(t[in_]-played[in_])-(t[uit]-played[uit]);
+            const kandidaat={in_,uit,nieuw,winst};
+            if(!beste||nieuw<beste.nieuw||(nieuw===beste.nieuw&&winst>beste.winst))beste=kandidaat;
+          }
+        }
+        if(!beste)break;
+        sel.delete(beste.uit); sel.add(beste.in_);
+      }
+    }
     blocks.push(sel);
     ids.forEach(i=>{ if(sel.has(i)){played[i]++;bench[i]=0;} else if(elig[i][b])bench[i]++; });
   }
@@ -1552,6 +1706,9 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
           const conf=conflictsWith(lo,tmp);
           const allowConf=(t[lo]-played[lo])>1.0; // ver onder doel: regel mag wijken
           if(conf&&!allowConf)continue;
+          // Minuten gladstrijken mag geen linie leeghalen die net gevuld was.
+          tmp.add(lo);
+          if(linieTekort(tmp,b)>linieTekort(blocks[b],b))continue;
           blocks[b].delete(hi);blocks[b].add(lo);played[hi]--;played[lo]++;swapped=true;break;
         }
         if(swapped)break;
@@ -1624,11 +1781,19 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
 function assignAll(blockSets,perQ,rules,byId,vast){
   const B=perQ*4, out=[];
   const q3like=rules.some(r=>r.type==='q3likeq1');
+  const maxPos=maxPosRule(rules);
+  // Welke posities heeft iemand deze wedstrijd al gehad? Dit is het enige stuk
+  // geheugen dat over de blokken heen loopt; alle andere afwegingen zijn per blok.
+  // Blokken die bij een herplanning letterlijk worden overgenomen tellen mee, anders
+  // zou de teller halverwege de wedstrijd op nul beginnen.
+  const gebruikt={};
+  const onthoud=asg=>{ for(const posId in asg){ const pid=asg[posId];
+    if(!pid)continue; (gebruikt[pid]=gebruikt[pid]||new Set()).add(posId); } };
   let prev=null,q1a=null;
   for(let b=0;b<B;b++){
     if(vast&&b<vast.vanaf&&vast.assignments&&vast.assignments[b]){
       const kopie=Object.assign({},vast.assignments[b]);
-      out.push(kopie); prev=kopie;
+      out.push(kopie); prev=kopie; onthoud(kopie);
       if(b===0)q1a=kopie;
       continue;
     }
@@ -1649,12 +1814,27 @@ function assignAll(blockSets,perQ,rules,byId,vast){
       if(alt)locks[pid]=alt.id; else delete locks[pid];
     }
     const short=ids.length<10;
+    // Verboden posities voor de spelers die nu op het veld staan, uitgerekend voor
+    // de speelvorm van dit kwart (zie verbodenPosities).
+    const verboden={};
+    for(const pid of ids)verboden[pid]=verbodenPosities(pid,rules,POS);
     const score=(pid,pos)=>{
       const p=byId[pid];let s=0;
       // bij minder dan 10 spelers: laat een gat liefst voorin vallen
       s+=pos.line==='achter'?(short?60:6):(pos.line==='midden'?(short?30:3):0);
-      if(locks[pid]) s+=(pos.id===locks[pid])?10000:-10000;
-      if(!magInLinie(p,pos.line)) s-=10000;   // speler mag niet in deze linie
+      if(locks[pid]) s+=(pos.id===locks[pid])?STRAF_LOCK:-STRAF_LOCK;
+      if(verboden[pid]&&verboden[pid].has(pos.id)) s-=STRAF_NOPOS;
+      if(!magInLinie(p,pos.line)) s-=STRAF_LINIE;   // speler mag niet in deze linie
+      // Zou dit een nieuwe positie worden terwijl hij er al genoeg heeft gehad?
+      // Alleen straffen als de grens al bereikt is, is te laat: dan heeft hij zijn
+      // drie plekken vaak al in de eerste kwarten verbruikt en zit de rest van de
+      // wedstrijd klem. Daarom telt een bekende plek de h\u00e9le wedstrijd door mee \u2014
+      // licht genoeg om voor een voorkeurspositie te wijken, zwaar genoeg om hem
+      // niet zonder reden over het veld te laten zwerven.
+      if(maxPos&&gebruikt[pid]){
+        if(gebruikt[pid].has(pos.id)) s+=BONUS_BEKEND;
+        else if(gebruikt[pid].size>=maxPos) s-=STRAF_MAXPOS;
+      }
       const prefs=p.prefs||[];
       const i=prefs.indexOf(pos.id);
       if(i===0)s+=100;else if(i===1)s+=80;else if(i===2)s+=60;
@@ -1696,10 +1876,74 @@ function assignAll(blockSets,perQ,rules,byId,vast){
     // Te lange doorschuifketens korter maken. Zie kortKetens hieronder; de start van
     // Q3 slaan we over als die gelijk moet blijven aan Q1, want dan zou de reparatie
     // juist die afspraak breken.
-    if(prev && !(q3like && b===perQ*2)) kortKetens(prev,asg,POS,byId,locks);
+    if(prev && !(q3like && b===perQ*2)) kortKetens(prev,asg,POS,byId,locks,verboden);
+    onthoud(asg);
     out.push(asg);prev=asg;if(b===0)q1a=asg;
   }
+  if(maxPos)herstelMaxPos(out,perQ,rules,byId,maxPos,vast,q3like);
   return out;
+}
+
+// ── Achteraf terugbrengen tot het toegestane aantal posities ──
+// De verdeling loopt blok voor blok en kan zich klemzetten: staat iemand in blok 12
+// op het veld terwijl al zijn eigen plekken bezet zijn, dan moet hij wel ergens
+// anders staan, hoe zwaar de straf ook is. Achteraf is het wél op te lossen, want
+// dan is het hele schema bekend. We halen hem van zijn zeldzaamste plek af en ruilen
+// die met iemand die daar toch al stond of nog ruimte over heeft.
+//
+// De ruil moet voor beiden kloppen: geen verboden positie, geen verboden linie, en
+// geen speler met een vaste positie of een ruilafspraak (die verplaatsen we nooit).
+// Blokken uit een herplanning en de gespiegelde start van Q3 blijven ook met rust.
+function herstelMaxPos(out,perQ,rules,byId,maxPos,vast,q3like){
+  const B=perQ*4;
+  const onaanraakbaar=new Set();
+  for(const r of rules){
+    if(r.type==='pos'||r.type==='condpos')onaanraakbaar.add(r.p1);
+    if(r.type==='rotate'){onaanraakbaar.add(r.p1);onaanraakbaar.add(r.p2);}
+  }
+  const vastTot=(vast&&vast.vanaf)||0;
+  const bevroren=b=>b<vastTot||(q3like&&(b===0||b===perQ*2));
+  const telling=()=>{
+    const t={};
+    for(let b=0;b<B;b++){const a=out[b]||{};
+      for(const pos in a){const pid=a[pos];if(!pid)continue;
+        (t[pid]=t[pid]||{})[pos]=((t[pid]||{})[pos]||0)+1;}}
+    return t;
+  };
+  const mag=(pid,posId,q)=>{
+    if(onaanraakbaar.has(pid))return false;
+    const POS=positionsOfQ(q,rules);
+    const pos=POS.find(x=>x.id===posId); if(!pos)return false;
+    if(verbodenPosities(pid,rules,POS).has(posId))return false;
+    return magInLinie(byId[pid],pos.line);
+  };
+  for(let ronde=0;ronde<4;ronde++){
+    const t=telling();
+    const teveel=Object.keys(t).filter(pid=>Object.keys(t[pid]).length>maxPos);
+    if(!teveel.length)return;
+    let iets=false;
+    for(const pid of teveel){
+      // de plek waar hij het minst vaak stond is het goedkoopst om op te geven
+      const plekken=Object.keys(t[pid]).sort((a,b)=>t[pid][a]-t[pid][b]);
+      const kwijt=plekken[0], houden=plekken.slice(1);
+      for(let b=0;b<B;b++){
+        if(bevroren(b))continue;
+        const a=out[b]; if(!a||a[kwijt]!==pid)continue;
+        const q=Math.floor(b/perQ);
+        for(const doel of houden){
+          const ander=a[doel];
+          if(!ander||ander===pid)continue;
+          if(!mag(pid,doel,q)||!mag(ander,kwijt,q))continue;
+          // de ruilpartner mag er zelf niet door over zijn maximum gaan
+          const zijne=Object.keys(t[ander]||{});
+          if(!zijne.includes(kwijt)&&zijne.length>=maxPos)continue;
+          a[doel]=pid; a[kwijt]=ander; iets=true;
+          break;
+        }
+      }
+    }
+    if(!iets)return;   // niets meer te ruilen: de melding vertelt de coach de rest
+  }
 }
 
 // ── Doorschuifketens korter maken ──
@@ -1719,9 +1963,10 @@ function assignAll(blockSets,perQ,rules,byId,vast){
 // waarin iemand mag spelen worden nooit geschonden. Lukt het daardoor niet, dan
 // blijft de keten lang — beter dat dan een opstelling die de afspraken breekt.
 const MAX_KETEN=3;      // streefwaarde: invaller, vertrekker en hooguit één doorschuiver
-function kortKetens(prev,asg,POS,byId,locks){
+function kortKetens(prev,asg,POS,byId,locks,verboden){
   const legaal=(pid,posId)=>{
     if(locks[pid]&&locks[pid]!==posId)return false;
+    if(verboden&&verboden[pid]&&verboden[pid].has(posId))return false;
     const pos=POS.find(p=>p.id===posId);
     return !!pos && magInLinie(byId[pid],pos.line);
   };
@@ -1977,10 +2222,8 @@ async function techniekSchrijf(velden){
     // naar een veld binnen een groepje: 'soort.iphone' wordt dan de teller 'iphone'
     // binnen 'soort'. Bij set() blijft het een veld dat letterlijk 'soort.iphone'
     // heet, en dat weigeren de beveiligingsregels — die kennen alleen de zeven
-    // onderwerpen. Gevolg: er werd niets weggeschreven.
-    //
-    // update() bestaat niet op een document dat er nog niet is, dus bij de eerste
-    // telling van de week eerst een leeg document aanmaken.
+    // onderwerpen. update() bestaat niet op een document dat er nog niet is, dus bij
+    // de eerste telling van de week eerst een leeg document aanmaken.
     try{
       await ref.update(doel);
     }catch(e){
@@ -2725,6 +2968,12 @@ function valideerStand(s){
         if(!r.qs.length)return weg('geen geldig kwart');
         return true;
       }
+      case 'maxpos': {   // maximaal aantal posities per wedstrijd
+        r.n=Number(r.n);
+        if(!(r.n>=2&&r.n<=4))return weg('aantal posities onbruikbaar');
+        return true;
+      }
+      case 'nopos':      // nooit op deze positie
       case 'pos':        // vaste positie
       case 'condpos':    // positie als een andere speler er niet staat
       case 'rotate': {   // wisselen van positie met een ander
@@ -2806,9 +3055,11 @@ function neemStandOver(s,herkomst){
   if(r.klachten.length){
     onthoudFout('stand '+herkomst,new Error(r.klachten.slice(0,4).join('; ')));
     setTimeout(()=>toast('Enkele gegevens waren onbruikbaar en zijn hersteld'),300);
-    // Meteen wegschrijven, anders staat dezelfde rommel er bij de volgende keer nog
-    // en krijg je die melding elke keer opnieuw te zien.
-    if(herkomst==='uit de opslag')setTimeout(()=>{ try{ save(); }catch(e){} },600);
+    // Meteen wegschrijven, anders staat dezelfde rommel er de volgende keer nog en
+    // krijg je die melding elke keer opnieuw. Komt hij uit de cloud, dan moet de
+    // opgeschoonde versie ook terug naar de cloud — anders stuurt die hem bij de
+    // volgende synchronisatie gewoon weer op.
+    setTimeout(()=>{ try{ save(); if(herkomst==='uit de cloud'&&typeof cloudPush==='function')cloudPush(); }catch(e){} },600);
   }
   return true;
 }
@@ -3236,6 +3487,143 @@ function linieBotsingen(){
   }
   return uit;
 }
+// ── Past dit team überhaupt in deze speelvorm? ──
+// Dit is de melding die er niet was toen Joris linksvoor bleek te staan. Zijn de
+// linies bij de spelers zo ingevuld dat er in een linie minder spelers mogen staan
+// dan er plekken zijn, dan móét er iemand op een plek komen waar hij niet hoort
+// — hoe de planner ook rekent. Tien plekken moeten elke minuut gevuld worden.
+// Dat is geen fout van de verdeling maar van de invoer, en dus hoort de app het te
+// zeggen vóórdat je zaterdag naar het veld kijkt en je afvraagt wat er misging.
+function bezettingsProblemen(){
+  const uit=[];
+  const rs=state.rules||[];
+  const aanwezig=state.players.filter(p=>p.present&&!p.uit);
+  const vaste=aanwezig.find(p=>p.id===state.keeperId)||null;
+  const gkByQ={};
+  rs.filter(r=>r.type==='gk').forEach(r=>(r.qs||[]).forEach(q=>{if(!gkByQ[q])gkByQ[q]=r.p1;}));
+  // Per linie: hoeveel plekken zijn er, en wie mag daar staan?
+  const perQuart=[];
+  for(let q=0;q<4;q++){
+    const POS=positionsOfQ(q,rs);
+    const veld=aanwezig.filter(p=>(!vaste||p.id!==vaste.id)&&p.id!==gkByQ[q+1]
+      &&!rs.some(r=>r.type==='noq'&&r.p1===p.id&&noqQs(r).includes(q+1)));
+    const rij={};
+    for(const l of LINE_IDS){
+      const plekken=POS.filter(p=>p.line===l);
+      if(!plekken.length)continue;
+      const mag=veld.filter(p=>{
+        if(!magInLinie(p,l))return false;
+        const verboden=verbodenPosities(p.id,rs,POS);
+        return plekken.some(x=>!verboden.has(x.id));   // minstens \u00e9\u00e9n plek open
+      });
+      // Krap is al een probleem: zijn er precies zoveel spelers als plekken, dan kan
+      // niemand van hen ooit rust krijgen zonder dat er een vreemde op die plek staat.
+      if(mag.length<=plekken.length)rij[l]={nodig:plekken.length,mag:mag.length};
+    }
+    perQuart.push(rij);
+  }
+  // Vier keer dezelfde melding is drie keer te veel, en twee linies met precies
+  // hetzelfde probleem horen in één zin. Eerst per linie bundelen over de kwarten,
+  // daarna de linies die woord voor woord hetzelfde zouden opleveren samenvoegen.
+  const perLinie={};
+  perQuart.forEach((rij,q)=>{
+    for(const l in rij){
+      const sleutel=l+'|'+rij[l].nodig+'|'+rij[l].mag;
+      (perLinie[sleutel]=perLinie[sleutel]||{l,...rij[l],qs:[]}).qs.push(q+1);
+    }
+  });
+  const samen={};
+  for(const k in perLinie){
+    const g=perLinie[k];
+    const sleutel=g.qs.join(',')+'|'+g.nodig+'|'+g.mag;
+    (samen[sleutel]=samen[sleutel]||{...g,lijnen:[]}).lijnen.push(g.l);
+  }
+  const opsom=arr=>arr.map(l=>LINES[l]).reduce((a,b,i)=>i===0?b:(i===arr.length-1?a+' en de '+b:a+', de '+b),'');
+  for(const k in samen){
+    const g=samen[k];
+    const waar=g.qs.length===4?'De hele wedstrijd':('In '+g.qs.map(q=>'Q'+q).join(' + '));
+    const namen=opsom(g.lijnen), enkel=g.lijnen.length===1;
+    const staart=`Vink bij een paar spelers op Spelers de ${namen} aan, of kies een speelvorm met minder plekken daar.`;
+    if(g.mag<g.nodig){
+      uit.push(`${waar} zijn er ${g.nodig} plekken in de ${namen}, maar mogen er maar ${g.mag} `
+        +`spelers staan. Er ${enkel?'komt':'komen'} dus ${enkel?'iemand':'spelers'} te staan die dat volgens `
+        +`hun instellingen niet ${enkel?'mag':'mogen'}. ${staart}`);
+    }else{
+      uit.push(`${waar} zijn er precies ${g.nodig} spelers voor de ${g.nodig} plekken in de ${namen}. `
+        +`Zij kunnen dus nooit rusten: zodra \u00e9\u00e9n van hen naar de bank gaat, staat daar iemand die `
+        +`daar niet hoort. ${staart}`);
+    }
+  }
+  return uit;
+}
+// ── Wat is er in het schema werkelijk gebroken? ──
+// De melding hierboven gaat over de invoer; deze over de uitkomst. Ze vervangen
+// elkaar niet: een schema kan ook zonder tekort ergens door een afspraak heen gaan,
+// bijvoorbeeld doordat een vaste positie zwaarder weegt.
+function gebrokenAfspraken(sch){
+  if(!sch||!sch.assignments)return [];
+  const rs=state.rules||[];
+  const maxPos=maxPosRule(rs);
+  const linie={},verbod={},posities={};
+  for(let b=0;b<sch.perQ*4;b++){
+    const a=sch.assignments[b]||{}, q=Math.floor(b/sch.perQ);
+    const POS=positionsOfQ(q,rs);
+    for(const posId in a){
+      const pid=a[posId], p=byId(pid); if(!p)continue;
+      (posities[pid]=posities[pid]||new Set()).add(posId);
+      const l=POSMAP[posId]&&POSMAP[posId].line;
+      if(l&&!magInLinie(p,l)){
+        if(!linie[pid])linie[pid]={l:new Set(),q:new Set()};
+        linie[pid].l.add(l); linie[pid].q.add(q+1);
+      }
+      if(verbodenPosities(pid,rs,POS).has(posId))
+        (verbod[pid]=verbod[pid]||new Set()).add(posId);
+    }
+  }
+  const uit=[];
+  for(const pid in verbod)
+    uit.push(`${pName(pid)} staat toch op ${[...verbod[pid]].map(x=>POSMAP[x]?POSMAP[x].name.toLowerCase():x).join(' en ')}, `
+      +`terwijl daar een regel tegen is. Er was geen andere plek voor hem \u2014 kijk of de regel kan vervallen.`);
+  for(const pid in linie)
+    uit.push(`${pName(pid)} staat in ${[...linie[pid].q].map(q=>'Q'+q).join(' + ')} in de `
+      +`${[...linie[pid].l].map(l=>LINES[l]).join(' en de ')}, terwijl hij daar volgens Spelers niet mag staan.`);
+  if(maxPos)for(const pid in posities){
+    if(posities[pid].size>maxPos)
+      uit.push(`${pName(pid)} staat op ${posities[pid].size} verschillende posities, terwijl het maximum ${maxPos} is.`);
+  }
+  return uit;
+}
+// ── Wat kosten de linie-vinkjes aan speeltijd? ──
+// Sinds de linies echt hard zijn, betaalt de eerlijke verdeling de rekening: staan er
+// achterin vier plekken en voorin drie, en mag iedereen maar in één linie staan, dan
+// speelt een verdediger onvermijdelijk langer dan een aanvaller. Dat is geen fout,
+// maar de coach ziet alleen rode streepjes bij de speeltijd en weet niet waarom.
+// Daarom rekenen we het na op het schema zelf — schatten zou hier verkeerde getallen
+// opleveren zodra sommige spelers in twee linies mogen.
+function linieSpeeltijd(sch){
+  if(!sch||!sch.minutes)return [];
+  const groepen={};
+  for(const p of state.players){
+    if(!p.present||p.uit)continue;
+    if(state.keeperId&&p.id===state.keeperId)continue;
+    const min=sch.minutes[p.id]; if(min==null)continue;
+    const sleutel=linesOf(p).slice().sort().join('+');
+    (groepen[sleutel]=groepen[sleutel]||[]).push(min);
+  }
+  const rijen=Object.keys(groepen).filter(k=>k!==LINE_IDS.slice().sort().join('+'))
+    .map(k=>({k,n:groepen[k].length,gem:groepen[k].reduce((a,b)=>a+b,0)/groepen[k].length}));
+  if(rijen.length<2)return [];
+  const alle=Object.keys(groepen).map(k=>({k,gem:groepen[k].reduce((a,b)=>a+b,0)/groepen[k].length}));
+  alle.sort((a,b)=>b.gem-a.gem);
+  const blokMin=17.5/(sch.perQ||3);
+  if(alle[0].gem-alle[alle.length-1].gem<=blokMin+0.1)return [];
+  const naam=k=>k.split('+').map(l=>LINES[l]).join(' en de ');
+  const hoog=alle[0],laag=alle[alle.length-1];
+  return [`Wie alleen in de ${naam(hoog.k)} mag staan komt op ongeveer ${Math.round(hoog.gem)} minuten, `
+    +`wie alleen in de ${naam(laag.k)} mag op ${Math.round(laag.gem)}. Dat komt door de linie-vinkjes op Spelers: `
+    +`het aantal plekken per linie ligt vast, dus hoe minder spelers er in een linie mogen, hoe langer die spelen. `
+    +`Vink bij een paar spelers een tweede linie aan als je de speeltijd gelijker wilt.`];
+}
 function warnBoxesHTML(){
   let w='';
   if(timerMismatch!==null)
@@ -3252,11 +3640,14 @@ function warnBoxesHTML(){
   for(const c of linieBotsingen()){
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(c)}</div></div>`;
   }
-  if(updateKlem){
-    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">De update is niet aangekomen.
-      Deze app draait nog op versie ${VERSIE_LABEL} terwijl er versie ${esc(String(updateKlem.verwacht||'?'))} klaarstaat.
-      Meestal betekent dit dat <b>index.html</b> niet is bijgewerkt in deze map \u2014 alleen version.json.
-      Upload index.html opnieuw${DEMO?' naar de map demo':''} en probeer het nog eens.</div></div>`;
+  for(const c of bezettingsProblemen()){
+    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(c)}</div></div>`;
+  }
+  for(const c of gebrokenAfspraken(state.schedule)){
+    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(c)}</div></div>`;
+  }
+  for(const c of linieSpeeltijd(state.schedule)){
+    w+=`<div class="warnbox info"><div class="wi">${ico("info")}</div><div class="wt">${esc(c)}</div></div>`;
   }
   if(DEMO && demoDicht()){
     const eigen=(_beheer&&typeof _beheer.boodschap==='string'&&_beheer.boodschap.trim())||'';
@@ -3284,6 +3675,8 @@ function ruleSentence(r){
     case 'start':  return `${n(r.p1)} begint ${r.start==='base'?'in de basis':'op de bank'}`;
     case 'endstrong': return `${n(r.p1)} speelt zeker ${r.amt==='min10'?'de laatste ~10 minuten':'het hele laatste kwart'}`;
     case 'noline': return `${n(r.p1)} speelt nooit in de ${LINES[r.line]}`;
+    case 'nopos':  return `${n(r.p1)} speelt nooit ${POSMAP[r.pos]?POSMAP[r.pos].name.toLowerCase():r.pos}`;
+    case 'maxpos': return `Iedereen staat op maximaal ${r.n} verschillende posities`;
     case 'rotate': return `${n(r.p1)} en ${n(r.p2)} wisselen elkaar af op ${POSMAP[r.pos]?POSMAP[r.pos].name.toLowerCase():r.pos}`;
     case 'q3likeq1': return `Start Q3 gelijk aan start Q1`;
     case 'gk': return `${n(r.p1)} keept ${(r.qs||[]).length===4?'de hele wedstrijd':(r.qs||[]).map(q=>'Q'+q).join(' + ')}`;
@@ -3793,9 +4186,11 @@ function renderRegels(){
       <option value="q3likeq1" ${t==='q3likeq1'?'selected':''}>Start Q3 gelijk aan start Q1</option>
       <option value="condpos" ${t==='condpos'?'selected':''}>Vaste positie als ander niet meespeelt</option>
       <option value="pos" ${t==='pos'?'selected':''}>Speelt altijd op vaste positie</option>
+      <option value="nopos" ${t==='nopos'?'selected':''}>Speelt nooit op een bepaalde positie</option>
+      <option value="maxpos" ${t==='maxpos'?'selected':''}>Maximaal aantal posities per wedstrijd</option>
     </select>
     ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.</p>'
-      :(t==='form'||t==='subs')?''   // deze regels gelden voor het hele team, niet voor één speler
+      :(t==='form'||t==='subs'||t==='maxpos')?''   // deze regels gelden voor het hele team, niet voor één speler
       :`<div class="frow"><label class="hint">Speler</label><select class="sel" id="nrP1">${popts(newRule.p1)}</select></div>`}`;
   if(t==='endstrong')html+=`<div class="frow"><label class="hint">Hoeveel van het einde?</label><select class="sel" id="nrEndAmt">
       <option value="q4">Het hele laatste kwart (Q4)</option>
@@ -3805,6 +4200,13 @@ function renderRegels(){
     <div class="qpick" style="display:flex;gap:6px">${[1,2,3,4].map(q=>`<label class="qp" style="flex:1"><input type="checkbox" class="nrGKq" value="${q}" ${(newRule.qs||[]).includes(q)?'checked':''}> Q${q}</label>`).join('')}</div></div>`;
   if(t==='apart')html+=`<div class="frow"><label class="hint">Niet samen met</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
   if(t==='pos'||t==='condpos')html+=`<div class="frow"><label class="hint">Positie</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
+  if(t==='nopos')html+=`<div class="frow"><label class="hint">Nooit op positie</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>
+    <p class="hint" style="margin:2px 0 6px">Harder dan een voorkeur: de planner zet hem hier niet neer, ook niet als hij daardoor krap komt te zitten. Wil je een hele linie afsluiten, doe dat dan met de vinkjes bij de speler op <b>Spelers</b> \u2014 dat scheelt drie regels.</p>`;
+  if(t==='maxpos'){
+    const n=newRule.n||3;
+    html+=`<div class="frow"><label class="hint">Maximaal aantal posities</label><select class="sel" id="nrMaxPos">${[2,3,4].map(k=>`<option value="${k}" ${n===k?'selected':''}>${k} posities</option>`).join('')}</select></div>
+    <p class="hint" style="margin:2px 0 6px">Geldt voor iedereen. Keepen telt niet mee: wie een kwart keept, houdt daarna zijn volledige aantal. Twee posities is streng \u2014 bij drie wisselmomenten per kwart betekent het dat iemand vier blokken lang op dezelfde plek staat.</p>`;
+  }
   if(t==='condpos')html+=`<div class="frow"><label class="hint">…als deze speler niet meespeelt</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
   if(t==='subs'){
     const n=newRule.n||2, bl=q=>fmtMin(Math.round(17.5/(q+1)*10)/10);
@@ -3899,10 +4301,24 @@ function detectRuleConflicts(){
     });
     // twee verschillende vaste posities
     if(new Set(fixedPos).size>1) out.push(`${nm(pid)} heeft meerdere vaste posities — alleen de eerste kan gelden.`);
-    // keeper + veldregels
-    const p=byId(pid);
-    if(p&&p.prefs&&p.prefs[0]==='keeper'&&rs.some(r=>['pos','rotate','minutes','start'].includes(r.type)))
-      out.push(`${nm(pid)} is keeper; veldregels (positie, minuten) hebben voor de keeper geen effect.`);
+    // ── Veldregels voor de vaste keeper ──
+    // Deze controle keek naar de vóórkeur 'keeper' in plaats van naar wie er
+    // werkelijk op doel staat, en kende maar vier regelsoorten. Daardoor bleef juist
+    // de meest voor de hand liggende combinatie onopgemerkt: een keeper die volgens
+    // een regel een paar kwarten niet speelt, en toch zeventig minuten gepland stond.
+    // Regels uit een gedeelde link of een oudere versie komen niet langs de controle
+    // bij het invoeren, dus hier moet het alsnog gezegd worden.
+    if(pid===vasteKeeperId()){
+      const zinloos=rs.filter(r=>VELDREGELS.includes(r.type));
+      if(zinloos.length)
+        out.push(`${nm(pid)} is de vaste keeper en staat de hele wedstrijd op doel. `
+          +`${zinloos.length===1?'De regel':'De regels'} \u2018${zinloos.map(ruleSentence).join('\u2019 en \u2018')}\u2019 `
+          +`${zinloos.length===1?'doet':'doen'} dus niets. Verwijder ${zinloos.length===1?'hem':'ze'}, of haal bij `
+          +`Spelers zijn keepervoorkeur weg en wijs met keeperregels per kwart aan wie er op doel staat \u2014 `
+          +`dan speelt hij de kwarten dat hij niet keept gewoon mee in het veld.`);
+      if(rs.some(r=>r.type==='gk'))
+        out.push(`${nm(pid)} is al de vaste keeper; een regel die hem voor losse kwarten op doel zet verandert niets.`);
+    }
     // min > max minuten
     const mins=rs.filter(r=>r.type==='minutes'&&r.mm==='min').map(r=>r.min);
     const maxs=rs.filter(r=>r.type==='minutes'&&r.mm==='max').map(r=>r.min);
@@ -3940,6 +4356,22 @@ function detectRuleConflicts(){
   R.forEach(r=>{ if(r.p1&&!present(r.p1)&&byId(r.p1)) { /* stille regel: afwezig telt toch niet mee */ } });
   return out.filter((x,i)=>out.indexOf(x)===i);
 }
+// ── Wie is de vaste keeper? ──
+// state.keeperId wordt pas gezet als je een opstelling genereert, en tot dat moment
+// kan hij verouderd zijn of leeg. Voor een controle tijdens het invoeren van regels
+// leiden we hem daarom af zoals resolveKeeperOrWarn dat straks ook doet: de aanwezige
+// speler met Keeper als eerste voorkeur. Zijn dat er geen of meer, dan is er geen
+// vaste keeper om over te waarschuwen — dan lost resolveKeeperOrWarn het op.
+function vasteKeeperId(){
+  const k=state.players.filter(p=>p.prefs&&p.prefs[0]==='keeper'&&p.present&&!p.uit);
+  if(k.length===1)return k[0].id;
+  if(k.length>1){ const g=k.find(p=>p.guest); return g?g.id:null; }
+  const oud=state.keeperId&&byId(state.keeperId);
+  return (oud&&oud.present&&!oud.uit)?oud.id:null;
+}
+// Regels die over één speler gaan en dus zinloos zijn voor wie de hele wedstrijd op
+// doel staat. 'gk' staat er apart in: die is niet zinloos maar dubbelop.
+const VELDREGELS=['noq','half','minutes','start','endstrong','pos','condpos','rotate','apart','nopos'];
 // Bepaalt wie er op doel staat: vaste keeper, aanwezige gastkeeper, of per kwart via 'gk'-regels.
 // Zet state.keeperId en geeft true terug als alles klopt; anders false met een melding.
 function resolveKeeperOrWarn(){
@@ -4131,7 +4563,7 @@ function spelerActies(pid,q){
       haalUitHuidigBlok(p.id);
       if(!herplanVanafNu(p.name+' weer beschikbaar',true,{type:'terug',pid:p.id})){
         // Herplannen mislukt: hij is niet ingedeeld, dus zetten we hem terug op
-        // 'niet inzetbaar' \u2014 anders staat hij als beschikbaar in beeld terwijl er
+        // 'niet inzetbaar' — anders staat hij als beschikbaar in beeld terwijl er
         // niets voor hem geregeld is. Dat moet je weten, niet raden.
         p.uit=true; render();
         toast('Herplannen lukt niet \u2014 '+p.name+' staat nog op niet inzetbaar');
@@ -4568,12 +5000,17 @@ const UITLEG=[
    'Tabblad <b>Spelers</b>: zet aan wie er is, vul rugnummers in en kies per speler '
    +'maximaal drie voorkeursposities. Wie keept geef je \u2018Keeper\u2019 als eerste voorkeur. '
    +'Per speler kun je ook aangeven in welke linies hij mag spelen \u2014 achter, midden, voor \u2014 '
-   +'en dat is een harde grens. Gastspelers voeg je onderaan toe.'],
+   +'en dat is een harde grens: de planner zet hem daar niet buiten, ook niet als hij daardoor '
+   +'krap komt te zitten. Let op wat dat kost. Mogen er in een linie evenveel of minder spelers '
+   +'staan dan er plekken zijn, dan kunnen die spelers nooit rusten en loopt de speeltijd uiteen. '
+   +'De app rekent dat na en zegt het erbij. Gastspelers voeg je onderaan toe.'],
   ['u2','Coachregels',
    'Tabblad <b>Regels</b>: leg vast wat er voor jouw team geldt. Hoeveel wisselmomenten per '
-   +'kwart, welke speelvorm, wie vast op een positie staat, wie liever niet samen spelen, '
+   +'kwart, welke speelvorm, wie vast op een positie staat en wie er juist nooit mag staan, '
+   +'op hoeveel verschillende posities iedereen hoogstens komt, wie liever niet samen spelen, '
    +'minimum- of maximumminuten, wie in de basis begint en wie het einde speelt. '
-   +'Regels gaan v\u00f3\u00f3r voorkeuren; botsen er twee, dan zegt de app dat erbij.'],
+   +'Regels gaan v\u00f3\u00f3r voorkeuren; botsen er twee, dan zegt de app dat erbij \u2014 en twee regels '
+   +'die elkaar uitsluiten komen er niet in.'],
   ['u3','Opstelling genereren',
    'Tabblad <b>Wedstrijd</b>: tik op \u2018Opstelling genereren\u2019 en er staat een schema voor alle '
    +'vier de kwarten, met alle wisselmomenten uitgeschreven. Het uitgangspunt is dat iedereen '
@@ -4654,6 +5091,47 @@ function spelerBlokken(pid){
   }
   return kwarten;
 }
+// ── Op hoeveel plekken staat hij deze wedstrijd? ──
+// Per kwart zie je al waar hij staat, maar het totaal moet je dan zelf optellen, en
+// juist dat is wat je wilt weten: staat hij steeds op dezelfde plek of zwerft hij het
+// hele veld over? De volgorde is die van POSITIONS, dezelfde als op het veld en in
+// de keuzelijsten, en niet die van opkomst: zo leest de opsomming als een elftal
+// in plaats van als een logboek.
+// De bank telt niet mee en keepen ook niet, net als bij de regel voor het maximum.
+function spelerPosities(pid){
+  const k=spelerBlokken(pid); if(!k)return null;
+  const gezien=[];
+  let keept=false;
+  for(const kwart of k)for(const stuk of kwart){
+    if(stuk.plek==='bank')continue;
+    if(stuk.plek==='keeper'){keept=true;continue;}
+    if(!gezien.includes(stuk.plek))gezien.push(stuk.plek);
+  }
+  const volgorde=POSITIONS.map(p=>p.name);
+  gezien.sort((a,b)=>volgorde.indexOf(a)-volgorde.indexOf(b));
+  // De afkortingen erbij: in de speeltijdkaart is geen ruimte voor 'Rechts achter',
+  // en op de spelerskaart staan diezelfde afkortingen al, dus ze zijn bekend.
+  const kort=gezien.map(n=>{const p=POSITIONS.find(x=>x.name===n);return p?p.kort:n;});
+  return {namen:gezien, kort, keept};
+}
+// Kort genoeg voor een lijstregel: '2: LA, VS'. Leeg als er geen schema is.
+function positieKort(pid){
+  const g=spelerPosities(pid); if(!g)return '';
+  if(!g.kort.length)return g.keept?'keeper':'\u2014';
+  // Zonder spatie na de komma: dat scheelt per positie een paar pixels, en in twee
+  // kolommen op een telefoon is dat het verschil tussen een hele en een afgekapte naam.
+  return g.kort.length+': '+g.kort.join(',');
+}
+// De samenvattende zin eronder, in dezelfde stijl als de kwartregels.
+function positieZin(pid){
+  const g=spelerPosities(pid); if(!g)return '';
+  const maxPos=maxPosRule(state.rules);
+  if(!g.namen.length)return g.keept?'keept, staat verder niet in het veld':'staat niet in het veld';
+  const lijst=g.namen.map(n=>n.toLowerCase())
+    .reduce((a,b,i,arr)=>i===0?b:(i===arr.length-1?a+' en '+b:a+', '+b),'');
+  const aantal=g.namen.length+(maxPos?' van maximaal '+maxPos:'');
+  return aantal+' \u2014 '+lijst+(g.keept?', en keept':'');
+}
 // Eén kwart in woorden: 'start op links achter, na 12 min naar de bank'.
 function kwartZin(stukken){
   if(!stukken||!stukken.length)return 'speelt niet';
@@ -4676,7 +5154,8 @@ function spelerSchemaTekst(pid){
   const p=byId(pid);
   const min=(speeltijdPerSpeler()||{})[pid]||0;
   return (p?p.name:'Speler')+' — '+Math.round(min)+' minuten gepland\n'
-    + k.map((st,i)=>'Q'+(i+1)+': '+kwartZin(st)+'.').join('\n');
+    + k.map((st,i)=>'Q'+(i+1)+': '+kwartZin(st)+'.').join('\n')
+    + '\nPosities: '+positieZin(pid)+'.';
 }
 function toonSpelerSchema(pid){
   const p=byId(pid); if(!p)return;
@@ -4688,7 +5167,8 @@ function toonSpelerSchema(pid){
   const k=spelerBlokken(pid);
   if(!k){ toast('Genereer eerst een opstelling'); return; }
   const min=(speeltijdPerSpeler()||{})[pid]||0;
-  const rijen=k.map((st,i)=>`<div class="qrij"><b>Q${i+1}</b><span>${esc(kwartZin(st))}</span></div>`).join('');
+  const rijen=k.map((st,i)=>`<div class="qrij"><b>Q${i+1}</b><span>${esc(kwartZin(st))}</span></div>`).join('')
+    +`<div class="qrij posrij"><b>Posities</b><span>${esc(positieZin(pid))}</span></div>`;
   confirmDialog({
     title:p.name||pKort(pid),
     bodyHtml:`<div class="qschema">${rijen}</div>
@@ -4751,7 +5231,6 @@ function speeltijdHTML(){
   // omdat jij dat zo hebt ingesteld, niet omdat de verdeling scheef is — dus geen rode
   // markering, wél de reden erbij zodat je niet gaat zoeken.
   const reden=new Map();
-  if(state.keeperId)reden.set(state.keeperId,'keeper');
   for(const r of (state.rules||[])){
     if(!r.p1)continue;
     // Met de kwarten erbij, want een wisselkeeper komt hóger uit dan de rest en dat
@@ -4761,6 +5240,10 @@ function speeltijdHTML(){
     else if(r.type==='half')reden.set(r.p1,'alleen '+(r.half===1?'1e':'2e')+' helft');
     else if(r.type==='minutes')reden.set(r.p1,(r.mm==='max'?'max ':'min ')+r.min+' min');
   }
+  // De vaste keeper krijgt zijn label als laatste, zodat een regel die voor hem toch
+  // niets doet het niet kan overschrijven. Anders stond er 'niet in Q3+Q4' naast 70
+  // minuten, en dat is een regel die zichzelf tegenspreekt.
+  if(state.keeperId)reden.set(state.keeperId,'keeper');
   // De hele selectie, niet alleen wie er in het schema staat. Wie is afgemeld hoort er
   // ook bij — anders moet je uitzoeken of iemand ontbreekt omdat hij niet speelt of
   // omdat je hem over het hoofd zag. Gasten alleen als ze in het schema staan.
@@ -4785,12 +5268,21 @@ function speeltijdHTML(){
   const blokMin=17.5/(state.schedule?state.schedule.perQ:3);
   const minder=r=>r.aanwezig&&!reden.has(r.id)&&r.minuten<mediaan-blokMin-0.1;
   const gelijk=Math.round(norm[norm.length-1])-Math.round(norm[0])<=0;
-  return `<div class="card"><h2>Geplande speeltijd <span class="eenheid">(in min.)</span></h2>
-    <div class="sptijd">${rijen.map(r=>`
+  // Dat je op een naam kunt tikken is nergens aan te zien: de rijen zien eruit als
+  // een lijstje. De aanwijzing staat bóven de lijst en niet in de uitleg eronder,
+  // want daar lees je hem pas als je de lijst al hebt afgewerkt.
+  // Twee kopregels: de grid loopt rij voor rij, dus de eerste twee cellen komen
+  // bovenaan de linker- en de rechterkolom terecht.
+  const kop=`<div class="sprij spkop"><span class="spnaam"></span>
+      <span class="sppos">Posities</span><span class="spmin">Min</span></div>`;
+  return `<div class="card"><h2>Geplande speeltijd en posities <span class="eenheid">(in min.)</span></h2>
+    <p class="hint" style="margin:-2px 0 8px">Tik op een naam voor zijn schema per kwart.</p>
+    <div class="sptijd">${kop+kop}${rijen.map(r=>`
       <div class="sprij${minder(r)?' minder':''}${r.aanwezig?'':' weg'}" data-spschema="${r.id}" role="button" tabindex="0">
         <span class="spnaam">${esc(r.naam)}${
           !r.aanwezig?' <i>afwezig</i>'
-          :reden.has(r.id)?` <i>${esc(reden.get(r.id))}</i>`:''}</span>
+          :(reden.has(r.id)&&reden.get(r.id)!=='keeper')?` <i>${esc(reden.get(r.id))}</i>`:''}</span>
+        <span class="sppos">${r.aanwezig?esc(positieKort(r.id)):''}</span>
         <span class="spmin"><b>${r.aanwezig?Math.round(r.minuten):0}</b></span>
       </div>`).join('')}</div>
     <p class="hint" style="margin:10px 0 0">${gelijk
@@ -5589,6 +6081,7 @@ function bind(v){
     const _ty=g('#nrType');
     let r;
     if(_ty==='subs'){r={id:'r'+Date.now(),type:'subs'};}
+    else if(_ty==='maxpos'){r={id:'r'+Date.now(),type:'maxpos'};}
     else if(_ty==='form'){r={id:'r'+Date.now(),type:'form'};}
     else if(_ty==='q3likeq1'){r={id:'r'+Date.now(),type:_ty};}
     else if(_ty==='gk'){
@@ -5599,7 +6092,8 @@ function bind(v){
     }
     else {r={id:'r'+Date.now(),type:_ty,p1:g('#nrP1')};}
     if(r.type==='apart'||r.type==='condpos')r.p2=g('#nrP2');
-    if(r.type==='pos'||r.type==='condpos')r.pos=g('#nrPos');
+    if(r.type==='pos'||r.type==='condpos'||r.type==='nopos')r.pos=g('#nrPos');
+    if(r.type==='maxpos')r.n=Number(g('#nrMaxPos'));
     if(r.type==='subs'){
       r.n=Number(g('#nrSubs'))||2;
       if(state.rules.some(x=>x.type==='subs')){toast('Deze regel bestaat al');return;}
@@ -5623,6 +6117,33 @@ function bind(v){
     if(r.type==='rotate'){r.p2=g('#nrP2');r.pos=g('#nrPos');}
     if((r.type==='apart'||r.type==='condpos'||r.type==='rotate')&&r.p1===r.p2){toast('Kies twee verschillende spelers');return;}
     if(r.type==='q3likeq1'&&state.rules.some(x=>x.type==='q3likeq1')){toast('Deze regel bestaat al');return;}
+    if(r.type==='maxpos'&&state.rules.some(x=>x.type==='maxpos')){toast('Er staat al een maximum \u2014 verwijder dat eerst');return;}
+    // Twee afspraken die elkaar uitsluiten hoort de app niet zelf op te lossen.
+    if(r.type==='nopos'){
+      if(state.rules.some(x=>x.type==='nopos'&&x.p1===r.p1&&x.pos===r.pos)){toast('Deze regel bestaat al');return;}
+      const bots=state.rules.find(x=>['pos','condpos','rotate'].includes(x.type)&&x.pos===r.pos&&(x.p1===r.p1||x.p2===r.p1));
+      if(bots){toast('Dat botst met \u2018'+ruleSentence(bots)+'\u2019');return;}
+    }
+    if(['pos','condpos','rotate'].includes(r.type)){
+      const bots=state.rules.find(x=>x.type==='nopos'&&x.pos===r.pos&&(x.p1===r.p1||x.p1===r.p2));
+      if(bots){toast('Dat botst met \u2018'+ruleSentence(bots)+'\u2019');return;}
+    }
+    // ── De vaste keeper staat buiten de veldverdeling ──
+    // Hij komt niet in de spelerspoel en niet langs eligibleVec, dus een veldregel
+    // over hem zou stilletjes niets doen. Dat gebeurde ook: 'Sem speelt niet in
+    // Q3 + Q4' stond netjes in de lijst, met een label naast zijn 70 minuten dat
+    // zichzelf tegensprak. Liever hier weigeren dan daar liegen.
+    const kid=vasteKeeperId();
+    if(kid&&(r.p1===kid||r.p2===kid)){
+      if(r.type==='gk'){
+        toast(pName(kid)+' is al de vaste keeper — die keept alle vier de kwarten');
+        return;
+      }
+      if(VELDREGELS.includes(r.type)){
+        toast(pName(kid)+' is de vaste keeper en staat de hele wedstrijd op doel');
+        return;
+      }
+    }
     state.rules.push(r);save();render();toast('Regel toegevoegd');
   };
   // Chips ruilen
@@ -5661,6 +6182,32 @@ function chipTap(pid){
       if(r.type==='half'&&r.p1===id&&r.half!==half)found.push(`${pName(id)} hoort volgens de regels alleen de ${r.half===1?'eerste':'tweede'} helft te spelen.`);
       if(r.type==='noq'&&r.p1===id&&noqQs(r).includes(q+1))found.push(`Een regel zegt dat ${pName(id)} niet in Q${q+1} speelt.`);
       if(r.type==='pos'&&r.p1===id){const np=Object.keys(asg).find(k=>asg[k]===id);if(np&&np!==r.pos)found.push(`${pName(id)} staat normaal vast op ${POSMAP[r.pos]?POSMAP[r.pos].name:r.pos}.`);}
+    }
+  }
+  // Een handmatige ruil mag alles, maar niet stilletjes: wat je met een tik doorbreekt
+  // hoort net zo zichtbaar te zijn als wat de planner niet waarmaakt.
+  for(const id of [pid,selChip]){
+    const np=Object.keys(asg).find(k=>asg[k]===id);
+    if(!np)continue;
+    const POS=positionsOfQ(q,state.rules);
+    if(verbodenPosities(id,state.rules,POS).has(np))
+      found.push(`Een regel zegt dat ${pName(id)} nooit ${POSMAP[np]?POSMAP[np].name.toLowerCase():np} speelt.`);
+    const lijn=POSMAP[np]&&POSMAP[np].line, sp=byId(id);
+    if(lijn&&sp&&!magInLinie(sp,lijn))
+      found.push(`${pName(id)} mag volgens Spelers niet in de ${LINES[lijn]} staan.`);
+  }
+  // Het maximum aantal posities kan door een ruil worden overschreden; dat zie je
+  // pas als je het hele schema naloopt, dus zegt de app het meteen.
+  const maxPos=maxPosRule(state.rules);
+  if(maxPos){
+    for(const id of [pid,selChip]){
+      const gehad=new Set();
+      for(let bb=0;bb<state.schedule.perQ*4;bb++){
+        const a2=state.schedule.assignments[bb]||{};
+        for(const k in a2)if(a2[k]===id)gehad.add(k);
+      }
+      if(gehad.size>maxPos)
+        found.push(`${pName(id)} komt hiermee op ${gehad.size} posities, terwijl het maximum ${maxPos} is.`);
     }
   }
   swapWarnings=found.filter((x,i)=>found.indexOf(x)===i);
@@ -5817,9 +6364,9 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=213;
-const VERSIE_LABEL='26.9.54';
-const VERSIE_DATUM='4 september 2026';
+const APP_VERSION=214;
+const VERSIE_LABEL='26.9.55';
+const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
@@ -5866,13 +6413,11 @@ async function checkForUpdate(){
     if(m&&Number(m[1])>APP_VERSION)showUpdateBar(lab?lab[1]:String(m[1]));
   }catch(e){/* offline of file:// — stil overslaan */}
 }
-let _updVersie=0;
 function showUpdateBar(v){
   const d=document.createElement('div');
   d.id='updBar';
   d.innerHTML=`<div class="txt"><b>Nieuwe versie beschikbaar (${esc(String(v))})</b>Tik op vernieuwen om de update te laden.</div>
     <button class="upd">Vernieuwen</button><button class="dis" aria-label="Sluiten">&#10005;</button>`;
-  _updVersie=v;
   d.querySelector('.upd').onclick=applyUpdate;
   d.querySelector('.dis').onclick=()=>{_updDismissed=true;d.remove();};
   document.body.appendChild(d);
@@ -5896,35 +6441,10 @@ async function applyUpdate(){
       const sc=r.scope||'';
       return sc.startsWith(location.origin+location.pathname.replace(/[^/]*$/,''));
     });
-    // Afmelden in plaats van bijwerken. update() haalt de nieuwe worker op, maar die
-    // blijft wachten tot de oude alle vensters heeft losgelaten — en tot die tijd
-    // serveert de oude gewoon door. Afmelden haalt hem weg; bij het herladen meldt
-    // de app zich opnieuw aan. Offline werkt dus even niet, tot die ene herlading.
-    await Promise.all(eigen.map(r=>r.unregister().catch(()=>r.update())));
+    await Promise.all(eigen.map(r=>r.update()));
   }catch(e){onthoudFout('sw vernieuwen',e);}
-  // Onthouden wat we verwáchtten, zodat we na het herladen kunnen zien of het gelukt
-  // is. Zonder dit kwam de banner alleen maar terug, zonder te zeggen waarom.
-  try{ localStorage.setItem(SLEUTEL('gw_updpoging'),
-    JSON.stringify({verwacht:_updVersie||0, was:APP_VERSION, t:Date.now()})); }catch(e){}
-  // reload() mag de HTML uit de browsercache halen; met een eigen adres kan dat niet.
-  const pad=location.pathname+'?v='+Date.now()+location.hash;
-  location.replace(pad);
+  location.reload();
 }
-
-let updateKlem=null;
-// Na het herladen: is de update werkelijk aangekomen? Zo niet, dan ligt het niet aan
-// de app maar aan wat er op de server staat, en dat hoort er met zoveel woorden bij.
-function updateNagaan(){
-  let poging=null;
-  try{ poging=JSON.parse(localStorage.getItem(SLEUTEL('gw_updpoging'))||'null'); }catch(e){}
-  if(!poging)return;
-  try{ localStorage.removeItem(SLEUTEL('gw_updpoging')); }catch(e){}
-  if(Date.now()-Number(poging.t||0)>5*60000)return;      // oude poging, niet meer relevant
-  if(APP_VERSION>Number(poging.was||0))return;            // gelukt
-  updateKlem={verwacht:poging.verwacht};
-  render();
-}
-
 setTimeout(checkForUpdate,2500);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkForUpdate();});
 // iOS hervat de app soms zonder visibilitychange; vang ook deze signalen op,
@@ -5936,7 +6456,6 @@ setInterval(()=>{if(document.visibilityState==='visible')checkForUpdate();},6000
 // Dit is het enige dat de gewone app uit zichzelf naar internet stuurt, en het bevat
 // geen namen, geen teamcode en geen inhoud — alleen emmertjes.
 setTimeout(techniekTel,4000);
-updateNagaan();
 
 
 
@@ -6011,7 +6530,11 @@ function ztControleer(st,sch,naam,fout){
   }
   // Eerlijkheid meten heeft alleen zin zonder regels die iemands speeltijd inperken:
   // een speler die Q2 en Q4 mist hoort juist minder te spelen.
-  const beperkend=(st.rules||[]).some(r=>['noq','minutes','gk','rotate','endstrong'].includes(r.type));
+  // Linie-vinkjes horen in dit rijtje thuis: zijn de linies ongelijk bezet, dan ligt
+  // het verschil in speeltijd vast in de invoer en niet in de verdeling. De app zegt
+  // dat apart tegen de coach (zie linieSpeeltijd); een testfout maken heeft geen zin.
+  const beperkend=(st.rules||[]).some(r=>['noq','minutes','gk','rotate','endstrong','maxpos'].includes(r.type))
+    || st.players.some(p=>p.present&&Array.isArray(p.lines)&&p.lines.length&&p.lines.length<LINE_IDS.length);
   const m=Object.values(sch.minutes||{});
   if(!beperkend&&m.length){
     const spreiding=Math.max(...m)-Math.min(...m), blokMin=17.5/perQ;
@@ -6045,6 +6568,82 @@ function zelftest(){
     ztControleer(st,sch,'vaste positie',fout);
     if(sch)for(let b=0;b<sch.perQ*4;b++){const a=sch.assignments[b];
       for(const pos in a)if(a[pos]==='p0'&&pos!=='vs')fout('vaste positie: p0 staat op '+pos);}
+  });
+  test('Veldregels voor de vaste keeper worden gemeld',()=>{
+    const st=ztTeam(15);
+    st.players[0].prefs=['keeper','',''];
+    st.keeperId=st.players[0].id;
+    st.rules=[{id:'x',type:'noq',p1:st.players[0].id,qs:[3,4]}];
+    const oud=state; state=st;
+    try{
+      const c=detectRuleConflicts();
+      if(!c.some(t=>t.includes('vaste keeper')))
+        fout('keeperregel: veldregel voor de vaste keeper wordt niet gemeld');
+      // en de speeltijd blijft gewoon de hele wedstrijd
+      state.schedule=buildSchedule(state,{});
+      const m=speeltijdPerSpeler()||{};
+      if(Math.round(m[st.players[0].id])!==70)
+        fout('keeperregel: keeper komt niet op 70 minuten maar op '+Math.round(m[st.players[0].id]));
+    } finally { state=oud; }
+  });
+  test('Keeper per kwart: keept twee kwarten, speelt de rest mee',()=>{
+    const st=ztTeam(15);
+    st.keeperId=null;
+    st.rules=[{id:'g1',type:'gk',p1:st.players[0].id,qs:[1,2]},
+              {id:'g2',type:'gk',p1:st.players[1].id,qs:[3,4]}];
+    const sch=buildSchedule(st,{});
+    if(!sch)return fout('keeper per kwart: geen schema');
+    const kk=sch.keeperByQ.join(',');
+    if(kk!==[st.players[0].id,st.players[0].id,st.players[1].id,st.players[1].id].join(','))
+      fout('keeper per kwart: verkeerde keeperByQ ('+kk+')');
+    // in zijn keeperkwarten mag hij niet ook in het veld staan
+    for(let b=0;b<sch.perQ*4;b++){
+      const q=Math.floor(b/sch.perQ), a=sch.assignments[b]||{};
+      const opDoel=sch.keeperByQ[q];
+      if(Object.values(a).includes(opDoel))fout('keeper per kwart: '+opDoel+' staat in blok '+b+' ook in het veld');
+    }
+  });
+  test('Regel: nooit op een bepaalde positie',()=>{
+    // p0 heeft 'lv' als eerste voorkeur; het verbod moet daar zwaarder wegen.
+    const st=ztTeam(15,{rules:[{id:'x',type:'nopos',p1:'p0',pos:'lv'}]});
+    const sch=buildSchedule(st);
+    ztControleer(st,sch,'nopos',fout);
+    if(sch)for(let b=0;b<sch.perQ*4;b++){const a=sch.assignments[b];
+      if(a['lv']==='p0')fout('nopos: p0 staat toch op links voor in blok '+b);}
+  });
+  test('Regel: verbod werkt door op verwante plek',()=>{
+    // In 4-4-2 bestaat 'spits' niet, wel spits links en spits rechts. Een verbod op
+    // spits hoort daar niet leeg te lopen.
+    const st=ztTeam(15,{rules:[{id:'f',type:'form',form:'4-4-2',qs:[1,2,3,4]},
+                               {id:'x',type:'nopos',p1:'p1',pos:'sp'}]});
+    const sch=buildSchedule(st);
+    ztControleer(st,sch,'nopos-verwant',fout);
+    if(sch)for(let b=0;b<sch.perQ*4;b++){const a=sch.assignments[b];
+      if(a['sl']==='p1'||a['sr']==='p1')fout('nopos: p1 staat toch in de spits in blok '+b);}
+  });
+  test('Regel: maximaal aantal posities',()=>{
+    for(const n of [2,3,4]){
+      const st=ztTeam(15,{rules:[{id:'m',type:'maxpos',n}]});
+      const sch=buildSchedule(st);
+      ztControleer(st,sch,'maxpos '+n,fout);
+      if(!sch)continue;
+      const gehad={};
+      for(let b=0;b<sch.perQ*4;b++){const a=sch.assignments[b];
+        for(const pos in a)(gehad[a[pos]]=gehad[a[pos]]||new Set()).add(pos);}
+      for(const id in gehad)if(gehad[id].size>n)
+        fout('maxpos '+n+': '+id+' staat op '+gehad[id].size+' posities');
+    }
+  });
+  test('Linies worden niet gebroken als het kan',()=>{
+    // Vijf spelers per linie, 4-3-3: precies genoeg om de linies te respecteren.
+    const sp=[{id:'k',name:'Keep',num:1,prefs:['keeper','',''],present:true,guest:false}];
+    [['voor','sp'],['midden','mm'],['achter','vs']].forEach(([l,p])=>{
+      for(let i=0;i<5;i++)sp.push({id:l+i,name:l+i,num:sp.length+1,prefs:[p,'',''],
+        present:true,guest:false,lines:[l]});
+    });
+    const st={v:STATE_V,players:sp,keeperId:'k',rules:[],schedule:null,genHash:null};
+    const sch=buildSchedule(st);
+    ztControleer(st,sch,'linies hard',fout);
   });
   test('Regel: niet in bepaalde kwarten',()=>{
     const st=ztTeam(15,{rules:[{id:'n',type:'noq',p1:'p1',qs:[2,4]}]});
@@ -6526,19 +7125,16 @@ function schuddenAanzetten(vanKnop){
         .catch(e=>{
           _schudStatus='geweigerd';
           try{ localStorage.setItem(SLEUTEL('gw_schudnee'),'1'); }catch(x){}
-          // Alleen melden als de coach er zelf om vroeg; anders is het geen storing.
+          // Op iOS mag de vraag om de bewegingssensor alleen direct ná een aanraking,
+          // en 'pointerdown' telt daar niet altijd als zodanig. Dat is geen storing —
+          // via de knop op Meer lukt het wel. Alleen melden als de coach er zelf om
+          // vroeg, anders vult de foutenlijst zich bij elke start.
           if(vanKnop){ onthoudFout('bewegingssensor',e); render(); }
         });
     }else zet();
   }catch(e){ _schudStatus='kan niet'; onthoudFout('bewegingssensor',e); }
 }
-// Bij de eerste aanraking proberen we schudden aan te zetten. Op iOS mag de vraag om
-// de bewegingssensor alleen direct ná een aanraking — maar 'pointerdown' telt daar
-// niet altijd als zodanig, en dan komt er elke keer 'requires a user gesture' in de
-// foutenlijst zonder dat er iets aan de hand is. We slaan de vraag daarom over als
-// hij al eens is geweigerd, en melden een geweigerd gebaar niet als fout: dat is geen
-// storing maar de normale gang van zaken. Via de knop op het tabblad Meer lukt het
-// wél, want dat is onmiskenbaar een aanraking.
+// Na één weigering niet meer uit zichzelf proberen; de knop op Meer blijft werken.
 document.addEventListener('pointerdown',function eerste(){
   document.removeEventListener('pointerdown',eerste);
   let eerderGeweigerd=false;
