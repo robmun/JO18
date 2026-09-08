@@ -5220,7 +5220,11 @@ function speeltijdHTML(){
   const blokMin=17.5/(state.schedule?state.schedule.perQ:3);
   const minder=r=>r.aanwezig&&!reden.has(r.id)&&r.minuten<mediaan-blokMin-0.1;
   const gelijk=Math.round(norm[norm.length-1])-Math.round(norm[0])<=0;
+  // Dat je op een naam kunt tikken is nergens aan te zien: de rijen zien eruit als
+  // een lijstje. De aanwijzing staat bóven de lijst en niet in de uitleg eronder,
+  // want daar lees je hem pas als je de lijst al hebt afgewerkt.
   return `<div class="card"><h2>Geplande speeltijd <span class="eenheid">(in min.)</span></h2>
+    <p class="hint" style="margin:-2px 0 8px">Tik op een naam voor zijn schema per kwart.</p>
     <div class="sptijd">${rijen.map(r=>`
       <div class="sprij${minder(r)?' minder':''}${r.aanwezig?'':' weg'}" data-spschema="${r.id}" role="button" tabindex="0">
         <span class="spnaam">${esc(r.naam)}${
@@ -6307,8 +6311,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=210;
-const VERSIE_LABEL='26.9.50';
+const APP_VERSION=211;
+const VERSIE_LABEL='26.9.51';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
