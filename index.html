@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="224">
+<meta name="app-version" content="225">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -4998,8 +4998,14 @@ function volgKlokVanAnder(){
   const tik=()=>{
     const k=CLOUD.klok;
     if(!k||!CLOUD.klokBaas||CLOUD.klokBaas.id===DEVICE_ID){clearInterval(_volgT);return;}
+    // 'Heb ik zelf een timer draaien?' — dat is niet af te lezen aan het bestaan van
+    // de iframe: die staat vast in de HTML en is er dus altijd. Hij krijgt zijn adres
+    // pas als je het timertabblad opent. Zonder deze controle op src stopte het volgen
+    // meteen, en dan liep de veldklok van een kijker nooit mee — die heeft immers
+    // helemaal geen timertabblad.
     const th=document.getElementById('timerHost');
-    if(th&&th.querySelector('iframe')){clearInterval(_volgT);return;}  // eigen timer is leidend
+    const eigenTimer=th&&th.querySelector('iframe')&&th.querySelector('iframe').src;
+    if(eigenTimer){clearInterval(_volgT);return;}  // eigen timer is leidend
     let sec=k.basis||0, loopt=!!k.loopt;
     if(k.loopt&&k.sinds)sec+=Math.max(0,(Date.now()-k.sinds)/1000);
     if(sec>17.5*60+600){ sec=Math.min(k.basis||0,17.5*60+600); loopt=false; }  // achtergelaten ankerpunt
@@ -6514,8 +6520,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=224;
-const VERSIE_LABEL='26.9.65';
+const APP_VERSION=225;
+const VERSIE_LABEL='26.9.66';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
