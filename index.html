@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="215">
+<meta name="app-version" content="216">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -2506,10 +2506,22 @@ async function cloudClaimOfKoppel(){
     const lijst=Array.isArray(d.editors)?d.editors:[];
     if(lijst.includes(CLOUD.uid)){
       CLOUD.rol=(d.owner===CLOUD.uid)?'eigenaar':'coach';
+      CLOUD.role='editor';        // in de lijst: mag echt wijzigen
       noteerCoach();   // laatst actief bijwerken
       return;
     }
-    if(CLOUD.role==='viewer'){ CLOUD.rol='kijker'; return; }
+    // Sta je niet in de coachlijst, dan bén je kijker — wat er ook in de link stond.
+    // 'rol=coach' in het webadres is niets meer dan een wens: iedereen kan 'kijker'
+    // in 'coach' veranderen en kreeg dan een scherm waarin hij alles leek te mogen.
+    // Zijn wijzigingen werden door de beveiligingsregels geweigerd, dus het team
+    // merkte er niets van — maar hij keek wel naar een opstelling die niet klopte.
+    // De rol volgt nu uit de gegevens en niet uit het adres.
+    if(CLOUD.role!=='viewer'&&Number(d.koppelTot||0)<=Date.now()){
+      CLOUD.role='viewer';
+      document.body.classList.toggle('viewer',true);
+      if(['timer','spelers','regels'].includes(activeTab))activeTab='wedstrijd';
+    }
+    if(CLOUD.role==='viewer'){ CLOUD.rol='kijker'; render(); return; }
     // Coach die er nog niet bij staat: alleen binnen het koppelvenster toevoegen.
     if(Number(d.koppelTot||0)>Date.now()){
       try{
@@ -2753,6 +2765,16 @@ function wijzigenGeblokkeerd(){
 // 'CLOUD.on && CLOUD.role===viewer' — en die eerste voorwaarde is verkeerd: de
 // verbinding valt weg zodra het bereik slecht is, en dan verviel de kijkstand.
 function isKijker(){ return CLOUD.role==='viewer'; }
+// Een teamcode is het enige dat je team beschermt: wie hem kent, leest alle namen.
+// De app genereert er een van twaalf willekeurige tekens, maar het invoerveld is vrij
+// tekst — en 'coach' of 'jo14' raadt iemand in een middag.
+function zwakkeTeamcode(code){
+  const c=String(code||'').trim().toLowerCase();
+  if(!c)return null;
+  if(c.length<10)return 'De teamcode is maar '+c.length+' teken'+(c.length===1?'':'s')+' lang.';
+  if(/^[a-z]+$/.test(c)&&c.length<14)return 'De teamcode bestaat alleen uit letters.';
+  return null;
+}
 function cloudViewerBlocked(){
   if(demoOpSlot())return true;
   // Alleen op de rol toetsen, niet op de verbinding. Er stond CLOUD.on && role==='viewer',
@@ -3664,6 +3686,13 @@ function warnBoxesHTML(){
     const eigen=(_beheer&&typeof _beheer.boodschap==='string'&&_beheer.boodschap.trim())||'';
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${
       esc(eigen||'De demonstratie is gesloten. Wijzigen kan niet meer; kijken kan gewoon. Vragen? robertmunnichs@gmail.com')}</div></div>`;
+  }
+  // Zwakke teamcode: alleen voor wie het team beheert, en alleen als samenwerken aan
+  // staat. Een kijker kan er toch niets aan doen.
+  if(CLOUD.on && !isKijker() && zwakkeTeamcode(CLOUD.team)){
+    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(zwakkeTeamcode(CLOUD.team))}
+      Wie hem raadt leest alle spelersnamen van je team, want de code is het enige dat dat tegenhoudt.
+      Maak op <b>Spelers</b> een nieuwe code aan met de knop ernaast en stuur je mede-coaches een nieuwe link.</div></div>`;
   }
   if(versieJsonMist)
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">version.json loopt achter op de app (versie ${VERSIE_LABEL}). Zolang dat zo is krijgen andere toestellen geen melding dat er een nieuwe versie klaarstaat. Upload version.json opnieuw naar GitHub.</div></div>`;
@@ -6379,8 +6408,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=215;
-const VERSIE_LABEL='26.9.56';
+const APP_VERSION=216;
+const VERSIE_LABEL='26.9.57';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
