@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="221">
+<meta name="app-version" content="222">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -3477,6 +3477,12 @@ function diagnoseTekst(){
   const r=[];
   r.push('app '+VERSIE_LABEL+(timerMismatch!==null?' / timer LOOPT ACHTER (intern '+timerMismatch+' tegen '+APP_VERSION+')':' / timer gelijk'));
   r.push('toestel '+DEVICE_ID+(CLOUD.uid?' · cloud-id '+CLOUD.uid:''));
+  // Waarmee is de app opgestart? Bij een pictogram op het beginscherm is dit de enige
+  // manier om te zien wat iOS ervan gemaakt heeft — vermoedens daarover kosten
+  // anders elke keer een testronde.
+  const zelfst=((window.matchMedia&&matchMedia('(display-mode: standalone)').matches)
+    ||navigator.standalone===true)?'beginscherm':'browser';
+  r.push('gestart vanaf '+zelfst+' · '+(_startAdres||location.href).replace(location.origin,''));
   r.push('samenwerken: '+(CLOUD.on?(CLOUD.status+' · '+(CLOUD.rol||CLOUD.role)+' · team '+(CLOUD.team||'?')):'uit'));
   r.push('opslag: '+(opslagFout?('PROBLEEM ('+opslagFout+')'):'in orde')+' · schema: '+(schemaFout||'in orde'));
   r.push('spelers '+state.players.filter(p=>p.present).length+' aanwezig · '+(state.schedule?('schema '+state.schedule.perQ*4+' blokken'):'geen schema'));
@@ -5551,6 +5557,18 @@ function renderUitleg(){
   // Back-up, schudden en diagnose staan onder een eigen kop, ná de uitleg. Ze
   // stonden tussen de instellingen, waardoor je erlangs moest scrollen om bij
   // 'zo werkt de app' te komen — precies de tekst waarvoor je hier komt.
+  // Een kijker die de app op zijn beginscherm zet, verliest op iOS de teamcode uit de
+  // link: het pictogram start met een kaal adres. Wát iOS precies bewaart is van
+  // buitenaf niet te sturen — het manifest en het adres schoonhouden hielpen allebei
+  // niet. Daarom deze uitweg, die er niet van afhangt: plak de link opnieuw.
+  if(!CLOUD.on || !CLOUD.team){
+    h+=`<div class="card"><h2>Kijk-link gebruiken</h2>
+      <p class="hint" style="margin-bottom:10px">Heb je een link van je coach gekregen en zie je hier
+        niet de opstelling van je team? Plak de link hieronder. Dat hoeft maar \u00e9\u00e9n keer.</p>
+      <input id="kijkPlak" type="text" inputmode="url" autocapitalize="none" spellcheck="false"
+        placeholder="https://\u2026?team=\u2026&amp;rol=kijker" style="width:100%">
+      <button class="btn full" id="kijkKoppel" style="margin-top:8px">Koppelen</button></div>`;
+  }
   h+=`<h2 class="sectiekop">Onderhoud</h2>`;
   h+=`<div class="card"><h2>Back-up</h2>
     <button class="btn ghost full" id="backupExport">${ico("opslaan")}Opslaan als back-upbestand</button>
@@ -6121,6 +6139,30 @@ function bind(v){
   if(svn)svn.onclick=selectieVerwijderen;
   const bex=v.querySelector('#backupExport');
   if(bex)bex.onclick=backupExport;
+  const kk=v.querySelector('#kijkKoppel');
+  if(kk)kk.onclick=()=>{
+    const inp=v.querySelector('#kijkPlak');
+    const tekst=(inp&&inp.value||'').trim();
+    if(!tekst){ toast('Plak eerst de link'); return; }
+    // Zowel een volledige link als alleen de code moet werken; wie hem uit een appje
+    // plakt krijgt er soms tekst omheen.
+    let team='', rol='kijker';
+    const m=tekst.match(/[?&]team=([^&\s]+)/i);
+    if(m){
+      team=decodeURIComponent(m[1]);
+      const r=tekst.match(/[?&]rol=([^&\s]+)/i);
+      if(r)rol=decodeURIComponent(r[1]).toLowerCase();
+    }else if(/^[a-z0-9_-]{3,40}$/i.test(tekst)){
+      team=tekst;
+    }
+    if(!team){ toast('Geen teamcode in deze tekst gevonden'); return; }
+    CLOUD.cfg=FB_CONFIG;
+    CLOUD.team=team.toLowerCase();
+    CLOUD.role=(rol==='kijker'||rol==='viewer')?'viewer':'editor';
+    if(!CLOUD.name)CLOUD.name=CLOUD.role==='viewer'?'speler':'coach';
+    CLOUD.on=true; cloudSaveSettings();
+    location.reload();
+  };
   const bim=v.querySelector('#backupImport');
   if(bim)bim.onclick=backupImportPrompt;
   const cs=v.querySelector('#cloudSetup');
@@ -6439,8 +6481,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=221;
-const VERSIE_LABEL='26.9.62';
+const APP_VERSION=222;
+const VERSIE_LABEL='26.9.63';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
@@ -7296,6 +7338,9 @@ document.getElementById('printBtn').onclick=()=>{
 if(!state.schedule&&state.players.filter(p=>p.present).length>=11){
   try{state.schedule=buildSchedule(state);state.genHash=inputHash(state);save();}catch(e){onthoudFout('schema opbouwen',e);}
 }
+// Vastleggen vóórdat de opstartcode het adres opschoont; anders meet het diagnoseblok
+// het resultaat van zijn eigen opruimwerk.
+const _startAdres=location.href;
 cloudLoadSettings();
 // Kijk-/coach-link: ?team=CODE&rol=kijker|coach -> automatisch instellen en verbinden
 try{
