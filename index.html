@@ -303,6 +303,10 @@ body.sun .sprij[data-spschema]:active{background:rgba(15,32,64,.08)}
 .qrij{display:flex;gap:10px;align-items:baseline;font-size:var(--fs-md);line-height:1.35}
 .qrij b{flex:0 0 26px;color:var(--txt);font-weight:800}
 .qrij span{flex:1;color:var(--dim)}
+/* De samenvatting onder de kwarten: eigen label, dus geen vaste kolombreedte, en
+   een streep erboven zodat het niet als vijfde kwart wordt gelezen. */
+.posrij{margin-top:3px;padding-top:10px;border-top:1px solid rgba(255,255,255,.10)}
+.posrij b{flex:0 0 auto}
 body.sun .sprij.minder .spnaam,body.sun .sprij.minder .spmin b{color:#a01a10}
 
 /* ---------- Tabblad Meer ---------- */
@@ -1457,8 +1461,8 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
   //
   // Exact rekenen kan met de stelling van Hall: voor elke combinatie van linies moet
   // het aantal plekken in die linies kleiner of gelijk zijn aan het aantal gekozen
-  // spelers dat in minstens \u00e9\u00e9n van die linies uit de voeten kan. Bij drie linies zijn
-  // dat zeven combinaties \u2014 goedkoop genoeg om per blok te doen.
+  // spelers dat in minstens één van die linies uit de voeten kan. Bij drie linies zijn
+  // dat zeven combinaties — goedkoop genoeg om per blok te doen.
   const _spelerOp=Object.fromEntries(fieldPlayers.map(p=>[p.id,p]));
   const _plekCache={},_linieCache={};
   const plekkenPerLinie=b=>{
@@ -1480,7 +1484,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
     return (_linieCache[sleutel]=uit);
   };
   // Kan deze halve selectie nog tot een dekkende tien worden aangevuld? Hiermee kan
-  // de blokkeuze v\u00f3\u00f3rkomen dat ze zich klemzet, in plaats van achteraf te repareren.
+  // de blokkeuze vóórkomen dat ze zich klemzet, in plaats van achteraf te repareren.
   // Achteraf repareren kost namelijk speeltijd: elke ruil haalt iemand weg die er op
   // grond van eerlijkheid juist hoorde te staan.
   const dekkingBlijftMogelijk=(sel,rest,slotsLeft,b)=>{
@@ -3374,13 +3378,13 @@ function linieBotsingen(){
   }
   return uit;
 }
-// ── Past dit team \u00fcberhaupt in deze speelvorm? ──
+// ── Past dit team überhaupt in deze speelvorm? ──
 // Dit is de melding die er niet was toen Joris linksvoor bleek te staan. Zijn de
 // linies bij de spelers zo ingevuld dat er in een linie minder spelers mogen staan
-// dan er plekken zijn, dan m\u00f3\u00e9t er iemand op een plek komen waar hij niet hoort
-// \u2014 hoe de planner ook rekent. Tien plekken moeten elke minuut gevuld worden.
+// dan er plekken zijn, dan móét er iemand op een plek komen waar hij niet hoort
+// — hoe de planner ook rekent. Tien plekken moeten elke minuut gevuld worden.
 // Dat is geen fout van de verdeling maar van de invoer, en dus hoort de app het te
-// zeggen v\u00f3\u00f3rdat je zaterdag naar het veld kijkt en je afvraagt wat er misging.
+// zeggen vóórdat je zaterdag naar het veld kijkt en je afvraagt wat er misging.
 function bezettingsProblemen(){
   const uit=[];
   const rs=state.rules||[];
@@ -3410,7 +3414,7 @@ function bezettingsProblemen(){
     perQuart.push(rij);
   }
   // Vier keer dezelfde melding is drie keer te veel, en twee linies met precies
-  // hetzelfde probleem horen in \u00e9\u00e9n zin. Eerst per linie bundelen over de kwarten,
+  // hetzelfde probleem horen in één zin. Eerst per linie bundelen over de kwarten,
   // daarna de linies die woord voor woord hetzelfde zouden opleveren samenvoegen.
   const perLinie={};
   perQuart.forEach((rij,q)=>{
@@ -3482,10 +3486,10 @@ function gebrokenAfspraken(sch){
 }
 // ── Wat kosten de linie-vinkjes aan speeltijd? ──
 // Sinds de linies echt hard zijn, betaalt de eerlijke verdeling de rekening: staan er
-// achterin vier plekken en voorin drie, en mag iedereen maar in \u00e9\u00e9n linie staan, dan
+// achterin vier plekken en voorin drie, en mag iedereen maar in één linie staan, dan
 // speelt een verdediger onvermijdelijk langer dan een aanvaller. Dat is geen fout,
 // maar de coach ziet alleen rode streepjes bij de speeltijd en weet niet waarom.
-// Daarom rekenen we het na op het schema zelf \u2014 schatten zou hier verkeerde getallen
+// Daarom rekenen we het na op het schema zelf — schatten zou hier verkeerde getallen
 // opleveren zodra sommige spelers in twee linies mogen.
 function linieSpeeltijd(sch){
   if(!sch||!sch.minutes)return [];
@@ -4420,7 +4424,7 @@ function spelerActies(pid,q){
       haalUitHuidigBlok(p.id);
       if(!herplanVanafNu(p.name+' weer beschikbaar',true,{type:'terug',pid:p.id})){
         // Herplannen mislukt: hij is niet ingedeeld, dus zetten we hem terug op
-        // 'niet inzetbaar' \u2014 anders staat hij als beschikbaar in beeld terwijl er
+        // 'niet inzetbaar' — anders staat hij als beschikbaar in beeld terwijl er
         // niets voor hem geregeld is. Dat moet je weten, niet raden.
         p.uit=true; render();
         toast('Herplannen lukt niet \u2014 '+p.name+' staat nog op niet inzetbaar');
@@ -4948,6 +4952,36 @@ function spelerBlokken(pid){
   }
   return kwarten;
 }
+// ── Op hoeveel plekken staat hij deze wedstrijd? ──
+// Per kwart zie je al waar hij staat, maar het totaal moet je dan zelf optellen, en
+// juist dat is wat je wilt weten: staat hij steeds op dezelfde plek of zwerft hij het
+// hele veld over? De volgorde is die van POSITIONS, dezelfde als op het veld en in
+// de keuzelijsten, en niet die van opkomst: zo leest de opsomming als een elftal
+// in plaats van als een logboek.
+// De bank telt niet mee en keepen ook niet, net als bij de regel voor het maximum.
+function spelerPosities(pid){
+  const k=spelerBlokken(pid); if(!k)return null;
+  const gezien=[];
+  let keept=false;
+  for(const kwart of k)for(const stuk of kwart){
+    if(stuk.plek==='bank')continue;
+    if(stuk.plek==='keeper'){keept=true;continue;}
+    if(!gezien.includes(stuk.plek))gezien.push(stuk.plek);
+  }
+  const volgorde=POSITIONS.map(p=>p.name);
+  gezien.sort((a,b)=>volgorde.indexOf(a)-volgorde.indexOf(b));
+  return {namen:gezien, keept};
+}
+// De samenvattende zin eronder, in dezelfde stijl als de kwartregels.
+function positieZin(pid){
+  const g=spelerPosities(pid); if(!g)return '';
+  const maxPos=maxPosRule(state.rules);
+  if(!g.namen.length)return g.keept?'keept, staat verder niet in het veld':'staat niet in het veld';
+  const lijst=g.namen.map(n=>n.toLowerCase())
+    .reduce((a,b,i,arr)=>i===0?b:(i===arr.length-1?a+' en '+b:a+', '+b),'');
+  const aantal=g.namen.length+(maxPos?' van maximaal '+maxPos:'');
+  return aantal+' \u2014 '+lijst+(g.keept?', en keept':'');
+}
 // Eén kwart in woorden: 'start op links achter, na 12 min naar de bank'.
 function kwartZin(stukken){
   if(!stukken||!stukken.length)return 'speelt niet';
@@ -4970,7 +5004,8 @@ function spelerSchemaTekst(pid){
   const p=byId(pid);
   const min=(speeltijdPerSpeler()||{})[pid]||0;
   return (p?p.name:'Speler')+' — '+Math.round(min)+' minuten gepland\n'
-    + k.map((st,i)=>'Q'+(i+1)+': '+kwartZin(st)+'.').join('\n');
+    + k.map((st,i)=>'Q'+(i+1)+': '+kwartZin(st)+'.').join('\n')
+    + '\nPosities: '+positieZin(pid)+'.';
 }
 function toonSpelerSchema(pid){
   const p=byId(pid); if(!p)return;
@@ -4982,7 +5017,8 @@ function toonSpelerSchema(pid){
   const k=spelerBlokken(pid);
   if(!k){ toast('Genereer eerst een opstelling'); return; }
   const min=(speeltijdPerSpeler()||{})[pid]||0;
-  const rijen=k.map((st,i)=>`<div class="qrij"><b>Q${i+1}</b><span>${esc(kwartZin(st))}</span></div>`).join('');
+  const rijen=k.map((st,i)=>`<div class="qrij"><b>Q${i+1}</b><span>${esc(kwartZin(st))}</span></div>`).join('')
+    +`<div class="qrij posrij"><b>Posities</b><span>${esc(positieZin(pid))}</span></div>`;
   confirmDialog({
     title:p.name||pKort(pid),
     bodyHtml:`<div class="qschema">${rijen}</div>
@@ -6150,9 +6186,9 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=207;
-const VERSIE_LABEL='26.9.47';
-const VERSIE_DATUM='7 september 2026';
+const APP_VERSION=208;
+const VERSIE_LABEL='26.9.48';
+const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 try{
