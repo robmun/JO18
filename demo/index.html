@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="214">
+<meta name="app-version" content="215">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -2749,8 +2749,19 @@ function demoOpSlot(){
 function wijzigenGeblokkeerd(){
   return cloudViewerBlocked();
 }
+// Ben je kijker? Eén plek, want dit stond op zeven plaatsen uitgeschreven als
+// 'CLOUD.on && CLOUD.role===viewer' — en die eerste voorwaarde is verkeerd: de
+// verbinding valt weg zodra het bereik slecht is, en dan verviel de kijkstand.
+function isKijker(){ return CLOUD.role==='viewer'; }
 function cloudViewerBlocked(){
-  if(demoOpSlot())return true; if(CLOUD.on&&CLOUD.role==='viewer'){toast(READONLY_MSG);return true;} return false; }
+  if(demoOpSlot())return true;
+  // Alleen op de rol toetsen, niet op de verbinding. Er stond CLOUD.on && role==='viewer',
+  // en CLOUD.on gaat op false zodra de verbinding mislukt of wegvalt — op een sportpark
+  // met slecht bereik dus regelmatig. Een kijker werd daarmee stilzwijgend coach: hij
+  // kon spelers ruilen en kaarten geven. Wie via een kijk-link binnenkomt is kijker,
+  // verbonden of niet.
+  if(CLOUD.role==='viewer'){toast(READONLY_MSG);return true;}
+  return false; }
 function cloudUpdateCard(){
   const el=document.getElementById('cloudStatus'); if(!el)return;
   const map={uit:'Uit — alleen deze telefoon',verbinden:'Verbinden…',verbonden:'Verbonden',fout:'Verbindingsfout'};
@@ -4024,7 +4035,7 @@ addEventListener('resize',meetTabbar);
 addEventListener('orientationchange',()=>setTimeout(meetTabbar,120));
 function renderTabbar(){
   const el=document.getElementById('tabbar');
-  const kijk=(CLOUD.on&&CLOUD.role==='viewer');
+  const kijk=isKijker();
   el.innerHTML=TABS.map(t=>{
     const act=activeTab===t.id?' active':'';
     if(kijk&&(t.id==='timer'||t.id==='spelers'||t.id==='regels'))return ''; // spelers zien alleen de kwarten
@@ -4463,6 +4474,10 @@ function regenerate(){
 }
 // Keuzevenster bij een tik op een speler tijdens de wedstrijd.
 function spelerActies(pid,q){
+  // Tweede slot. chipTap houdt een kijker al tegen, maar deze functie deelt kaarten
+  // uit en meldt blessures; die hoort niet af te hangen van de vraag of de aanroeper
+  // eraan gedacht heeft.
+  if(cloudViewerBlocked())return;
   const p=byId(pid); if(!p)return;
   const sch=state.schedule, b=q*sch.perQ+huidigBlok(q);
   const asg=sch.assignments[b]||{};
@@ -5553,7 +5568,7 @@ function renderQuarter(q){
       <button class="btn" data-regen>Opstelling genereren</button></div>`;
     return html;
   }
-  if(stale&&!(CLOUD.on&&CLOUD.role==='viewer')){
+  if(stale&&!isKijker()){
     html+= wedstrijdBezig()
       // Tijdens de wedstrijd nooit het hele schema opnieuw: wat gespeeld is blijft staan
       // en het lopende blok ook, anders verdwijnen spelers halverwege van het veld.
@@ -5680,7 +5695,7 @@ function renderQuarter(q){
   if(keeper)veld+=`<div class="chip kpc" style="left:50%;top:93%"><div class="ball keeperball${keeper.id===capt?' capt':''}">${KEEPER_HELM}${keeper.id===capt?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(pKort(keeper.id))}</div></div>`;
   veld+=`</div>`                                      // einde fieldwrap
     +(isWide()?groteKlokHTML(benchIds.length)+`</div>`:'')   // klok over het veld, einde veldrij
-    +`${(CLOUD.on&&CLOUD.role==='viewer')?'':`<p class="hint" style="margin-top:10px">Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor ${toonBlok===0?'de start van dit kwart':'dit moment in het kwart'}.</p>`}</div>`;
+    +`${isKijker()?'':`<p class="hint" style="margin-top:10px">Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor ${toonBlok===0?'de start van dit kwart':'dit moment in het kwart'}.</p>`}</div>`;
   // Alles wat naast het veld komt te staan in de brede stand
   let tekst='';
   // Wissel bij start van kwart (t.o.v. vorige kwart)
@@ -5735,7 +5750,7 @@ function renderQuarter(q){
     tekst+=`<div class="wbench"><b>Wissels daarna:</b> ${mo.bankNa.map(pKort).map(esc).join(', ')||'—'}</div></div>`;
   }
   tekst+=`</div>`;
-  if(!(CLOUD.on&&CLOUD.role==='viewer')){
+  if(!isKijker()){
     if(canUndo())tekst+=`<button class="btn ghost full" id="undoBtn" style="margin-bottom:8px">&#8634; Ongedaan maken (${esc(undoLabel())})${_undoStack.length>1?' &middot; '+_undoStack.length+' stappen':''}</button>`;
     // Welke knoppen er staan hangt af van de blijvende status, niet van de klokstand.
     // 'De klok staat op nul' betekende eerder 'er is niets aan de hand', maar dat is
@@ -5796,10 +5811,10 @@ function render(){
   // Knoppen dimmen wanneer er niets te wijzigen valt: in de kijkstand, en bij een
   // demo waarvan de termijn voorbij is. Stond eerder alleen in de cloudverbinding
   // en werd dus nooit gezet bij een verlopen demo zonder samenwerken.
-  document.body.classList.toggle('viewer',(CLOUD.on&&CLOUD.role==='viewer')||(DEMO&&demoVerlopen()));
+  document.body.classList.toggle('viewer',isKijker()||(DEMO&&demoVerlopen()));
   if(DEMO)setTimeout(demoTips,0);
   controleerSchema();
-  if(CLOUD.on&&CLOUD.role==='viewer'&&['timer','spelers','regels'].includes(activeTab)){activeTab='wedstrijd';}
+  if(isKijker()&&['timer','spelers','regels'].includes(activeTab)){activeTab='wedstrijd';}
   wakeLockBijwerken();
   const _sc=document.getElementById('view');
   const _keepY=(_lastTab===activeTab&&_sc)?_sc.scrollTop:null;
@@ -6364,8 +6379,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=214;
-const VERSIE_LABEL='26.9.55';
+const APP_VERSION=215;
+const VERSIE_LABEL='26.9.56';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
@@ -7101,7 +7116,7 @@ function schudGebeurtenis(e){
 }
 function schudVraag(){
   if(document.querySelector('#modalHost .modal'))return;   // er staat al een venster open
-  if(CLOUD.on&&CLOUD.role==='viewer')return;
+  if(isKijker())return;
   if(!canUndo()){return;}                                   // niets om terug te draaien: niet storen
   if('vibrate' in navigator)navigator.vibrate(30);
   confirmDialog({
