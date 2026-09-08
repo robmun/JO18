@@ -280,11 +280,18 @@ body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,
 /* ---------- Speeltijd per speler ---------- */
 .sptijd{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px}
 @media (max-width:359px){ .sptijd{grid-template-columns:1fr} }
-.sprij{display:flex;align-items:baseline;gap:6px;padding:3px 0;min-width:0}
+.sprij{display:flex;align-items:baseline;gap:5px;padding:3px 0;min-width:0}
 .spnaam{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:var(--fs-sm);color:var(--txt)}
 .spnaam i{font-size:var(--fs-xs);color:var(--dim);font-style:normal}
 .card h2 .eenheid{font-size:var(--fs-xs);font-weight:600;color:var(--dim);letter-spacing:0}
+/* De posities staan tussen naam en minuten. De naam wijkt als eerste (ellipsis),
+   want een afgekapte naam is nog te herkennen en een afgekapte positielijst niet. */
+.sppos{flex:0 0 auto;font-size:var(--fs-xs);color:var(--dim);font-variant-numeric:tabular-nums;
+  white-space:nowrap}
+.spkop{padding-bottom:1px;font-size:var(--fs-xs);color:var(--dim);text-transform:uppercase;
+  letter-spacing:.04em;border-bottom:1px solid rgba(255,255,255,.10);margin-bottom:3px}
+.spkop .sppos,.spkop .spmin{font-size:var(--fs-xs);color:var(--dim)}
 .spmin{flex:0 0 auto;font-variant-numeric:tabular-nums;font-size:var(--fs-sm);color:var(--dim)}
 .spmin b{color:var(--txt);font-weight:800}
 /* Alleen wie achterloopt krijgt nadruk; als iedereen gelijk uitkomt blijft het rustig. */
@@ -297,7 +304,7 @@ body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,
 .sprij[data-spschema]:active{background:rgba(255,255,255,.08)}
 body.sun .sprij[data-spschema]:active{background:rgba(15,32,64,.08)}
 .spnaam::after{content:'\203A';margin-left:5px;color:var(--dim);font-weight:700;opacity:.7}
-.sprij.weg .spnaam::after{content:none}
+.sprij.weg .spnaam::after,.spkop .spnaam::after{content:none}
 /* Het schema van één speler, per kwart. */
 .qschema{display:flex;flex-direction:column;gap:7px;margin-top:4px}
 .qrij{display:flex;gap:10px;align-items:baseline;font-size:var(--fs-md);line-height:1.35}
@@ -5072,7 +5079,18 @@ function spelerPosities(pid){
   }
   const volgorde=POSITIONS.map(p=>p.name);
   gezien.sort((a,b)=>volgorde.indexOf(a)-volgorde.indexOf(b));
-  return {namen:gezien, keept};
+  // De afkortingen erbij: in de speeltijdkaart is geen ruimte voor 'Rechts achter',
+  // en op de spelerskaart staan diezelfde afkortingen al, dus ze zijn bekend.
+  const kort=gezien.map(n=>{const p=POSITIONS.find(x=>x.name===n);return p?p.kort:n;});
+  return {namen:gezien, kort, keept};
+}
+// Kort genoeg voor een lijstregel: '2: LA, VS'. Leeg als er geen schema is.
+function positieKort(pid){
+  const g=spelerPosities(pid); if(!g)return '';
+  if(!g.kort.length)return g.keept?'keeper':'\u2014';
+  // Zonder spatie na de komma: dat scheelt per positie een paar pixels, en in twee
+  // kolommen op een telefoon is dat het verschil tussen een hele en een afgekapte naam.
+  return g.kort.length+': '+g.kort.join(',');
 }
 // De samenvattende zin eronder, in dezelfde stijl als de kwartregels.
 function positieZin(pid){
@@ -5223,13 +5241,18 @@ function speeltijdHTML(){
   // Dat je op een naam kunt tikken is nergens aan te zien: de rijen zien eruit als
   // een lijstje. De aanwijzing staat bóven de lijst en niet in de uitleg eronder,
   // want daar lees je hem pas als je de lijst al hebt afgewerkt.
-  return `<div class="card"><h2>Geplande speeltijd <span class="eenheid">(in min.)</span></h2>
+  // Twee kopregels: de grid loopt rij voor rij, dus de eerste twee cellen komen
+  // bovenaan de linker- en de rechterkolom terecht.
+  const kop=`<div class="sprij spkop"><span class="spnaam"></span>
+      <span class="sppos">Posities</span><span class="spmin">Min</span></div>`;
+  return `<div class="card"><h2>Geplande speeltijd en posities <span class="eenheid">(in min.)</span></h2>
     <p class="hint" style="margin:-2px 0 8px">Tik op een naam voor zijn schema per kwart.</p>
-    <div class="sptijd">${rijen.map(r=>`
+    <div class="sptijd">${kop+kop}${rijen.map(r=>`
       <div class="sprij${minder(r)?' minder':''}${r.aanwezig?'':' weg'}" data-spschema="${r.id}" role="button" tabindex="0">
         <span class="spnaam">${esc(r.naam)}${
           !r.aanwezig?' <i>afwezig</i>'
-          :reden.has(r.id)?` <i>${esc(reden.get(r.id))}</i>`:''}</span>
+          :(reden.has(r.id)&&reden.get(r.id)!=='keeper')?` <i>${esc(reden.get(r.id))}</i>`:''}</span>
+        <span class="sppos">${r.aanwezig?esc(positieKort(r.id)):''}</span>
         <span class="spmin"><b>${r.aanwezig?Math.round(r.minuten):0}</b></span>
       </div>`).join('')}</div>
     <p class="hint" style="margin:10px 0 0">${gelijk
@@ -6311,8 +6334,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=211;
-const VERSIE_LABEL='26.9.51';
+const APP_VERSION=212;
+const VERSIE_LABEL='26.9.52';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
