@@ -4264,10 +4264,24 @@ function detectRuleConflicts(){
     });
     // twee verschillende vaste posities
     if(new Set(fixedPos).size>1) out.push(`${nm(pid)} heeft meerdere vaste posities — alleen de eerste kan gelden.`);
-    // keeper + veldregels
-    const p=byId(pid);
-    if(p&&p.prefs&&p.prefs[0]==='keeper'&&rs.some(r=>['pos','rotate','minutes','start'].includes(r.type)))
-      out.push(`${nm(pid)} is keeper; veldregels (positie, minuten) hebben voor de keeper geen effect.`);
+    // ── Veldregels voor de vaste keeper ──
+    // Deze controle keek naar de vóórkeur 'keeper' in plaats van naar wie er
+    // werkelijk op doel staat, en kende maar vier regelsoorten. Daardoor bleef juist
+    // de meest voor de hand liggende combinatie onopgemerkt: een keeper die volgens
+    // een regel een paar kwarten niet speelt, en toch zeventig minuten gepland stond.
+    // Regels uit een gedeelde link of een oudere versie komen niet langs de controle
+    // bij het invoeren, dus hier moet het alsnog gezegd worden.
+    if(pid===vasteKeeperId()){
+      const zinloos=rs.filter(r=>VELDREGELS.includes(r.type));
+      if(zinloos.length)
+        out.push(`${nm(pid)} is de vaste keeper en staat de hele wedstrijd op doel. `
+          +`${zinloos.length===1?'De regel':'De regels'} \u2018${zinloos.map(ruleSentence).join('\u2019 en \u2018')}\u2019 `
+          +`${zinloos.length===1?'doet':'doen'} dus niets. Verwijder ${zinloos.length===1?'hem':'ze'}, of haal bij `
+          +`Spelers zijn keepervoorkeur weg en wijs met keeperregels per kwart aan wie er op doel staat \u2014 `
+          +`dan speelt hij de kwarten dat hij niet keept gewoon mee in het veld.`);
+      if(rs.some(r=>r.type==='gk'))
+        out.push(`${nm(pid)} is al de vaste keeper; een regel die hem voor losse kwarten op doel zet verandert niets.`);
+    }
     // min > max minuten
     const mins=rs.filter(r=>r.type==='minutes'&&r.mm==='min').map(r=>r.min);
     const maxs=rs.filter(r=>r.type==='minutes'&&r.mm==='max').map(r=>r.min);
@@ -4305,6 +4319,22 @@ function detectRuleConflicts(){
   R.forEach(r=>{ if(r.p1&&!present(r.p1)&&byId(r.p1)) { /* stille regel: afwezig telt toch niet mee */ } });
   return out.filter((x,i)=>out.indexOf(x)===i);
 }
+// ── Wie is de vaste keeper? ──
+// state.keeperId wordt pas gezet als je een opstelling genereert, en tot dat moment
+// kan hij verouderd zijn of leeg. Voor een controle tijdens het invoeren van regels
+// leiden we hem daarom af zoals resolveKeeperOrWarn dat straks ook doet: de aanwezige
+// speler met Keeper als eerste voorkeur. Zijn dat er geen of meer, dan is er geen
+// vaste keeper om over te waarschuwen — dan lost resolveKeeperOrWarn het op.
+function vasteKeeperId(){
+  const k=state.players.filter(p=>p.prefs&&p.prefs[0]==='keeper'&&p.present&&!p.uit);
+  if(k.length===1)return k[0].id;
+  if(k.length>1){ const g=k.find(p=>p.guest); return g?g.id:null; }
+  const oud=state.keeperId&&byId(state.keeperId);
+  return (oud&&oud.present&&!oud.uit)?oud.id:null;
+}
+// Regels die over één speler gaan en dus zinloos zijn voor wie de hele wedstrijd op
+// doel staat. 'gk' staat er apart in: die is niet zinloos maar dubbelop.
+const VELDREGELS=['noq','half','minutes','start','endstrong','pos','condpos','rotate','apart','nopos'];
 // Bepaalt wie er op doel staat: vaste keeper, aanwezige gastkeeper, of per kwart via 'gk'-regels.
 // Zet state.keeperId en geeft true terug als alles klopt; anders false met een melding.
 function resolveKeeperOrWarn(){
@@ -5153,7 +5183,6 @@ function speeltijdHTML(){
   // omdat jij dat zo hebt ingesteld, niet omdat de verdeling scheef is — dus geen rode
   // markering, wél de reden erbij zodat je niet gaat zoeken.
   const reden=new Map();
-  if(state.keeperId)reden.set(state.keeperId,'keeper');
   for(const r of (state.rules||[])){
     if(!r.p1)continue;
     // Met de kwarten erbij, want een wisselkeeper komt hóger uit dan de rest en dat
@@ -5163,6 +5192,10 @@ function speeltijdHTML(){
     else if(r.type==='half')reden.set(r.p1,'alleen '+(r.half===1?'1e':'2e')+' helft');
     else if(r.type==='minutes')reden.set(r.p1,(r.mm==='max'?'max ':'min ')+r.min+' min');
   }
+  // De vaste keeper krijgt zijn label als laatste, zodat een regel die voor hem toch
+  // niets doet het niet kan overschrijven. Anders stond er 'niet in Q3+Q4' naast 70
+  // minuten, en dat is een regel die zichzelf tegenspreekt.
+  if(state.keeperId)reden.set(state.keeperId,'keeper');
   // De hele selectie, niet alleen wie er in het schema staat. Wie is afgemeld hoort er
   // ook bij — anders moet je uitzoeken of iemand ontbreekt omdat hij niet speelt of
   // omdat je hem over het hoofd zag. Gasten alleen als ze in het schema staan.
@@ -6038,6 +6071,22 @@ function bind(v){
       const bots=state.rules.find(x=>x.type==='nopos'&&x.pos===r.pos&&(x.p1===r.p1||x.p1===r.p2));
       if(bots){toast('Dat botst met \u2018'+ruleSentence(bots)+'\u2019');return;}
     }
+    // ── De vaste keeper staat buiten de veldverdeling ──
+    // Hij komt niet in de spelerspoel en niet langs eligibleVec, dus een veldregel
+    // over hem zou stilletjes niets doen. Dat gebeurde ook: 'Sem speelt niet in
+    // Q3 + Q4' stond netjes in de lijst, met een label naast zijn 70 minuten dat
+    // zichzelf tegensprak. Liever hier weigeren dan daar liegen.
+    const kid=vasteKeeperId();
+    if(kid&&(r.p1===kid||r.p2===kid)){
+      if(r.type==='gk'){
+        toast(pName(kid)+' is al de vaste keeper — die keept alle vier de kwarten');
+        return;
+      }
+      if(VELDREGELS.includes(r.type)){
+        toast(pName(kid)+' is de vaste keeper en staat de hele wedstrijd op doel');
+        return;
+      }
+    }
     state.rules.push(r);save();render();toast('Regel toegevoegd');
   };
   // Chips ruilen
@@ -6258,8 +6307,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=209;
-const VERSIE_LABEL='26.9.49';
+const APP_VERSION=210;
+const VERSIE_LABEL='26.9.50';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
@@ -6462,6 +6511,40 @@ function zelftest(){
     ztControleer(st,sch,'vaste positie',fout);
     if(sch)for(let b=0;b<sch.perQ*4;b++){const a=sch.assignments[b];
       for(const pos in a)if(a[pos]==='p0'&&pos!=='vs')fout('vaste positie: p0 staat op '+pos);}
+  });
+  test('Veldregels voor de vaste keeper worden gemeld',()=>{
+    const st=ztTeam(15);
+    st.players[0].prefs=['keeper','',''];
+    st.keeperId=st.players[0].id;
+    st.rules=[{id:'x',type:'noq',p1:st.players[0].id,qs:[3,4]}];
+    const oud=state; state=st;
+    try{
+      const c=detectRuleConflicts();
+      if(!c.some(t=>t.includes('vaste keeper')))
+        fout('keeperregel: veldregel voor de vaste keeper wordt niet gemeld');
+      // en de speeltijd blijft gewoon de hele wedstrijd
+      state.schedule=buildSchedule(state,{});
+      const m=speeltijdPerSpeler()||{};
+      if(Math.round(m[st.players[0].id])!==70)
+        fout('keeperregel: keeper komt niet op 70 minuten maar op '+Math.round(m[st.players[0].id]));
+    } finally { state=oud; }
+  });
+  test('Keeper per kwart: keept twee kwarten, speelt de rest mee',()=>{
+    const st=ztTeam(15);
+    st.keeperId=null;
+    st.rules=[{id:'g1',type:'gk',p1:st.players[0].id,qs:[1,2]},
+              {id:'g2',type:'gk',p1:st.players[1].id,qs:[3,4]}];
+    const sch=buildSchedule(st,{});
+    if(!sch)return fout('keeper per kwart: geen schema');
+    const kk=sch.keeperByQ.join(',');
+    if(kk!==[st.players[0].id,st.players[0].id,st.players[1].id,st.players[1].id].join(','))
+      fout('keeper per kwart: verkeerde keeperByQ ('+kk+')');
+    // in zijn keeperkwarten mag hij niet ook in het veld staan
+    for(let b=0;b<sch.perQ*4;b++){
+      const q=Math.floor(b/sch.perQ), a=sch.assignments[b]||{};
+      const opDoel=sch.keeperByQ[q];
+      if(Object.values(a).includes(opDoel))fout('keeper per kwart: '+opDoel+' staat in blok '+b+' ook in het veld');
+    }
   });
   test('Regel: nooit op een bepaalde positie',()=>{
     // p0 heeft 'lv' als eerste voorkeur; het verbod moet daar zwaarder wegen.
