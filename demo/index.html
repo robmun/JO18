@@ -1325,6 +1325,7 @@ const STRAF_NOPOS = 1e8;   // coach zegt: hier nooit
 const STRAF_LOCK  = 1e6;   // coach zegt: hier altijd
 const STRAF_LINIE = 1e4;   // speler mag niet in deze linie
 const STRAF_MAXPOS= 1e3;   // dit zou zijn (N+1)-ste positie worden
+const BONUS_BEKEND= 250;   // plek waar hij al stond, zolang er een maximum geldt
 
 // Versie van de opgeslagen gegevens; zie migrateState() verderop.
 const STATE_V=4;
@@ -1370,10 +1371,11 @@ function defaultPlayers(){return DEMO?demoPlayers():[
 function defaultRules(){
   // In de demo een paar sprekende regels, zodat je meteen ziet wat ze doen.
   if(DEMO)return [
-    {id:'dr1',type:'subs',   n:2},
+    {id:'dr1',type:'subs',   n:3},
     {id:'dr2',type:'minutes',p1:'d09', mm:'min', min:35},
     {id:'dr3',type:'apart',  p1:'d02', p2:'d03'},
-    {id:'dr4',type:'start',  p1:'d16', start:'bench'}
+    {id:'dr4',type:'start',  p1:'d16', start:'bench'},
+    {id:'dr5',type:'maxpos', n:3}
   ];
   return [
   {id:'r1',type:'noq',    p1:'hidde', qs:[3,4]},
@@ -1805,8 +1807,15 @@ function assignAll(blockSets,perQ,rules,byId,vast){
       if(verboden[pid]&&verboden[pid].has(pos.id)) s-=STRAF_NOPOS;
       if(!magInLinie(p,pos.line)) s-=STRAF_LINIE;   // speler mag niet in deze linie
       // Zou dit een nieuwe positie worden terwijl hij er al genoeg heeft gehad?
-      if(maxPos&&gebruikt[pid]&&gebruikt[pid].size>=maxPos&&!gebruikt[pid].has(pos.id))
-        s-=STRAF_MAXPOS;
+      // Alleen straffen als de grens al bereikt is, is te laat: dan heeft hij zijn
+      // drie plekken vaak al in de eerste kwarten verbruikt en zit de rest van de
+      // wedstrijd klem. Daarom telt een bekende plek de h\u00e9le wedstrijd door mee \u2014
+      // licht genoeg om voor een voorkeurspositie te wijken, zwaar genoeg om hem
+      // niet zonder reden over het veld te laten zwerven.
+      if(maxPos&&gebruikt[pid]){
+        if(gebruikt[pid].has(pos.id)) s+=BONUS_BEKEND;
+        else if(gebruikt[pid].size>=maxPos) s-=STRAF_MAXPOS;
+      }
       const prefs=p.prefs||[];
       const i=prefs.indexOf(pos.id);
       if(i===0)s+=100;else if(i===1)s+=80;else if(i===2)s+=60;
@@ -1852,7 +1861,70 @@ function assignAll(blockSets,perQ,rules,byId,vast){
     onthoud(asg);
     out.push(asg);prev=asg;if(b===0)q1a=asg;
   }
+  if(maxPos)herstelMaxPos(out,perQ,rules,byId,maxPos,vast,q3like);
   return out;
+}
+
+// ── Achteraf terugbrengen tot het toegestane aantal posities ──
+// De verdeling loopt blok voor blok en kan zich klemzetten: staat iemand in blok 12
+// op het veld terwijl al zijn eigen plekken bezet zijn, dan moet hij wel ergens
+// anders staan, hoe zwaar de straf ook is. Achteraf is het wél op te lossen, want
+// dan is het hele schema bekend. We halen hem van zijn zeldzaamste plek af en ruilen
+// die met iemand die daar toch al stond of nog ruimte over heeft.
+//
+// De ruil moet voor beiden kloppen: geen verboden positie, geen verboden linie, en
+// geen speler met een vaste positie of een ruilafspraak (die verplaatsen we nooit).
+// Blokken uit een herplanning en de gespiegelde start van Q3 blijven ook met rust.
+function herstelMaxPos(out,perQ,rules,byId,maxPos,vast,q3like){
+  const B=perQ*4;
+  const onaanraakbaar=new Set();
+  for(const r of rules){
+    if(r.type==='pos'||r.type==='condpos')onaanraakbaar.add(r.p1);
+    if(r.type==='rotate'){onaanraakbaar.add(r.p1);onaanraakbaar.add(r.p2);}
+  }
+  const vastTot=(vast&&vast.vanaf)||0;
+  const bevroren=b=>b<vastTot||(q3like&&(b===0||b===perQ*2));
+  const telling=()=>{
+    const t={};
+    for(let b=0;b<B;b++){const a=out[b]||{};
+      for(const pos in a){const pid=a[pos];if(!pid)continue;
+        (t[pid]=t[pid]||{})[pos]=((t[pid]||{})[pos]||0)+1;}}
+    return t;
+  };
+  const mag=(pid,posId,q)=>{
+    if(onaanraakbaar.has(pid))return false;
+    const POS=positionsOfQ(q,rules);
+    const pos=POS.find(x=>x.id===posId); if(!pos)return false;
+    if(verbodenPosities(pid,rules,POS).has(posId))return false;
+    return magInLinie(byId[pid],pos.line);
+  };
+  for(let ronde=0;ronde<4;ronde++){
+    const t=telling();
+    const teveel=Object.keys(t).filter(pid=>Object.keys(t[pid]).length>maxPos);
+    if(!teveel.length)return;
+    let iets=false;
+    for(const pid of teveel){
+      // de plek waar hij het minst vaak stond is het goedkoopst om op te geven
+      const plekken=Object.keys(t[pid]).sort((a,b)=>t[pid][a]-t[pid][b]);
+      const kwijt=plekken[0], houden=plekken.slice(1);
+      for(let b=0;b<B;b++){
+        if(bevroren(b))continue;
+        const a=out[b]; if(!a||a[kwijt]!==pid)continue;
+        const q=Math.floor(b/perQ);
+        for(const doel of houden){
+          const ander=a[doel];
+          if(!ander||ander===pid)continue;
+          if(!mag(pid,doel,q)||!mag(ander,kwijt,q))continue;
+          // de ruilpartner mag er zelf niet door over zijn maximum gaan
+          const zijne=Object.keys(t[ander]||{});
+          if(!zijne.includes(kwijt)&&zijne.length>=maxPos)continue;
+          a[doel]=pid; a[kwijt]=ander; iets=true;
+          break;
+        }
+      }
+    }
+    if(!iets)return;   // niets meer te ruilen: de melding vertelt de coach de rest
+  }
 }
 
 // ── Doorschuifketens korter maken ──
@@ -6186,8 +6258,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=208;
-const VERSIE_LABEL='26.9.48';
+const APP_VERSION=209;
+const VERSIE_LABEL='26.9.49';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
