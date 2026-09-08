@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="216">
+<meta name="app-version" content="217">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1017,7 +1017,10 @@ body.viewer #app{padding-top:34px}
   <span class="zw-tijd" id="zwTijd">00:00</span><span class="zw-sub" id="zwSub">Q1</span>
 </div>
 <div id="timerHost"><iframe title="GHC Wedstrijdtimer"></iframe></div>
-<div id="viewerBar">${ico("oog")}Kijkstand — spelers kunnen alleen lezen. Coaches/manager kan wijzigen.</div>
+<!-- Het pictogram staat hier uitgeschreven in plaats van als aanroep van ico():
+     dit is gewone HTML en geen sjabloonstring, dus zo'n aanroep kwam letterlijk
+     in beeld te staan boven de opstelling. -->
+<div id="viewerBar"><svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/></svg>Kijkstand — je kunt de opstelling bekijken, niet wijzigen.</div>
 <div id="scrollThumb"></div>
 <div id="scrollHint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
 
@@ -6408,8 +6411,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=216;
-const VERSIE_LABEL='26.9.57';
+const APP_VERSION=217;
+const VERSIE_LABEL='26.9.58';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
