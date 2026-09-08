@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="220">
+<meta name="app-version" content="221">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -6439,8 +6439,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=220;
-const VERSIE_LABEL='26.9.61';
+const APP_VERSION=221;
+const VERSIE_LABEL='26.9.62';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
@@ -7309,8 +7309,18 @@ try{
     CLOUD.on=true; cloudSaveSettings();
     document.body.classList.toggle('viewer',CLOUD.role==='viewer');
     if(CLOUD.role==='viewer'){ activeTab='wedstrijd'; kijkManifest(); } // spelers starten op de wedstrijd
-    // schone URL (parameters weghalen) zodat de code niet blijft rondslingeren
-    try{history.replaceState(null,'',location.pathname);}catch(e){}
+    // Bij een coach halen we de parameters uit het adres, zodat de teamcode niet in de
+    // adresbalk blijft rondslingeren. Bij een kijker juist NIET: hij moet de app op zijn
+    // beginscherm kunnen zetten, en iOS bewaart daarvoor het adres zoals het op dat
+    // moment in de balk staat. Waren de parameters al weg, dan bewaarde hij een lege app
+    // zonder team — precies wat er gebeurde. Het manifest zonder start_url helpt daar
+    // niets tegen: er valt dan terug te vallen op een adres dat zelf al opgeschoond was.
+    //
+    // Dat de code bij een kijker zichtbaar blijft is geen verlies: hij kwam hem net via
+    // de link binnen, en zonder die code kan hij niets zien.
+    if(CLOUD.role!=='viewer'){
+      try{history.replaceState(null,'',location.pathname);}catch(e){}
+    }
   }
 }catch(e){}
 if(DEMO){
