@@ -3,11 +3,21 @@
   "short_name": "Opstelling",
   "description": "Bekijk de opstelling en de wissels van je team.",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#0a1b36",
   "theme_color": "#0a1b36",
   "icons": [
-    { "src": "icon-ghc-navy.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
-    { "src": "icon-ghc-navy.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+    {
+      "src": "icon-ghc-navy.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-ghc-navy.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
   ]
 }
