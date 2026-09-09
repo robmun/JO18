@@ -1474,7 +1474,7 @@ function defaultRules(){
   {id:'r5',type:'condpos',p1:'bob',   pos:'lman', p2:'hidde'},
 ];}
 function defaultState(){return {v:STATE_V, players:defaultPlayers(),
-  keeperId:DEMO?'d01':'mauk', rules:defaultRules(), schedule:null, genHash:null};}
+  keeperId:DEMO?'d01':'mauk', rules:defaultRules(), schedule:null, genHash:null, wegMeldingen:[]};}
 
 /* ============ Planning ============ */
 // Kwarten waarin een speler volgens een 'noq'-regel niet speelt.
@@ -2419,6 +2419,10 @@ function migrateLines(players,rules){
 // (STATE_V staat bovenaan, want defaultState() gebruikt hem al bij het opstarten.)
 function migrateState(s){
   if(!s||!Array.isArray(s.players)||!Array.isArray(s.rules))return s;
+  // Weggetikte meldingen reizen mee met de stand. Deze controle staat vóór de
+  // versiecheck hieronder: een stand die al op de huidige versie staat mist het
+  // veld nog steeds als hij van een toestel met oudere code komt.
+  if(!Array.isArray(s.wegMeldingen))s.wegMeldingen=[];
   let v=Number(s.v||0);
   if(v>=STATE_V){s.v=STATE_V;return s;}
   if(v<2){ s.rules=migrateRules(s.rules); }
@@ -2780,8 +2784,14 @@ function cloudListen(){
       if(!incoming||!Array.isArray(incoming.players))return;
       migrateState(incoming);
       if(!neemStandOver(incoming,'uit de cloud'))return;
+      // Nieuw schema van de coach: eerder weggetikte meldingen mogen terug. De lijst
+      // in de stand wordt bij het genereren geleegd, maar de plaatselijke lijst van
+      // dit toestel niet — en die zou een melding die nu écht opnieuw geldt blijven
+      // onderdrukken, precies bij de kijker die er niets aan kan doen.
+      const _nieuwSchema=!state||state.genHash!==incoming.genHash;
       CLOUD.applying=true;
       state=incoming;
+      if(_nieuwSchema)_wegWaarschuwing=new Set();
       try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e){}
       CLOUD.applying=false;
       render();
@@ -3236,7 +3246,11 @@ function serializeState(){
     rules:state.rules,
     schedule:state.schedule,
     genHash:state.genHash,
-    gebeurtenissen:state.gebeurtenissen||[]
+    gebeurtenissen:state.gebeurtenissen||[],
+    // Meldingen die de coach heeft weggetikt. Ze worden bij elke tekening opnieuw
+    // uit het schema afgeleid, dus zonder dit veld staan ze op het grote scherm
+    // gewoon weer in beeld en moet een kijker ze nóg een keer wegtikken.
+    wegMeldingen:state.wegMeldingen||[]
   };
 }
 async function shareState(){
@@ -3822,10 +3836,24 @@ function linieSpeeltijd(sch){
 // hoor je hem opnieuw te zien. Bij een nieuw schema begint de lijst leeg, want dan
 // kunnen de problemen ook echt anders zijn.
 let _wegWaarschuwing=new Set();
-function wisWegWaarschuwingen(){ _wegWaarschuwing=new Set(); }
+function wisWegWaarschuwingen(){
+  _wegWaarschuwing=new Set();
+  if(typeof state!=='undefined'&&state)state.wegMeldingen=[];
+}
+// De sleutel van een melding: dezelfde tekst geeft dezelfde sleutel, op elk toestel.
+// Hij gaat mee naar de kijkers in plaats van de hele zin — dat scheelt in de cloud
+// en in een deel-link, en de betekenis is gelijk: verandert de tekst, dan is het
+// een andere kwestie en hoor je hem opnieuw te zien.
+function meldingSleutel(tekst){
+  return 'w'+[...tekst].reduce((h,c)=>((h*31+c.charCodeAt(0))>>>0),7).toString(36);
+}
 function waarschuwing(tekst,soort){
   if(_wegWaarschuwing.has(tekst))return '';
-  const id='w'+[...tekst].reduce((h,c)=>((h*31+c.charCodeAt(0))>>>0),7).toString(36);
+  const id=meldingSleutel(tekst);
+  // Door de coach weggetikt: dan ook hier weg. Een kijker kan niets aan het schema
+  // veranderen, dus een melding die de coach al heeft gezien en afgehandeld is voor
+  // hem alleen ruis op het scherm.
+  if((state.wegMeldingen||[]).indexOf(id)>=0)return '';
   _wegTeksten[id]=tekst;
   return `<div class="warnbox${soort==='info'?' info':''}">`
     +`<div class="wi">${soort==='info'?ico('info'):'&#9888;&#65039;'}</div>`
@@ -6107,17 +6135,20 @@ function renderQuarter(q){
   const benchIds=benchOfBlock(sch,b0);
   const capt=captainId();
   // Veld: eigen helft onderin, bank als lijstje op de helft van de tegenstander
-  const kopTitel = toonBlok===0 ? `Start Q${q+1}, speelvorm ${formOfQ(q)}`
-                                : `Actueel Q${q+1}, speelvorm ${formOfQ(q)}`;
+  const kopTitel = toonBlok===0 ? `Start Q${q+1}` : `Actueel Q${q+1}`;
   const kopSub = toonBlok===0 ? `${q<2?'eerste':'tweede'} helft`
                               : `na ${Math.round(toonBlok*blockLen)} min`;
   // In de titelbalk is maar 134 tot 205 pixels ruimte — twee icoonknoppen ernaast
   // eten de rest op. Zelfs 'Actueel Q1, speelvorm 3-3-3-1 · na 13 min' viel daar
   // met ruim honderd pixels buiten, dus die stond half afgekapt in beeld. Voor de
-  // balk dus een korte vorm zonder de woorden 'actueel' en 'speelvorm': het kwart,
-  // de speelvorm en het moment zeggen het samen ook. Op een breed scherm staat de
-  // kop boven het veld en is er wél ruimte voor de volledige zin.
-  const kopKort = `Q${q+1} \u00b7 ${formOfQ(q)} \u00b7 ${toonBlok===0?'start':`na ${Math.round(toonBlok*blockLen)} min`}`;
+  // balk dus een korte vorm zonder de woorden 'actueel' en 'speelvorm': het kwart
+  // en het moment zeggen het samen ook.
+  //
+  // De speelvorm stond hier ook, maar die hoort niet in een kop die je tijdens de
+  // wedstrijd leest: hij verandert zelden, staat al bij de regels, en het veld
+  // eronder laat hem gewoon zien. Wat je in de balk zoekt is waar je bent en hoe
+  // laat het in het kwart is.
+  const kopKort = `Q${q+1} wedstrijd \u00b7 ${toonBlok===0?'start':`na ${Math.round(toonBlok*blockLen)} min`}`;
   // De kop staat op het wedstrijdtabblad in de titelbalk bovenaan, niet meer boven
   // het veld: dat scheelt een regel en het veld heeft alle ruimte nodig. 'eerste' of
   // 'tweede helft' is weggelaten, want dat staat al bij de kwartbolletjes.
@@ -6577,7 +6608,24 @@ function bind(v){
   });
   v.querySelectorAll('[data-wegwaarsch]').forEach(el=>el.onclick=()=>{
     const t=_wegTeksten[el.dataset.wegwaarsch];
-    if(t)_wegWaarschuwing.add(t);
+    if(t){
+      _wegWaarschuwing.add(t);
+      // Een kijker schrijft nooit naar de cloud en zijn stand wordt bij de volgende
+      // synchronisatie overschreven; voor hem is de lijst hierboven genoeg. Tikt de
+      // coach hem weg, dan gaat hij mee met de stand en verdwijnt hij ook op het
+      // grote scherm.
+      if(!isKijker()){
+        if(!Array.isArray(state.wegMeldingen))state.wegMeldingen=[];
+        const sleutel=meldingSleutel(t);
+        if(state.wegMeldingen.indexOf(sleutel)<0){
+          state.wegMeldingen.push(sleutel);
+          // Niet ongelimiteerd laten groeien: bij een nieuw schema wordt de lijst
+          // toch geleegd, en oude sleutels horen bij meldingen die niet meer bestaan.
+          if(state.wegMeldingen.length>40)state.wegMeldingen=state.wegMeldingen.slice(-40);
+          save();
+        }
+      }
+    }
     render();
   });
   v.querySelectorAll('[data-gebweg]').forEach(el=>el.onclick=()=>gebeurtenisWeg(el.dataset.gebweg));
