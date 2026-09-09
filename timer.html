@@ -150,7 +150,7 @@ html.ghc-embed .app { padding-top:10px !important; }
   box-shadow:inset 0 1px 0 rgba(255,255,255,0.18);
 }
 .themeToggle::before { content:"🌙"; font-size:0.88rem; }
-/* Verschijnt twaalf seconden na een reset. Klein en terughoudend: het is een uitweg,
+/* Verschijnt vijf seconden lang na een reset. Klein en terughoudend: het is een uitweg,
    geen knop die om aandacht vraagt. */
 .resetTerug{display:block;margin:8px auto 0;padding:7px 14px;border-radius:999px;
   border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.10);
@@ -1532,14 +1532,14 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
         toonHerstel();
       });
     });
-    // Kleine 'Toch niet'-knop, twaalf seconden lang. Een reset is de enige actie in de
+    // Kleine 'Toch niet'-knop, vijf seconden lang. Een reset is de enige actie in de
     // timer die tijd weggooit, en verder is er geen ongedaan maken.
     function toonHerstel() {
       var el = document.getElementById('resetTerug');
       if (!el || !_vorigeReset) return;
       el.hidden = false;
       clearTimeout(el._t);
-      el._t = setTimeout(function () { el.hidden = true; _vorigeReset = null; }, 12000);
+      el._t = setTimeout(function () { el.hidden = true; _vorigeReset = null; }, 5000);
       el.onclick = function () {
         if (!_vorigeReset) return;
         setQuarterElapsed(_vorigeReset.q, _vorigeReset.sec);
