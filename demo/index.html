@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="226">
+<meta name="app-version" content="227">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -987,6 +987,12 @@ body.viewer #viewerBar{display:block}
    smal scherm of iOS er een veilige rand bij optelt. */
 body.viewer #app{padding-top:var(--kijkbalkH,34px)}
 body.viewer .appbar{top:var(--kijkbalkH,34px)}
+/* Na een paar tellen weg: de melding is een begroeting, geen blijvende rand. Wat je
+   wél blijvend moet kunnen zien staat in de titel. */
+#viewerBar{transition:opacity .4s ease}
+body.viewer.kijkbalk-weg #viewerBar{opacity:0;pointer-events:none}
+body.viewer.kijkbalk-weg #app{padding-top:0}
+body.viewer.kijkbalk-weg .appbar{top:0}
 
 </style>
 </head>
@@ -2784,12 +2790,20 @@ function wijzigenGeblokkeerd(){
 // verbinding valt weg zodra het bereik slecht is, en dan verviel de kijkstand.
 function isKijker(){ return CLOUD.role==='viewer'; }
 // Hoogte van de kijkbalk meten en vastleggen, zodat de kopbalk er precies onder begint.
+let _kijkbalkT=null;
 function meetKijkbalk(){
   const st=document.documentElement.style;
   const el=document.getElementById('viewerBar');
   if(!el||!isKijker()){ st.removeProperty('--kijkbalkH'); return; }
   const h=Math.round(el.getBoundingClientRect().height);
   if(h>0)st.setProperty('--kijkbalkH',h+'px');
+  // Eén keer aftellen, niet bij elke hertekening opnieuw — anders komt de balk bij
+  // elke wissel weer terug.
+  if(_kijkbalkT===null && !document.body.classList.contains('kijkbalk-weg')){
+    _kijkbalkT=setTimeout(()=>{
+      document.body.classList.add('kijkbalk-weg');
+    },2000);
+  }
 }
 addEventListener('resize',()=>requestAnimationFrame(meetKijkbalk));
 // ── Het beginscherm-pictogram van een kijker ──
@@ -5613,17 +5627,22 @@ function renderUitleg(){
 }
 // Vult de titelbalk met de kop van het kwart. Op andere tabbladen staat daar weer
 // gewoon de naam van de app.
+// In de kijkstand hoort het in de titel te staan en niet alleen in een balk die
+// wegvalt: een speler die de app een uur later opent moet nog steeds kunnen zien dat
+// hij niets kan wijzigen.
+const KOP_APP='opstelling & wissels';
+function appKop(){ return isKijker()?(KOP_APP+' (READ ONLY)'):KOP_APP; }
 function zetAppbarKop(tekst){
   const h1=document.querySelector('.appbar h1');
   if(!h1)return;
   const sm=h1.querySelector('small');
-  h1.childNodes[0].nodeValue=tekst;
+  h1.childNodes[0].nodeValue=isKijker()?(tekst+' \u00b7 READ ONLY'):tekst;
   if(sm)sm.style.display='none';
 }
 function herstelAppbarKop(){
   const h1=document.querySelector('.appbar h1');
   if(!h1)return;
-  h1.childNodes[0].nodeValue='opstelling & wissels';
+  h1.childNodes[0].nodeValue=appKop();
   const sm=h1.querySelector('small');
   if(sm)sm.style.display='';
 }
@@ -6530,8 +6549,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=226;
-const VERSIE_LABEL='26.9.67';
+const APP_VERSION=227;
+const VERSIE_LABEL='26.9.68';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
