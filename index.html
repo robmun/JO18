@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="227">
+<meta name="app-version" content="228">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -4114,9 +4114,20 @@ function meetGroteKlok(){
     .map(e=>e.getBoundingClientRect());
   const bankR=rijen.length?Math.max(...rijen.map(q=>q.right)):v.left;
   const grensL=bankR+GK_MARGE;
-  // Vierkant, dus de hoogte begrenst ook: de klok begint op 2% van het veld en moet
-  // erbinnen blijven.
-  const maat=Math.max(104,Math.min(grensR-grensL, v.height*0.94));
+  // Vierkant, dus de hoogte begrenst ook. Twee grenzen naar beneden:
+  //   1. binnen het veld blijven
+  //   2. niet over de bovenste speler heen. De maat werd alleen uit de breedte
+  //      afgeleid, en omdat de klok vierkant is groeide hij dus ook naar beneden —
+  //      tot over het plaatje van de rechtsvoor. Dat viel niet op bij een smalle
+  //      iPad, waar de klok toch al klein was.
+  const klokTop=r.top + v.height*0.02;
+  const spelers=[...document.querySelectorAll('.twocol .col-field .chip')]
+    .map(e=>e.getBoundingClientRect())
+    // alleen wie onder de klok zou komen te staan; de linkerhelft doet niet mee
+    .filter(c=>c.right>grensL && c.left<grensR && c.top>klokTop);
+  const bovensteSpeler=spelers.length?Math.min(...spelers.map(c=>c.top)):Infinity;
+  const ruimteOmlaag=Math.max(120, bovensteSpeler-GK_MARGE-klokTop);
+  const maat=Math.max(104,Math.min(grensR-grensL, v.height*0.94, ruimteOmlaag));
   st.setProperty('--gkW', Math.round(maat)+'px');
   st.setProperty('--gkMax', Math.round(maat)+'px');
   st.setProperty('--gkR', Math.round(r.right-grensR)+'px');
@@ -6549,8 +6560,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=227;
-const VERSIE_LABEL='26.9.68';
+const APP_VERSION=228;
+const VERSIE_LABEL='26.9.69';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
