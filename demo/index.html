@@ -237,14 +237,6 @@ body.sun .klappijl{color:#33507e}
    Zelfde veld als het wedstrijdplaatje, maar de bolletjes tonen geen speler: ze tonen
    of er iets te kiezen valt. Rood is niet 'fout' — het is de plek waar de planner
    straks een concessie moet doen, en die zie je liever nu dan zaterdag. */
-.hqrij{display:flex;gap:6px;margin:0 0 10px}
-.hqpill{flex:1;border:1px solid var(--stroke);background:var(--glass);color:var(--dim);
-  border-radius:var(--r-sm);padding:7px 0;font-size:var(--fs-sm);font-weight:800;
-  transition:transform .12s cubic-bezier(.34,1.56,.64,1)}
-.hqpill:active{transform:scale(.94)}
-.hqpill.aan{background:#fff;color:#12408f;border-color:#fff}
-body.sun .hqpill{background:#fff;border-color:rgba(15,32,64,.30);color:#33507e}
-body.sun .hqpill.aan{background:#12408f;color:#fff;border-color:#12408f}
 /* Smallere plaatjes dan op het wedstrijdveld: hier staat geen naam in het vlak maar
    een kort aantal, en tien brede vlakken zouden op een telefoon overlappen. */
 .heatveld .chip{width:74px;filter:drop-shadow(0 4px 6px rgba(4,14,32,.38))}
@@ -255,12 +247,21 @@ body.sun .hqpill.aan{background:#12408f;color:#fff;border-color:#12408f}
 .heatveld .chip .ball.groen{background:radial-gradient(circle at 32% 26%,#79e39d 0%,#31a463 46%,#166b3b 100%)}
 .heatveld .chip .ball.geel{background:radial-gradient(circle at 32% 26%,#ffe08f 0%,#e0ac25 46%,#8f6a0c 100%)}
 .heatveld .chip .ball.rood{background:radial-gradient(circle at 32% 26%,#ff9f8b 0%,#e0603a 46%,#992f16 100%)}
+/* Donkerrood moet ook op een fel zonnescherm van rood te onderscheiden zijn. Het
+   verschil zit daarom niet alleen in de kleur maar ook in de rand: donkerrood krijgt
+   een lichte ring, zodat het \u00f3\u00f3k herkenbaar blijft voor wie rood en donkerrood niet
+   uit elkaar houdt. */
+.heatveld .chip .ball.donkerrood{background:radial-gradient(circle at 32% 26%,#c9482c 0%,#8e2411 46%,#54120a 100%);
+  box-shadow:inset 0 2px 3px rgba(255,255,255,.22), inset 0 -4px 6px rgba(0,0,0,.36), 0 0 0 2.5px rgba(255,175,155,.55)}
 .heatleg{display:flex;flex-wrap:wrap;gap:6px 14px;margin:10px 0 0;font-size:var(--fs-sm);color:var(--dim)}
 .heatleg span{display:inline-flex;align-items:center;gap:6px}
 .heatleg i{width:11px;height:11px;border-radius:50%;flex-shrink:0}
 .heatleg i.groen{background:#31a463}
 .heatleg i.geel{background:#e0ac25}
 .heatleg i.rood{background:#e0603a}
+.heatleg i.donkerrood{background:#8e2411;box-shadow:0 0 0 1.5px rgba(255,175,155,.6)}
+.heatrij i.donkerrood{background:#8e2411}
+.heatrij i.groen{background:#31a463}
 /* Wat er onder het veld staat: alleen de plekken die aandacht vragen, met de reden.
    Een lijst van alle tien zou het plaatje dubbelop vertellen. */
 .heatuitleg{margin-top:10px}
@@ -4255,184 +4256,251 @@ function prefSummary(p){
   const parts=(p.prefs||[]).filter(Boolean).map((x,i)=>POSMAP[x]?POSMAP[x].kort:'').filter(Boolean);
   return parts.length?parts.join(' · '):'Geen voorkeur';
 }
-/* ============ Kaart: hoe moeilijk is elke plek te vullen? ============
-   De app zegt achteraf waar hij een concessie heeft gedaan — maar dan staat het
-   schema er al en heb je geen idee wat je had moeten veranderen. Dit is dezelfde
-   vraag, vooraf en per plek: valt er hier iets te kiezen, of is er maar één naam?
-   Bewust géén oordeel over de opstelling zelf. Dit kijkt alleen naar de invoer:
-   aanwezigheid, linie-vinkjes, voorkeursposities en de regels die iemand ergens
-   weghouden. Daarom staat de kaart op Spelers en niet op Wedstrijd, en werkt hij
-   ook als er nog helemaal geen schema is. */
-let _heatQ=0;
+/* ============ Kaart: opstelling heatmap ============
+   De app zegt achteraf waar hij een concessie heeft gedaan \u2014 maar dan staat het
+   schema er al en weet je niet wat je had moeten veranderen. Dit is dezelfde vraag,
+   vooraf: waar is de planner straks krap, en waar heeft hij ruimte?
 
-// Hoe zwaar telt één speler mee voor één plek?
-// Een eerste voorkeur is een echte optie, een derde een noodgreep, en wie er alleen
-// mág staan telt nauwelijks mee: daar zet de planner iemand neer omdat het moet, niet
-// omdat het past. Verwante posities (spits ↔ midden voor) tellen iets lager: het is
-// dezelfde plek in een andere speelvorm, maar de coach heeft hem niet zo genoemd.
-function heatVoorkeur(p,pos){
+   Twee dingen die deze kaart bewust anders doet dan de eerste opzet.
+
+   1. Over de hele wedstrijd, niet per kwart. De vraag is niet 'lukt het in Q2' maar
+      'hoe moeilijk is deze plek in het algemeen gevuld te houden'. Verschilt de
+      speelvorm per kwart, dan wordt er gemiddeld over de kwarten waarin de plek
+      bestaat, en tekenen we de vorm van de meeste kwarten.
+
+   2. De kleuren zijn een rangorde, geen cijfer met een grens eraan. Bij een normaal
+      team haalde iedere plek de groene drempel, en dan zegt de kaart niets meer. Er
+      is altijd een moeilijkste plek, ook bij een prima selectie \u2014 en juist die wil
+      je zien. De moeilijkste is donkerrood, de drie daarna rood, de twee ruimste
+      groen, de rest geel.
+
+   Hoe het getal onder een plek tot stand komt: elke beschikbare speler is \u00e9\u00e9n hele
+   speler, die verdeeld wordt over alle plekken waar hij mag staan \u2014 naar rato van
+   hoe graag hij daar staat. Wie linksachter als eerste voorkeur heeft, telt daar
+   voor ruim een halve speler mee en op de andere negen plekken samen voor de rest.
+   Dat is de kern: een speler die overal de enige optie is, maakt geen van die
+   plekken makkelijk, want hij kan er maar op \u00e9\u00e9n tegelijk staan. Een plek waar
+   drie mensen graag willen staan houdt drie hele spelers over.
+
+   Kijkt alleen naar de invoer \u2014 aanwezigheid, linie-vinkjes, voorkeursposities en de
+   regels die iemand ergens weghouden \u2014 en niet naar het schema. Daarom staat de
+   kaart op Spelers en werkt hij ook als er nog geen opstelling gemaakt is. */
+
+// Hoeveel van een speler gaat er naar \u00e9\u00e9n plek? Niet de absolute hoogte telt, maar
+// de verhouding tussen zijn eigen plekken: dit bepaalt hoe sterk hij zich op zijn
+// voorkeur concentreert. Wie er alleen m\u00e1g staan telt licht mee \u2014 daar zet de
+// planner iemand neer omdat het moet, niet omdat het past. Verwante posities
+// (spits \u2194 midden voor) tellen bijna vol: dezelfde plek, andere speelvorm.
+const HEAT_EIGEN=[1.2,0.8,0.5], HEAT_VERWANT=[1.0,0.65,0.4], HEAT_LOS=0.12;
+// Geeft het gewicht \u00e9n de hoeveelste voorkeur het is (0/1/2, of -1 als de speler er
+// alleen m\u00e1g staan). Die rang is niet voor de rekensom maar voor de uitleg eronder:
+// 'vier kandidaten' zegt weinig, 'vier kandidaten van wie er \u00e9\u00e9n dit als eerste keus
+// heeft' verklaart waarom de plek toch krap uitkomt.
+function heatGewicht(p,pos){
   const prefs=p.prefs||[];
-  const eigen=[1.2,0.9,0.6], verwant=[1.0,0.75,0.5];
   for(let i=0;i<3;i++){
     const v=prefs[i];
     if(!v||v==='keeper')continue;
-    if(v===pos.id)return eigen[i];
-    if((pos.eq||[]).includes(v))return verwant[i];
+    if(v===pos.id)return {w:HEAT_EIGEN[i],rang:i};
+    if((pos.eq||[]).includes(v))return {w:HEAT_VERWANT[i],rang:i};
   }
-  return null;
+  return {w:HEAT_LOS,rang:-1};
 }
-function heatKleur(s){ return s>=2?'groen':(s>=1?'geel':'rood'); }
 
-// Per plek in de speelvorm van kwart q: wie kan daar, en hoe graag.
-function bezettingsDruk(q){
+// \u00c9\u00e9n kwart doorrekenen: wie kan er spelen, en hoe verdeelt ieder van hen zich over
+// de plekken van de speelvorm van dat kwart.
+function heatKwart(q){
   const rs=state.rules||[];
   const POS=positionsOfQ(q,rs);
   const vaste=state.players.find(p=>p.id===state.keeperId&&p.present&&!p.uit)||null;
   const gkByQ={};
   rs.filter(r=>r.type==='gk').forEach(r=>(r.qs||[]).forEach(x=>{if(!gkByQ[x])gkByQ[x]=r.p1;}));
-  // Wie kan er dit kwart in het veld staan? Keepers eruit, afwezigen eruit, en wie er
-  // volgens een regel dit kwart niet speelt ook.
   const veld=state.players.filter(p=>p.present&&!p.uit
     &&(!vaste||p.id!==vaste.id)&&p.id!==gkByQ[q+1]
     &&!rs.some(r=>r.type==='noq'&&r.p1===p.id&&noqQs(r).includes(q+1)));
-  // Ruimte per linie. Tien kandidaten voor rechtsachter helpen niet als diezelfde tien
-  // op datzelfde moment ook de andere drie verdedigersplekken moeten vullen; dan is er
-  // in werkelijkheid niets te kiezen. Daarom drukt een krappe linie alle plekken
-  // erbinnen omlaag, hoe mooi de voorkeuren er ook uitzien.
-  const ruim={};
+  const aanbod={},voorkeur={},mag={};
+  POS.forEach(pos=>{aanbod[pos.id]=0;voorkeur[pos.id]=[];mag[pos.id]=0;});
+  for(const p of veld){
+    const verboden=verbodenPosities(p.id,rs,POS);
+    const w={}; let tot=0;
+    for(const pos of POS){
+      if(!magInLinie(p,pos.line))continue;
+      if(verboden.has(pos.id))continue;
+      const g=heatGewicht(p,pos);
+      w[pos.id]=g.w; tot+=g.w; mag[pos.id]++;
+      if(g.rang>=0)voorkeur[pos.id].push({naam:pKort(p.id),rang:g.rang});
+    }
+    if(!tot)continue;   // mag nergens staan: telt nergens mee
+    for(const id in w)aanbod[id]+=w[id]/tot;
+  }
+  // Krappe linie: net zoveel of minder spelers dan plekken. Dat is een aparte kwestie
+  // die uit het getal alleen niet af te lezen is, want daar staat 'weinig' en niet
+  // 'niemand kan hier ooit rusten'.
+  const krap=[];
   for(const l of LINE_IDS){
     const plek=POS.filter(x=>x.line===l).length;
-    if(plek)ruim[l]=veld.filter(p=>magInLinie(p,l)).length-plek;
+    if(!plek)continue;
+    const kan=veld.filter(p=>magInLinie(p,l)).length;
+    if(kan<=plek)krap.push({l,plek,kan});
   }
-  return POS.map(pos=>{
-    let sterk=0, los=0, mag=0;
-    const namen=[];
-    for(const p of veld){
-      if(!magInLinie(p,pos.line))continue;
-      if(verbodenPosities(p.id,rs,POS).has(pos.id))continue;
-      mag++;
-      const w=heatVoorkeur(p,pos);
-      if(w!=null)  { sterk+=w; namen.push({naam:pKort(p.id),w}); }
-      else         { los+=0.25; }
-    }
-    // Veelzijdige spelers zonder voorkeur maken een plek wel makkelijker, maar nooit
-    // groen: dat er twaalf man mág staan zegt niets als niemand er wil staan.
-    let score=sterk+Math.min(los,0.6);
-    if(ruim[pos.line]<=0)score=Math.min(score,0.9);
-    else if(ruim[pos.line]===1)score=Math.min(score,1.9);
-    namen.sort((a,b)=>b.w-a.w);
-    return {pos,score,mag,krap:ruim[pos.line]<=1,
-      namen:namen.map(x=>x.naam),kleur:heatKleur(score)};
-  });
+  return {POS,aanbod,voorkeur,mag,krap,veld:veld.length};
 }
-// De keeper hoort in het plaatje: hij staat ook op het veld, en 'er is vandaag geen
-// keeper' is precies zo'n ding dat je liever nu ziet dan zaterdag.
-// Eén keeper is geen tekort maar de normale situatie: dat elke week geel kleuren
-// maakt de kaart tot een waarschuwing waar je overheen gaat kijken.
-function keeperDruk(q){
+
+// De hele wedstrijd. Verschilt de speelvorm per kwart, dan tekenen we die van de
+// meeste kwarten en middelen we per plek over de kwarten waarin hij bestaat.
+function bezettingsDruk(){
+  const rs=state.rules||[];
+  const vormen=[0,1,2,3].map(q=>formOfQ(q,rs));
+  const tel={}; vormen.forEach(v=>tel[v]=(tel[v]||0)+1);
+  let hoofdVorm=vormen[0];
+  for(const v of vormen)if(tel[v]>tel[hoofdVorm])hoofdVorm=v;
+  const POS=positionsOf(hoofdVorm);
+  const kw=[0,1,2,3].map(q=>heatKwart(q));
+  const rijen=POS.map(pos=>{
+    let som=0,n=0,mag=0; const kand=new Map();
+    for(const k of kw){
+      if(k.aanbod[pos.id]===undefined)continue;   // plek bestaat dit kwart niet
+      som+=k.aanbod[pos.id]; n++;
+      mag=Math.max(mag,k.mag[pos.id]);
+      // Dezelfde speler in vier kwarten is \u00e9\u00e9n kandidaat, niet vier; van zijn rangen
+      // houden we de beste, want dat is de plek die hij zelf het hoogst zette.
+      for(const x of k.voorkeur[pos.id])
+        if(!kand.has(x.naam)||x.rang<kand.get(x.naam))kand.set(x.naam,x.rang);
+    }
+    const namen=[...kand.keys()].sort((a,b)=>kand.get(a)-kand.get(b));
+    return {pos,aanbod:n?som/n:0,kwarten:n,mag,namen,
+      eerste:[...kand.values()].filter(r=>r===0).length};
+  });
+  // Krappe linies over de kwarten heen: de krapste telling wint.
+  const krap={};
+  for(const k of kw)for(const x of k.krap)
+    if(!krap[x.l]||x.kan-x.plek<krap[x.l].kan-krap[x.l].plek)krap[x.l]=x;
+
+  // ── Kleuren: rangorde, niet drempel ──
+  const op=rijen.slice().sort((a,b)=>a.aanbod-b.aanbod);
+  const laag=op[0].aanbod, hoog=op[op.length-1].aanbod;
+  const gem=rijen.reduce((a,r)=>a+r.aanbod,0)/(rijen.length||1);
+  // Liggen ze allemaal binnen een paar procent van elkaar, dan is er geen rangorde
+  // om te tonen. Dan is de moeilijkste plek een rekenrestje en zou donkerrood liegen.
+  const vlak = gem>0 && (hoog-laag) < gem*0.08;
+  const trap=['donkerrood','rood','rood','rood','geel','geel','geel','geel','groen','groen'];
+  op.forEach((r,i)=>{
+    r.rang=i+1;
+    if(vlak){ r.kleur='geel'; return; }
+    r.kleur=trap[Math.min(i,trap.length-1)];
+    // Gelijkspel krijgt dezelfde kleur, en wel de moeilijkste van de twee. Anders
+    // wordt linksachter rood en rechtsachter geel terwijl er niets tussen zit.
+    if(i>0&&Math.abs(r.aanbod-op[i-1].aanbod)<0.02)r.kleur=op[i-1].kleur;
+  });
+  return {rijen,volgorde:op,krap,hoofdVorm,vlak,
+    wisselend:new Set(vormen).size>1,perQ:subsRule(rs)};
+}
+
+// De keeper hoort in het plaatje \u2014 hij staat ook op het veld \u2014 maar niet in de
+// rangorde: hij concurreert met niemand om een veldplek. Blauw als het geregeld is,
+// rood als er die wedstrijd niemand op doel staat.
+function keeperDruk(){
   const rs=state.rules||[];
   const vaste=state.players.find(p=>p.id===state.keeperId&&p.present&&!p.uit)||null;
-  const gk=rs.find(r=>r.type==='gk'&&(r.qs||[]).includes(q+1));
-  const vervanger=gk?state.players.find(p=>p.id===gk.p1&&p.present&&!p.uit):null;
-  if(vervanger)return {kleur:'groen',tag:esc(pKort(vervanger.id)),uitleg:''};
-  if(vaste)return {kleur:'groen',tag:esc(pKort(vaste.id)),uitleg:''};
-  return {kleur:'rood',tag:'niemand',uitleg:'Er is dit kwart geen keeper. Geef \u00e9\u00e9n speler \u2018Keeper\u2019 als eerste voorkeur op Spelers, of maak op Regels een vervangkeeper aan.'};
+  const namen=new Set();
+  let gat=false;
+  for(let q=0;q<4;q++){
+    const gk=rs.find(r=>r.type==='gk'&&(r.qs||[]).includes(q+1));
+    const verv=gk?state.players.find(p=>p.id===gk.p1&&p.present&&!p.uit):null;
+    if(verv)namen.add(pKort(verv.id));
+    else if(vaste)namen.add(pKort(vaste.id));
+    else gat=true;
+  }
+  if(gat)return {kleur:'rood',tag:'niemand',
+    uitleg:'Er is deze wedstrijd geen keeper. Geef \u00e9\u00e9n speler \u2018Keeper\u2019 als eerste voorkeur op <b>Spelers</b>, of maak op <b>Regels</b> een vervangkeeper aan.'};
+  return {kleur:'keeperbal',tag:esc([...namen].join(' / ')),uitleg:''};
 }
 
-function drukKaart(){
-  const q=Math.min(3,Math.max(0,_heatQ));
-  let rijen,kp;
-  try{ rijen=bezettingsDruk(q); kp=keeperDruk(q); }
-  catch(e){ onthoudFout('bezettingsdruk',e); return ''; }
-  const aanwezig=state.players.filter(p=>p.present&&!p.uit).length;
-  if(aanwezig<7)return klapKaart('druk','Hoe vol zit elke plek?','te weinig spelers',
-    `<p class="hint" style="margin:0">Zet eerst meer spelers op aanwezig; met ${aanwezig} speler${aanwezig===1?'':'s'} zegt dit plaatje nog niets.</p>`);
+// Nederlandse komma, \u00e9\u00e9n decimaal. '1.4' onder een bolletje leest als een fout.
+function heatGetal(x){ return (Math.round(x*10)/10).toFixed(1).replace('.',','); }
 
-  // Vier knopjes, ook als de speelvorm gelijk blijft: regels als 'speelt niet in Q3'
-  // en een vervangkeeper veranderen het plaatje net zo goed als een andere formatie.
-  const qbar=`<div class="hqrij">${[0,1,2,3].map(i=>
-    `<button class="hqpill${i===q?' aan':''}" data-heatq="${i}">Q${i+1}</button>`).join('')}</div>`;
+function drukKaart(){
+  const aanwezig=state.players.filter(p=>p.present&&!p.uit).length;
+  if(aanwezig<7)return klapKaart('druk','Opstelling heatmap','te weinig spelers',
+    `<p class="hint" style="margin:0">Zet eerst meer spelers op aanwezig; met ${aanwezig} speler${aanwezig===1?'':'s'} zegt dit plaatje nog niets.</p>`);
+  let D,kp;
+  try{ D=bezettingsDruk(); kp=keeperDruk(); }
+  catch(e){ onthoudFout('opstelling heatmap',e); return ''; }
+  const {rijen,volgorde,krap}=D;
 
   let veld=`<div class="fieldwrap heatveld">${fieldSVG()}`;
   for(const r of rijen){
-    const tel=r.namen.length;
-    // Kort houden: het vlakje is 74 pixels breed en kapt alles daarboven af.
-    // Wát het getal betekent staat één keer onder het veld, niet tien keer erin.
-    const tag=r.mag?`${tel} optie${tel===1?'':'s'}`:'niemand';
-    const titel=r.pos.name+' \u2014 '+(tel?r.namen.slice(0,4).join(', '):'niemand met deze voorkeur')
-      +' \u00b7 '+r.mag+' mogen daar staan';
+    const titel=r.pos.name+' \u2014 nummer '+r.rang+' van '+rijen.length+' in moeilijkheid \u00b7 '
+      +heatGetal(r.aanbod)+' spelers beschikbaar \u00b7 '
+      +(r.namen.length?'voorkeur: '+r.namen.join(', '):'niemand met deze voorkeur');
     veld+=`<div class="chip" style="left:${r.pos.x}%;top:${r.pos.y}%" title="${esc(titel)}">
       <div class="ball ${r.kleur}"><span class="bk${r.pos.kort.length>=4?' long':''}">${r.pos.kort}</span></div>
-      <div class="tag">${tag}</div></div>`;
+      <div class="tag">${heatGetal(r.aanbod)}</div></div>`;
   }
   veld+=`<div class="chip" style="left:50%;top:93%" title="Keeper">
       <div class="ball ${kp.kleur}"><span class="bk">GK</span></div>
       <div class="tag">${kp.tag}</div></div></div>`;
 
-  const legenda=`<p class="hint" style="margin:9px 0 0">Het getal is het aantal aanwezige spelers dat deze plek als voorkeurspositie heeft &mdash; en die daar volgens de linie-vinkjes en de regels ook mag staan.</p>
-    <div class="heatleg">
-    <span><i class="groen"></i>ruime keus</span>
-    <span><i class="geel"></i>krap</span>
-    <span><i class="rood"></i>moeilijk te vullen</span></div>`;
+  const legenda=`<div class="heatleg">
+    <span><i class="donkerrood"></i>moeilijkst</span>
+    <span><i class="rood"></i>lastig</span>
+    <span><i class="geel"></i>gemiddeld</span>
+    <span><i class="groen"></i>ruimste keus</span></div>`;
 
-  // Alleen wat aandacht vraagt komt onder het veld te staan; alle tien opsommen zou
-  // het plaatje dubbelop vertellen.
-  // Een krappe linie eerst, en één keer voor de hele linie. Vier verdedigersplekken
-  // die alle vier dezelfde zin krijgen leest niemand meer, terwijl het maar om één
-  // kwestie gaat: er mogen daar te weinig mensen staan.
-  const krap=[];
+  const getaluitleg=`<p class="hint" style="margin:9px 0 0">Het getal is hoeveel spelers er voor die plek overblijven
+    nadat iedereen verdeeld is over alle plekken waar hij mag en wil staan. Wie de enige kandidaat is voor drie
+    posities, telt bij elk daarvan maar voor een derde mee \u2014 hij kan er tenslotte op \u00e9\u00e9n tegelijk staan.</p>`;
+
+  // De rangorde is relatief, en dat moet er met zoveel woorden bij staan. Anders leest
+  // donkerrood als een storing terwijl er ook bij een prima selectie altijd \u00e9\u00e9n plek
+  // als laatste eindigt.
+  const relatief=D.vlak
+    ? `<p class="hint" style="margin:9px 0 0">Alle plekken komen binnen een paar procent op hetzelfde uit: er is geen plek die er als moeilijkste uitspringt. Daarom staat alles op geel.</p>`
+    : `<p class="hint" style="margin:9px 0 0">De kleuren zijn <b>relatief ten opzichte van elkaar</b>, niet een oordeel. Er is altijd een moeilijkste plek, ook bij een selectie die prima in orde is. Donkerrood zegt: h\u00eder heeft de planner de minste ruimte, dus h\u00eder doet hij zijn eerste concessie.</p>`;
+
+  let uitleg=`<div class="heatuitleg">`;
+  // Eerst de linies waar het aantal spelers de plekken niet ontloopt: dat is een
+  // andere kwestie dan 'weinig keus' en is uit het getal niet af te lezen.
   for(const l of LINE_IDS){
-    const inL=rijen.filter(r=>r.pos.line===l);
-    if(inL.length&&inL[0].krap)krap.push({l,plek:inL.length,mag:Math.max(...inL.map(r=>r.mag))});
+    const k=krap[l]; if(!k)continue;
+    uitleg+=`<div class="heatrij"><i class="donkerrood"></i><span><b>De ${LINES[l]}</b> \u2014 er mogen ${k.kan} speler${k.kan===1?'':'s'}
+      staan voor ${k.plek} plekken. Wie daar speelt kan dus niet rusten zonder dat er iemand op zijn plek komt die er volgens
+      zijn instellingen niet hoort. Vink bij een paar spelers de ${LINES[l]} aan op <b>Spelers</b>, of kies een speelvorm met
+      minder plekken daar.</span></div>`;
   }
-  const krappeLinies=new Set(krap.map(x=>x.l));
-  // Plekken met woord voor woord dezelfde reden horen in één zin. Vier verdedigers-
-  // plekken waar niemand wil staan is één kwestie, geen vier.
-  const redenVan=r=>{
-    if(!r.mag)return 'niemand mag hier staan volgens de linie-vinkjes en de regels.';
-    if(r.namen.length)return `maar ${r.namen.length} speler${r.namen.length===1?'':'s'} met deze voorkeur (${esc(r.namen.join(', '))}).`;
-    return `geen enkele aanwezige speler heeft dit als voorkeurspositie \u2014 er mogen er wel ${r.mag} staan.`;
-  };
-  const opsom=namen=>namen.length===1?namen[0]
-    :namen.slice(0,-1).join(', ')+' en '+namen[namen.length-1];
-  const groepen=[];
-  for(const r of rijen.filter(x=>x.kleur!=='groen'&&!krappeLinies.has(x.pos.line))
-                      .sort((a,b)=>a.score-b.score)){
-    const red=redenVan(r);
-    const g=groepen.find(x=>x.red===red);
-    if(g)g.rijen.push(r); else groepen.push({red,kleur:r.kleur,rijen:[r]});
-  }
-  const toon=groepen.slice(0,4);
-  const restPlekken=groepen.slice(4).reduce((n,g)=>n+g.rijen.length,0);
-  let uitleg='';
-  if(krap.length||groepen.length||kp.uitleg){
-    uitleg=`<div class="heatuitleg">`;
-    for(const k of krap){
-      uitleg+=`<div class="heatrij"><i class="rood"></i><span><b>De ${LINES[k.l]}</b> \u2014 ${k.mag} speler${k.mag===1?'':'s'} `
-        +`mogen daar staan voor ${k.plek} plekken. Wie daar speelt kan dus niet rusten zonder dat er iemand op zijn plek `
-        +`komt die er volgens zijn instellingen niet hoort. Vink bij een paar spelers de ${LINES[k.l]} aan op <b>Spelers</b>, `
-        +`of kies een speelvorm met minder plekken daar.</span></div>`;
+  if(!D.vlak){
+    // Plekken met woord voor woord dezelfde reden in \u00e9\u00e9n regel. Vier verdedigersplekken
+    // waar niemand wil staan is \u00e9\u00e9n kwestie, geen vier zinnen die je overslaat.
+    const redenVan=r=>{
+      if(!r.mag)return 'niemand mag hier staan volgens de linie-vinkjes en de regels.';
+      if(!r.namen.length)return `niemand heeft dit als voorkeurspositie \u2014 er mogen er wel ${r.mag} staan, maar wie hier komt vroeg er niet om.`;
+      return `${r.namen.length} ${r.namen.length===1?'kandidaat':'kandidaten'} (${esc(r.namen.join(', '))}), `
+        +`${r.eerste===0?'geen':r.eerste} met deze plek als eerste keus.`;
+    };
+    const groepen=[];
+    for(const r of volgorde.slice(0,4)){
+      const red=redenVan(r);
+      const g=groepen.find(x=>x.red===red);
+      if(g)g.rijen.push(r); else groepen.push({red,kleur:r.kleur,rijen:[r]});
     }
-    for(const g of toon){
+    const opsom=n=>n.length===1?n[0]:n.slice(0,-1).join(', ')+' en '+n[n.length-1];
+    for(const g of groepen){
       const namen=g.rijen.map((r,i)=>i===0?r.pos.name:r.pos.name.toLowerCase());
       uitleg+=`<div class="heatrij"><i class="${g.kleur}"></i><span><b>${esc(opsom(namen))}</b> \u2014 ${g.red}</span></div>`;
     }
-    if(restPlekken){
-      uitleg+=`<div class="heatrij"><i class="${groepen[4].kleur}"></i><span>En nog ${restPlekken} plek${restPlekken===1?'':'ken'}: `
-        +`${esc(groepen.slice(4).flatMap(g=>g.rijen.map(r=>r.pos.name.toLowerCase())).join(', '))}.</span></div>`;
-    }
-    if(kp.uitleg)uitleg+=`<div class="heatrij"><i class="${kp.kleur}"></i><span><b>Keeper</b> \u2014 ${kp.uitleg}</span></div>`;
-    uitleg+=`</div>`;
-  }else{
-    uitleg=`<p class="hint" style="margin:10px 0 0">Elke plek heeft meerdere kandidaten. De planner kan dit kwart vrij schuiven zonder iemand op een vreemde positie te zetten.</p>`;
+    const ruim=volgorde.slice(-2).reverse();
+    uitleg+=`<div class="heatrij"><i class="groen"></i><span><b>Meeste ruimte</b> \u2014 ${esc(ruim.map(r=>r.pos.name.toLowerCase()).join(' en '))}. Daar kan de planner het makkelijkst schuiven als het elders knelt.</span></div>`;
   }
+  if(kp.uitleg)uitleg+=`<div class="heatrij"><i class="rood"></i><span><b>Keeper</b> \u2014 ${kp.uitleg}</span></div>`;
+  uitleg+=`</div>`;
 
-  const slot=`<p class="hint" style="margin:12px 0 0">Rood betekent niet dat het misgaat, maar dat de planner hier weinig te kiezen heeft \u2014 dit zijn de plekken waar hij straks een concessie doet. Je verandert het plaatje op <b>Spelers</b> (voorkeursposities en de linie-vinkjes) en op <b>Regels</b>.</p>`;
+  let voet='';
+  if(D.wisselend)voet+=`<p class="hint" style="margin:10px 0 0">Je speelt niet elk kwart dezelfde speelvorm. Getekend is <b>${D.hoofdVorm}</b>, die van de meeste kwarten; per plek is gemiddeld over de kwarten waarin hij bestaat.</p>`;
+  voet+=`<p class="hint" style="margin:10px 0 0">Je verandert dit plaatje op <b>Spelers</b> \u2014 voorkeursposities en de linie-vinkjes \u2014 en op <b>Regels</b>. Het aantal wissels per kwart verandert de volgorde niet: meer wissels maken elke plek even veel drukker.</p>`;
 
-  const slechtste=rijen.concat([{kleur:kp.kleur}]).some(r=>r.kleur==='rood')?'let op'
-    :(rijen.some(r=>r.kleur==='geel')||kp.kleur==='geel'?'krap':'ruim');
-  return klapKaart('druk','Hoe vol zit elke plek?',slechtste,
-    qbar+veld+legenda+uitleg+slot);
+  return klapKaart('druk','Opstelling heatmap',
+    D.vlak?'overal gelijk':'moeilijkst: '+esc(volgorde[0].pos.name.toLowerCase()),
+    veld+legenda+getaluitleg+relatief+uitleg+voet);
 }
 
 function renderSpelers(){
@@ -5914,13 +5982,13 @@ function renderUitleg(){
     <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p>`);
   // Schudden vraagt op iOS eenmalig toestemming. Wordt die geweigerd of gemist, dan
   // komt die vraag nooit meer vanzelf terug — vandaar deze knop.
-  h+=`<div class="card"><h2>Schudden om ongedaan te maken</h2>
-    <p class="hint" style="margin-bottom:10px">${
+  h+=klapKaart('schudden','Schudden om ongedaan te maken','undo',
+    `<p class="hint" style="margin-bottom:10px">${
       _schudStatus==='aan'?'&#10003; Staat aan. Schud je telefoon om de laatste actie terug te draaien.'
       :_schudStatus==='geweigerd'?ico("kruis",16)+'Je hebt de bewegingssensor geweigerd. Tik hieronder om het opnieuw te vragen; lukt dat niet, zet dan Bewegen en ori&#235;ntatie aan bij Instellingen &rarr; Safari.'
       :_schudStatus==='kan niet'?'Dit toestel heeft geen bruikbare bewegingssensor.'
       :'Nog niet aangezet. iOS vraagt eenmalig toestemming voor de bewegingssensor.'}</p>
-    <button class="btn ghost full" id="schudBtn">${ico("telefoon")}Schudden ${_schudStatus==='aan'?'opnieuw instellen':'aanzetten'}</button></div>`;
+    <button class="btn ghost full" id="schudBtn">${ico("telefoon")}Schudden ${_schudStatus==='aan'?'opnieuw instellen':'aanzetten'}</button>`);
   h+=diagnoseKaart();
   return h;
 }
@@ -6342,14 +6410,6 @@ function bind(v){
     d.addEventListener('toggle',()=>{
       if(d.open)_klapOpen.add(d.dataset.klap); else _klapOpen.delete(d.dataset.klap);
     });
-  });
-  // Kwart wisselen in de bezettingskaart. Eigen naam, want .qpill hangt aan de
-  // kwartbolletjes van het wedstrijdtabblad en zou daar het getoonde kwart verzetten.
-  v.querySelectorAll('[data-heatq]').forEach(b=>b.onclick=()=>{
-    _heatQ=Number(b.dataset.heatq);
-    _klapOpen.add('druk');
-    const y=document.getElementById('view').scrollTop;
-    render(); document.getElementById('view').scrollTop=y;
   });
   // Accordeon op het uitlegtabblad: één open tegelijk, zoals dichtklappen ook werkt.
   v.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{
@@ -6864,8 +6924,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=230;
-const VERSIE_LABEL='26.9.71';
+const APP_VERSION=231;
+const VERSIE_LABEL='26.9.72';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
