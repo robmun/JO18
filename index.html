@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="225">
+<meta name="app-version" content="226">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -3708,7 +3708,26 @@ function linieSpeeltijd(sch){
     +`het aantal plekken per linie ligt vast, dus hoe minder spelers er in een linie mogen, hoe langer die spelen. `
     +`Vink bij een paar spelers een tweede linie aan als je de speeltijd gelijker wilt.`];
 }
+// ── Waarschuwingen wegdrukken ──
+// Deze meldingen worden bij elke tekening opnieuw uit het schema afgeleid, dus een
+// weggedrukte melding moet onthouden worden — anders staat hij er direct weer. De
+// tekst zelf is de sleutel: verandert de melding, dan is het een andere kwestie en
+// hoor je hem opnieuw te zien. Bij een nieuw schema begint de lijst leeg, want dan
+// kunnen de problemen ook echt anders zijn.
+let _wegWaarschuwing=new Set();
+function wisWegWaarschuwingen(){ _wegWaarschuwing=new Set(); }
+function waarschuwing(tekst,soort){
+  if(_wegWaarschuwing.has(tekst))return '';
+  const id='w'+[...tekst].reduce((h,c)=>((h*31+c.charCodeAt(0))>>>0),7).toString(36);
+  _wegTeksten[id]=tekst;
+  return `<div class="warnbox${soort==='info'?' info':''}">`
+    +`<div class="wi">${soort==='info'?ico('info'):'&#9888;&#65039;'}</div>`
+    +`<div class="wt">${esc(tekst)}</div>`
+    +`<button class="wx" data-wegwaarsch="${id}" aria-label="Melding sluiten">&#10005;</button></div>`;
+}
+let _wegTeksten={};
 function warnBoxesHTML(){
+  _wegTeksten={};
   let w='';
   if(timerMismatch!==null)
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">timer.html loopt achter op de app (versie ${VERSIE_LABEL}). Upload timer.html opnieuw naar GitHub.</div></div>`;
@@ -3721,29 +3740,14 @@ function warnBoxesHTML(){
   // algemene beperking — maar dat gebeurde volkomen stil. Je kon iemand achterin
   // aanvinken, hem daarnaast op de spits vastzetten, en zaterdag verbaasd zijn dat
   // hij voorin stond. Nu staat het er gewoon bij.
-  for(const c of linieBotsingen()){
-    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(c)}</div></div>`;
-  }
-  for(const c of bezettingsProblemen()){
-    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(c)}</div></div>`;
-  }
-  for(const c of gebrokenAfspraken(state.schedule)){
-    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(c)}</div></div>`;
-  }
-  for(const c of linieSpeeltijd(state.schedule)){
-    w+=`<div class="warnbox info"><div class="wi">${ico("info")}</div><div class="wt">${esc(c)}</div></div>`;
-  }
+  for(const c of linieBotsingen())          w+=waarschuwing(c);
+  for(const c of bezettingsProblemen())     w+=waarschuwing(c);
+  for(const c of gebrokenAfspraken(state.schedule)) w+=waarschuwing(c);
+  for(const c of linieSpeeltijd(state.schedule))    w+=waarschuwing(c,'info');
   if(DEMO && demoDicht()){
     const eigen=(_beheer&&typeof _beheer.boodschap==='string'&&_beheer.boodschap.trim())||'';
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${
       esc(eigen||'De demonstratie is gesloten. Wijzigen kan niet meer; kijken kan gewoon. Vragen? robertmunnichs@gmail.com')}</div></div>`;
-  }
-  // Zwakke teamcode: alleen voor wie het team beheert, en alleen als samenwerken aan
-  // staat. Een kijker kan er toch niets aan doen.
-  if(CLOUD.on && !isKijker() && zwakkeTeamcode(CLOUD.team)){
-    w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${esc(zwakkeTeamcode(CLOUD.team))}
-      Wie hem raadt leest alle spelersnamen van je team, want de code is het enige dat dat tegenhoudt.
-      Maak op <b>Spelers</b> een nieuwe code aan met de knop ernaast en stuur je mede-coaches een nieuwe link.</div></div>`;
   }
   if(versieJsonMist)
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">version.json loopt achter op de app (versie ${VERSIE_LABEL}). Zolang dat zo is krijgen andere toestellen geen melding dat er een nieuwe versie klaarstaat. Upload version.json opnieuw naar GitHub.</div></div>`;
@@ -4534,6 +4538,7 @@ function regenerate(){
     return;
   }
   snapshot('genereren');
+  wisWegWaarschuwingen();   // nieuw schema: eerder weggedrukte meldingen mogen terug
   wisUitStatus(); wisGebeurtenissen(); // nieuw schema: blessures en gebeurtenissen vervallen
   state.schedule=buildSchedule(state);
   state.genHash=inputHash(state);
@@ -6161,6 +6166,11 @@ function bind(v){
     el.onclick=()=>toonSpelerSchema(el.dataset.spschema);
     el.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toonSpelerSchema(el.dataset.spschema); } };
   });
+  v.querySelectorAll('[data-wegwaarsch]').forEach(el=>el.onclick=()=>{
+    const t=_wegTeksten[el.dataset.wegwaarsch];
+    if(t)_wegWaarschuwing.add(t);
+    render();
+  });
   v.querySelectorAll('[data-gebweg]').forEach(el=>el.onclick=()=>gebeurtenisWeg(el.dataset.gebweg));
   v.querySelectorAll('[data-selvink]').forEach(el=>el.onchange=()=>{
     if(el.checked)_selGekozen.add(el.dataset.selvink); else _selGekozen.delete(el.dataset.selvink);
@@ -6520,8 +6530,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=225;
-const VERSIE_LABEL='26.9.66';
+const APP_VERSION=226;
+const VERSIE_LABEL='26.9.67';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
