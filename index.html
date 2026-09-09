@@ -213,6 +213,63 @@ main{
 .card h2{font-size:var(--fs-h);font-weight:800;letter-spacing:-.2px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .card h2 .sub{font-weight:600;font-size:var(--fs-sm);color:var(--dim);margin-left:auto}
 .hint{font-size:var(--fs-sm);color:var(--dim);line-height:1.45}
+/* ---------- Dichtgeklapte kaarten ----------
+   De meeste kaarten op Spelers en Meer lees je één keer en daarna nooit meer, maar ze
+   stonden alle acht open: om bij de knop te komen die je zocht moest je langs een half
+   scherm uitleg scrollen. Dichtgeklapt blijft de kop wél staan — je ziet dus nog steeds
+   wát er is — en je opent alleen wat je nodig hebt.
+   Het hele kopvlak is de knop, niet alleen het pijltje: op een telefoon met natte
+   handschoenen is een driehoekje van tien pixels geen doel. */
+.klapkaart>details>summary{cursor:pointer;list-style:none;-webkit-tap-highlight-color:transparent}
+.klapkaart>details>summary::-webkit-details-marker{display:none}
+.klapkaart>details>summary::marker{content:''}
+.klapkaart>details>summary>h2{margin-bottom:0;transition:margin-bottom .12s ease}
+.klapkaart>details[open]>summary>h2{margin-bottom:10px}
+/* Geen 'sub'? Dan duwt het pijltje zichzelf naar rechts. */
+.klappijl{margin-left:auto;display:flex;align-items:center;color:var(--dim);flex-shrink:0}
+.card h2 .sub + .klappijl{margin-left:6px}
+.klappijl svg{width:17px;height:17px;transition:transform .18s cubic-bezier(.34,1.3,.64,1)}
+.klapkaart>details[open]>summary .klappijl svg{transform:rotate(180deg)}
+.klapkaart>details>summary:active .klappijl svg{transform:scale(.85)}
+.klapkaart>details[open]>summary:active .klappijl svg{transform:rotate(180deg) scale(.85)}
+body.sun .klappijl{color:#33507e}
+/* ---------- Heatmap: hoe moeilijk is een plek te vullen? ----------
+   Zelfde veld als het wedstrijdplaatje, maar de bolletjes tonen geen speler: ze tonen
+   of er iets te kiezen valt. Rood is niet 'fout' — het is de plek waar de planner
+   straks een concessie moet doen, en die zie je liever nu dan zaterdag. */
+.hqrij{display:flex;gap:6px;margin:0 0 10px}
+.hqpill{flex:1;border:1px solid var(--stroke);background:var(--glass);color:var(--dim);
+  border-radius:var(--r-sm);padding:7px 0;font-size:var(--fs-sm);font-weight:800;
+  transition:transform .12s cubic-bezier(.34,1.56,.64,1)}
+.hqpill:active{transform:scale(.94)}
+.hqpill.aan{background:#fff;color:#12408f;border-color:#fff}
+body.sun .hqpill{background:#fff;border-color:rgba(15,32,64,.30);color:#33507e}
+body.sun .hqpill.aan{background:#12408f;color:#fff;border-color:#12408f}
+/* Smallere plaatjes dan op het wedstrijdveld: hier staat geen naam in het vlak maar
+   een kort aantal, en tien brede vlakken zouden op een telefoon overlappen. */
+.heatveld .chip{width:74px;filter:drop-shadow(0 4px 6px rgba(4,14,32,.38))}
+.heatveld .chip .ball{width:39px;height:39px;border-width:2px}
+.heatveld .chip .ball .bk{color:#fff;font-size:var(--fs-sm);font-weight:900}
+.heatveld .chip .ball .bk.long{font-size:10px}
+.heatveld .chip .tag{font-size:var(--fs-sm);font-weight:700;padding:7px 6px 3px;max-width:74px}
+.heatveld .chip .ball.groen{background:radial-gradient(circle at 32% 26%,#79e39d 0%,#31a463 46%,#166b3b 100%)}
+.heatveld .chip .ball.geel{background:radial-gradient(circle at 32% 26%,#ffe08f 0%,#e0ac25 46%,#8f6a0c 100%)}
+.heatveld .chip .ball.rood{background:radial-gradient(circle at 32% 26%,#ff9f8b 0%,#e0603a 46%,#992f16 100%)}
+.heatleg{display:flex;flex-wrap:wrap;gap:6px 14px;margin:10px 0 0;font-size:var(--fs-sm);color:var(--dim)}
+.heatleg span{display:inline-flex;align-items:center;gap:6px}
+.heatleg i{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+.heatleg i.groen{background:#31a463}
+.heatleg i.geel{background:#e0ac25}
+.heatleg i.rood{background:#e0603a}
+/* Wat er onder het veld staat: alleen de plekken die aandacht vragen, met de reden.
+   Een lijst van alle tien zou het plaatje dubbelop vertellen. */
+.heatuitleg{margin-top:10px}
+.heatrij{display:flex;align-items:flex-start;gap:8px;padding:5px 0;font-size:var(--fs-sm);
+  line-height:1.35;color:var(--dim)}
+.heatrij i{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.heatrij i.geel{background:#e0ac25}
+.heatrij i.rood{background:#e0603a}
+.heatrij b{color:var(--txt);font-weight:800}
 .banner.err{background:linear-gradient(135deg,rgba(255,120,100,.22),rgba(255,120,100,.09));
   border-color:rgba(255,140,120,.55);color:#ffd8cf}
 body.sun .banner.err{background:#fdeae6;border-color:#b3241a;color:#7a1811}
@@ -2847,7 +2904,18 @@ function cloudViewerBlocked(){
   // verbonden of niet.
   if(CLOUD.role==='viewer'){toast(READONLY_MSG);return true;}
   return false; }
+// Wat er in de kop van de dichtgeklapte kaart past: drie woorden, niet de hele stand.
+// Dit is het enige dat je met een gesloten kaart nog wilt weten — loopt het of niet.
+function cloudKorteStatus(){
+  if(!CLOUD.on&&CLOUD.status!=='verbinden')return 'uit';
+  if(CLOUD.status==='verbonden')return CLOUD.role==='viewer'?'verbonden &middot; kijker':'verbonden';
+  if(CLOUD.status==='verbinden')return 'verbinden&#8230;';
+  if(CLOUD.status==='fout')return 'verbindingsfout';
+  return 'uit';
+}
 function cloudUpdateCard(){
+  const sub=document.getElementById('cloudSub');
+  if(sub)sub.innerHTML=cloudKorteStatus();
   const el=document.getElementById('cloudStatus'); if(!el)return;
   const map={uit:'Uit — alleen deze telefoon',verbinden:'Verbinden…',verbonden:'Verbonden',fout:'Verbindingsfout'};
   let t=map[CLOUD.status]||'';
@@ -3499,6 +3567,23 @@ let schemaFout=null;
 function controleerSchema(){
   schemaFout = state.schedule ? schemaKlopt(state.schedule) : null;
   return schemaFout;
+}
+// ── Kaarten die dichtgeklapt beginnen ──
+// Dezelfde gedachte als bij Diagnose: de kop blijft staan, de inhoud niet. Wat er
+// open staat wordt onthouden zolang de app draait, want de app hertekent bij elke
+// wijziging — zonder geheugen klapte een kaart dicht op het moment dat je er iets
+// in aanraakte. Alleen in het geheugen en niet in de opslag: welke kaart je gisteren
+// open had is geen instelling die je wilt beheren, en na het opstarten hoort het
+// scherm er weer rustig uit te zien.
+let _klapOpen=new Set();
+function klapKaart(id,kop,sub,inhoud){
+  const pijl='<span class="klappijl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    +'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    +'<polyline points="6 9 12 15 18 9"/></svg></span>';
+  return `<div class="card klapkaart"><details data-klap="${id}"${_klapOpen.has(id)?' open':''}>
+    <summary><h2>${kop}${sub?`<span class="sub">${sub}</span>`:''}${pijl}</h2></summary>
+    ${inhoud}
+  </details></div>`;
 }
 // Voor iedereen zichtbaar, maar ingeklapt: hij staat er als je hem nodig hebt en
 // zit verder niet in de weg. Is er wél iets aan de hand, dan klapt hij vanzelf open.
@@ -4170,6 +4255,186 @@ function prefSummary(p){
   const parts=(p.prefs||[]).filter(Boolean).map((x,i)=>POSMAP[x]?POSMAP[x].kort:'').filter(Boolean);
   return parts.length?parts.join(' · '):'Geen voorkeur';
 }
+/* ============ Kaart: hoe moeilijk is elke plek te vullen? ============
+   De app zegt achteraf waar hij een concessie heeft gedaan — maar dan staat het
+   schema er al en heb je geen idee wat je had moeten veranderen. Dit is dezelfde
+   vraag, vooraf en per plek: valt er hier iets te kiezen, of is er maar één naam?
+   Bewust géén oordeel over de opstelling zelf. Dit kijkt alleen naar de invoer:
+   aanwezigheid, linie-vinkjes, voorkeursposities en de regels die iemand ergens
+   weghouden. Daarom staat de kaart op Spelers en niet op Wedstrijd, en werkt hij
+   ook als er nog helemaal geen schema is. */
+let _heatQ=0;
+
+// Hoe zwaar telt één speler mee voor één plek?
+// Een eerste voorkeur is een echte optie, een derde een noodgreep, en wie er alleen
+// mág staan telt nauwelijks mee: daar zet de planner iemand neer omdat het moet, niet
+// omdat het past. Verwante posities (spits ↔ midden voor) tellen iets lager: het is
+// dezelfde plek in een andere speelvorm, maar de coach heeft hem niet zo genoemd.
+function heatVoorkeur(p,pos){
+  const prefs=p.prefs||[];
+  const eigen=[1.2,0.9,0.6], verwant=[1.0,0.75,0.5];
+  for(let i=0;i<3;i++){
+    const v=prefs[i];
+    if(!v||v==='keeper')continue;
+    if(v===pos.id)return eigen[i];
+    if((pos.eq||[]).includes(v))return verwant[i];
+  }
+  return null;
+}
+function heatKleur(s){ return s>=2?'groen':(s>=1?'geel':'rood'); }
+
+// Per plek in de speelvorm van kwart q: wie kan daar, en hoe graag.
+function bezettingsDruk(q){
+  const rs=state.rules||[];
+  const POS=positionsOfQ(q,rs);
+  const vaste=state.players.find(p=>p.id===state.keeperId&&p.present&&!p.uit)||null;
+  const gkByQ={};
+  rs.filter(r=>r.type==='gk').forEach(r=>(r.qs||[]).forEach(x=>{if(!gkByQ[x])gkByQ[x]=r.p1;}));
+  // Wie kan er dit kwart in het veld staan? Keepers eruit, afwezigen eruit, en wie er
+  // volgens een regel dit kwart niet speelt ook.
+  const veld=state.players.filter(p=>p.present&&!p.uit
+    &&(!vaste||p.id!==vaste.id)&&p.id!==gkByQ[q+1]
+    &&!rs.some(r=>r.type==='noq'&&r.p1===p.id&&noqQs(r).includes(q+1)));
+  // Ruimte per linie. Tien kandidaten voor rechtsachter helpen niet als diezelfde tien
+  // op datzelfde moment ook de andere drie verdedigersplekken moeten vullen; dan is er
+  // in werkelijkheid niets te kiezen. Daarom drukt een krappe linie alle plekken
+  // erbinnen omlaag, hoe mooi de voorkeuren er ook uitzien.
+  const ruim={};
+  for(const l of LINE_IDS){
+    const plek=POS.filter(x=>x.line===l).length;
+    if(plek)ruim[l]=veld.filter(p=>magInLinie(p,l)).length-plek;
+  }
+  return POS.map(pos=>{
+    let sterk=0, los=0, mag=0;
+    const namen=[];
+    for(const p of veld){
+      if(!magInLinie(p,pos.line))continue;
+      if(verbodenPosities(p.id,rs,POS).has(pos.id))continue;
+      mag++;
+      const w=heatVoorkeur(p,pos);
+      if(w!=null)  { sterk+=w; namen.push({naam:pKort(p.id),w}); }
+      else         { los+=0.25; }
+    }
+    // Veelzijdige spelers zonder voorkeur maken een plek wel makkelijker, maar nooit
+    // groen: dat er twaalf man mág staan zegt niets als niemand er wil staan.
+    let score=sterk+Math.min(los,0.6);
+    if(ruim[pos.line]<=0)score=Math.min(score,0.9);
+    else if(ruim[pos.line]===1)score=Math.min(score,1.9);
+    namen.sort((a,b)=>b.w-a.w);
+    return {pos,score,mag,krap:ruim[pos.line]<=1,
+      namen:namen.map(x=>x.naam),kleur:heatKleur(score)};
+  });
+}
+// De keeper hoort in het plaatje: hij staat ook op het veld, en 'er is vandaag geen
+// keeper' is precies zo'n ding dat je liever nu ziet dan zaterdag.
+// Eén keeper is geen tekort maar de normale situatie: dat elke week geel kleuren
+// maakt de kaart tot een waarschuwing waar je overheen gaat kijken.
+function keeperDruk(q){
+  const rs=state.rules||[];
+  const vaste=state.players.find(p=>p.id===state.keeperId&&p.present&&!p.uit)||null;
+  const gk=rs.find(r=>r.type==='gk'&&(r.qs||[]).includes(q+1));
+  const vervanger=gk?state.players.find(p=>p.id===gk.p1&&p.present&&!p.uit):null;
+  if(vervanger)return {kleur:'groen',tag:esc(pKort(vervanger.id)),uitleg:''};
+  if(vaste)return {kleur:'groen',tag:esc(pKort(vaste.id)),uitleg:''};
+  return {kleur:'rood',tag:'niemand',uitleg:'Er is dit kwart geen keeper. Geef \u00e9\u00e9n speler \u2018Keeper\u2019 als eerste voorkeur op Spelers, of maak op Regels een vervangkeeper aan.'};
+}
+
+function drukKaart(){
+  const q=Math.min(3,Math.max(0,_heatQ));
+  let rijen,kp;
+  try{ rijen=bezettingsDruk(q); kp=keeperDruk(q); }
+  catch(e){ onthoudFout('bezettingsdruk',e); return ''; }
+  const aanwezig=state.players.filter(p=>p.present&&!p.uit).length;
+  if(aanwezig<7)return klapKaart('druk','Hoe vol zit elke plek?','te weinig spelers',
+    `<p class="hint" style="margin:0">Zet eerst meer spelers op aanwezig; met ${aanwezig} speler${aanwezig===1?'':'s'} zegt dit plaatje nog niets.</p>`);
+
+  // Vier knopjes, ook als de speelvorm gelijk blijft: regels als 'speelt niet in Q3'
+  // en een vervangkeeper veranderen het plaatje net zo goed als een andere formatie.
+  const qbar=`<div class="hqrij">${[0,1,2,3].map(i=>
+    `<button class="hqpill${i===q?' aan':''}" data-heatq="${i}">Q${i+1}</button>`).join('')}</div>`;
+
+  let veld=`<div class="fieldwrap heatveld">${fieldSVG()}`;
+  for(const r of rijen){
+    const tel=r.namen.length;
+    // Kort houden: het vlakje is 74 pixels breed en kapt alles daarboven af.
+    // Wát het getal betekent staat één keer onder het veld, niet tien keer erin.
+    const tag=r.mag?`${tel} optie${tel===1?'':'s'}`:'niemand';
+    const titel=r.pos.name+' \u2014 '+(tel?r.namen.slice(0,4).join(', '):'niemand met deze voorkeur')
+      +' \u00b7 '+r.mag+' mogen daar staan';
+    veld+=`<div class="chip" style="left:${r.pos.x}%;top:${r.pos.y}%" title="${esc(titel)}">
+      <div class="ball ${r.kleur}"><span class="bk${r.pos.kort.length>=4?' long':''}">${r.pos.kort}</span></div>
+      <div class="tag">${tag}</div></div>`;
+  }
+  veld+=`<div class="chip" style="left:50%;top:93%" title="Keeper">
+      <div class="ball ${kp.kleur}"><span class="bk">GK</span></div>
+      <div class="tag">${kp.tag}</div></div></div>`;
+
+  const legenda=`<p class="hint" style="margin:9px 0 0">Het getal is het aantal aanwezige spelers dat deze plek als voorkeurspositie heeft &mdash; en die daar volgens de linie-vinkjes en de regels ook mag staan.</p>
+    <div class="heatleg">
+    <span><i class="groen"></i>ruime keus</span>
+    <span><i class="geel"></i>krap</span>
+    <span><i class="rood"></i>moeilijk te vullen</span></div>`;
+
+  // Alleen wat aandacht vraagt komt onder het veld te staan; alle tien opsommen zou
+  // het plaatje dubbelop vertellen.
+  // Een krappe linie eerst, en één keer voor de hele linie. Vier verdedigersplekken
+  // die alle vier dezelfde zin krijgen leest niemand meer, terwijl het maar om één
+  // kwestie gaat: er mogen daar te weinig mensen staan.
+  const krap=[];
+  for(const l of LINE_IDS){
+    const inL=rijen.filter(r=>r.pos.line===l);
+    if(inL.length&&inL[0].krap)krap.push({l,plek:inL.length,mag:Math.max(...inL.map(r=>r.mag))});
+  }
+  const krappeLinies=new Set(krap.map(x=>x.l));
+  // Plekken met woord voor woord dezelfde reden horen in één zin. Vier verdedigers-
+  // plekken waar niemand wil staan is één kwestie, geen vier.
+  const redenVan=r=>{
+    if(!r.mag)return 'niemand mag hier staan volgens de linie-vinkjes en de regels.';
+    if(r.namen.length)return `maar ${r.namen.length} speler${r.namen.length===1?'':'s'} met deze voorkeur (${esc(r.namen.join(', '))}).`;
+    return `geen enkele aanwezige speler heeft dit als voorkeurspositie \u2014 er mogen er wel ${r.mag} staan.`;
+  };
+  const opsom=namen=>namen.length===1?namen[0]
+    :namen.slice(0,-1).join(', ')+' en '+namen[namen.length-1];
+  const groepen=[];
+  for(const r of rijen.filter(x=>x.kleur!=='groen'&&!krappeLinies.has(x.pos.line))
+                      .sort((a,b)=>a.score-b.score)){
+    const red=redenVan(r);
+    const g=groepen.find(x=>x.red===red);
+    if(g)g.rijen.push(r); else groepen.push({red,kleur:r.kleur,rijen:[r]});
+  }
+  const toon=groepen.slice(0,4);
+  const restPlekken=groepen.slice(4).reduce((n,g)=>n+g.rijen.length,0);
+  let uitleg='';
+  if(krap.length||groepen.length||kp.uitleg){
+    uitleg=`<div class="heatuitleg">`;
+    for(const k of krap){
+      uitleg+=`<div class="heatrij"><i class="rood"></i><span><b>De ${LINES[k.l]}</b> \u2014 ${k.mag} speler${k.mag===1?'':'s'} `
+        +`mogen daar staan voor ${k.plek} plekken. Wie daar speelt kan dus niet rusten zonder dat er iemand op zijn plek `
+        +`komt die er volgens zijn instellingen niet hoort. Vink bij een paar spelers de ${LINES[k.l]} aan op <b>Spelers</b>, `
+        +`of kies een speelvorm met minder plekken daar.</span></div>`;
+    }
+    for(const g of toon){
+      const namen=g.rijen.map((r,i)=>i===0?r.pos.name:r.pos.name.toLowerCase());
+      uitleg+=`<div class="heatrij"><i class="${g.kleur}"></i><span><b>${esc(opsom(namen))}</b> \u2014 ${g.red}</span></div>`;
+    }
+    if(restPlekken){
+      uitleg+=`<div class="heatrij"><i class="${groepen[4].kleur}"></i><span>En nog ${restPlekken} plek${restPlekken===1?'':'ken'}: `
+        +`${esc(groepen.slice(4).flatMap(g=>g.rijen.map(r=>r.pos.name.toLowerCase())).join(', '))}.</span></div>`;
+    }
+    if(kp.uitleg)uitleg+=`<div class="heatrij"><i class="${kp.kleur}"></i><span><b>Keeper</b> \u2014 ${kp.uitleg}</span></div>`;
+    uitleg+=`</div>`;
+  }else{
+    uitleg=`<p class="hint" style="margin:10px 0 0">Elke plek heeft meerdere kandidaten. De planner kan dit kwart vrij schuiven zonder iemand op een vreemde positie te zetten.</p>`;
+  }
+
+  const slot=`<p class="hint" style="margin:12px 0 0">Rood betekent niet dat het misgaat, maar dat de planner hier weinig te kiezen heeft \u2014 dit zijn de plekken waar hij straks een concessie doet. Je verandert het plaatje op <b>Spelers</b> (voorkeursposities en de linie-vinkjes) en op <b>Regels</b>.</p>`;
+
+  const slechtste=rijen.concat([{kleur:kp.kleur}]).some(r=>r.kleur==='rood')?'let op'
+    :(rijen.some(r=>r.kleur==='geel')||kp.kleur==='geel'?'krap':'ruim');
+  return klapKaart('druk','Hoe vol zit elke plek?',slechtste,
+    qbar+veld+legenda+uitleg+slot);
+}
+
 function renderSpelers(){
   const guests=state.players.filter(p=>p.guest);
   const regular=state.players.filter(p=>!p.guest).slice().sort((a,b)=>a.name.localeCompare(b.name,'nl',{sensitivity:'base'}));
@@ -4186,16 +4451,17 @@ function renderSpelers(){
     const links=Math.min(regular.length,Math.ceil((regular.length+2)/2));
     html+=`<div class="twocol">
       <div><div class="card"><h2>Selectie <span class="sub">${presentCount} aanwezig</span></h2>${regular.slice(0,links).map(p=>playerRow(p)).join('')}</div></div>
-      <div><div class="card"><h2>Selectie <span class="sub">vervolg</span></h2>${regular.slice(links).map(p=>playerRow(p)).join('')||'<p class="empty">—</p>'}</div>${gastKaart}</div>
+      <div><div class="card"><h2>Selectie <span class="sub">vervolg</span></h2>${regular.slice(links).map(p=>playerRow(p)).join('')||'<p class="empty">—</p>'}</div>${gastKaart}${drukKaart()}</div>
     </div>`;
   }else{
     html+=`<div class="card"><h2>Selectie <span class="sub">${presentCount} aanwezig</span></h2>`;
     html+=regular.map(p=>playerRow(p)).join('');
     html+=`</div>`;
     html+=gastKaart;
+    html+=drukKaart();
   }
-  if(isWide())html+=`<div class="twocol"><div>`;
   if(DEMO){
+    if(isWide())html+=`<div class="twocol"><div>`;
     html+=`<div class="card"><h2>Delen met co-coach <span class="sub">niet in de demo</span></h2>
       <p class="hint">In de echte app stuur je hiermee je complete opstelling naar een
       collega-coach, als link of als back-upbestand. Dat werkt niet in een demo.</p>
@@ -4217,21 +4483,23 @@ function renderSpelers(){
     html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; demo &middot; versie '+VERSIE_LABEL+'</div>';
     return html;
   }
-  html+=`<div class="card"><h2>Delen met co-coach</h2>
-    <button class="btn ghost full" id="shareState">${ico("delen")}Deel actuele stand</button>
-    <button class="btn ghost full" id="importShare" style="margin-top:8px">${ico("ontvangen")}Gedeelde link overnemen&#8230;</button>
-    <p class="hint" style="margin-top:10px">Stuur de link in de coachgroep. De ontvanger tikt op de link, of kopieert hem en kiest hier &quot;Gedeelde link overnemen&quot;. Aanwezigheid, regels en het schema gaan allemaal mee.</p></div>`;
-  if(isWide())html+=`</div><div>`;
-  html+=`<div class="card"><h2>Samenwerken <span class="sub">live &middot; nieuw</span></h2>
-    <p class="hint" style="margin:0 0 10px">E&#233;n gedeelde versie voor coach en manager, met live-sync. Je mede-coach hoeft alleen dezelfde teamcode in te vullen. Standaard staat dit uit; je huidige werkwijze verandert niet tot je verbindt.</p>
+  // 'Delen met co-coach' stond hier, naast Samenwerken. Nu samenwerken de gewone weg
+  // is — één gedeelde versie in plaats van een link heen en weer sturen — is delen
+  // nog wel een vangnet maar geen dagelijkse handeling meer. Het staat daarom bij het
+  // andere onderhoud op Meer, boven Back-up: dat zijn de twee knoppen die met
+  // 'een kopie ergens anders heen' te maken hebben.
+  // De status staat in de kop en niet alleen in de kaart: dichtgeklapt moet je nog
+  // steeds kunnen zien of je verbonden bent. cloudUpdateCard() werkt hem los bij,
+  // want die functie hertekent bewust niet het hele scherm.
+  html+=klapKaart('samenwerken','Samenwerken',
+    `<span id="cloudSub">${cloudKorteStatus()}</span>`,
+    `<p class="hint" style="margin:0 0 10px">E&#233;n gedeelde versie voor coach en manager, met live-sync. Je mede-coach hoeft alleen dezelfde teamcode in te vullen. Standaard staat dit uit; je huidige werkwijze verandert niet tot je verbindt.</p>
     <div id="cloudStatus" class="cloudstat">Uit — alleen deze telefoon</div>
     <button class="btn ghost full" id="cloudSetup" style="margin-top:10px">${ico("tandwiel")}Instellen&#8230;</button>
     <button class="btn ghost full" id="cloudToggle" style="margin-top:8px">${ico("stekker")}Verbinden / verbreken</button>
     <button class="btn ghost full" id="cloudShareView" style="margin-top:8px">${ico("oog")}Deel kijk-link voor spelers</button>
     <button class="btn ghost full" id="cloudShareCoach" style="margin-top:8px">${ico("persoon")}Deel coach-link (mag wijzigen)</button>
-    <p class="hint" style="margin-top:10px">De kijk-link geeft spelers alleen leesrechten; ze zien altijd de laatste stand, maar kunnen niets wijzigen. De coach-link is voor je mede-coach.</p>
-  </div>`;
-  if(isWide())html+=`</div></div>`;
+    <p class="hint" style="margin-top:10px">De kijk-link geeft spelers alleen leesrechten; ze zien altijd de laatste stand, maar kunnen niets wijzigen. De coach-link is voor je mede-coach.</p>`);
   html+=`<p class="hint" style="padding:0 6px 10px">Keeper instellen? Geef &#233;&#233;n speler &#39;Keeper&#39; als eerste voorkeur via &#9662;. Daar zet je ook de aanvoerder aan &mdash; die krijgt een goud randje in de opstelling. Alles wordt automatisch bewaard op dit toestel.</p>`;
   return html;
 }
@@ -5448,8 +5716,11 @@ function klokVoorbeeld(m){
 }
 function klokRichtingKaart(){
   const nu=tijdweergave();
-  return `<div class="card"><h2>Hoe de klok loopt <span class="sub">alleen dit toestel</span></h2>
-    <p class="hint" style="margin:0 0 10px">Geldt voor de timer, voor het klokje op de veldtekening en voor de
+  // De gekozen stand in de kop: dat is precies wat je wilt zien als de kaart dicht is,
+  // en het scheelt hem opendoen om te controleren wat er ook alweer aan stond.
+  const gekozen=(KLOKSTANDEN.find(k=>k[0]===nu)||['','',''])[1];
+  return klapKaart('klok','Hoe de klok loopt',esc(gekozen||'alleen dit toestel'),
+    `<p class="hint" style="margin:0 0 10px">Geldt voor de timer, voor het klokje op de veldtekening en voor de
       tijden bij de wisselmomenten. Jij en je mede-coach mogen hier verschillend in staan.</p>
     <div class="keuzelijst">${KLOKSTANDEN.map(([id,badge,tekst])=>`
       <button class="keuze${nu===id?' aan':''}" data-klokstand="${id}">
@@ -5457,7 +5728,7 @@ function klokRichtingKaart(){
         <span class="keuzetekst">${tekst}</span>
         <span class="keuzevb">${klokVoorbeeld(id)}</span>
       </button>`).join('')}</div>
-    <p class="hint" style="margin:10px 0 0">Rechts staat wat er op de klok zou staan als er vijf minuten in Q2 zijn gespeeld.</p></div>`;
+    <p class="hint" style="margin:10px 0 0">Rechts staat wat er op de klok zou staan als er vijf minuten in Q2 zijn gespeeld.</p>`);
 }
 
 // ── Kaart: selectie beheren ──
@@ -5480,8 +5751,7 @@ function selectieKaart(){
   const vast=state.players.filter(p=>!p.guest);
   const bezig=wedstrijdBezig();
   const gekozen=vast.filter(p=>_selGekozen.has(p.id)).length;
-  let h=`<div class="card"><h2>Selectie beheren <span class="sub">${vast.length} speler${vast.length===1?'':'s'}</span></h2>
-    <p class="hint" style="margin:0 0 10px">Wie hoort er bij dit team? Namen, rugnummers en posities vul je in
+  let h=`<p class="hint" style="margin:0 0 10px">Wie hoort er bij dit team? Namen, rugnummers en posities vul je in
       op het tabblad <b>Spelers</b>, samen met wie er vandaag is.</p>`;
   if(bezig){
     h+=`<div class="banner">${ico("waarschuwing")}<span>De wedstrijd loopt. De selectie kun je pas wijzigen als de klok weer op nul staat; iemand die vandaag uitvalt meld je af op <b>Spelers</b>.</span></div>`;
@@ -5501,8 +5771,12 @@ function selectieKaart(){
     }
   }
   h+=`<p class="hint" style="margin:10px 0 0">Maximaal ${MAX_SELECTIE} spelers. Gastspelers &mdash; iemand die
-    &#233;&#233;n wedstrijd meedoet &mdash; voeg je toe op <b>Spelers</b>.</p></div>`;
-  return h;
+    &#233;&#233;n wedstrijd meedoet &mdash; voeg je toe op <b>Spelers</b>.</p>`;
+  // Loopt de wedstrijd, dan staan er geen knoppen maar een uitleg waarom niet. Dat
+  // zetten we in de kop, want anders open je de kaart om te ontdekken dat er niets te
+  // doen valt.
+  return klapKaart('selectie','Selectie beheren',
+    bezig?'wedstrijd loopt':`${vast.length} speler${vast.length===1?'':'s'}`,h);
 }
 
 // Toevoegen vraagt meteen om de naam. Een naamloze speler toevoegen zou op dit
@@ -5581,24 +5855,25 @@ function renderUitleg(){
   h+=klokRichtingKaart();
   h+=selectieKaart();
   h+=`<h2 class="sectiekop">Uitleg</h2>`;
-  h+=`<div class="card"><h2>Zo werkt de app <span class="sub">in ${UITLEG.length} stappen</span></h2><div class="acc">`;
+  let acc=`<div class="acc">`;
   UITLEG.forEach(([id,titel,tekst],i)=>{
     const op=accOpen===id;
-    h+=`<div class="accitem${op?' open':''}">
+    acc+=`<div class="accitem${op?' open':''}">
       <button class="acchead" data-acc="${id}"><span>${i+1}. ${esc(titel)}</span><i>${op?'\u2212':'+'}</i></button>
       ${op?`<div class="accbody">${tekst}</div>`:''}
     </div>`;
   });
-  h+=`</div></div>`;
-  h+=`<div class="card"><h2>App op je telefoon <span class="sub">iPhone &amp; Android</span></h2>
-    <p class="hint" style="margin:0 0 8px"><b>iPhone \u00b7 Safari:</b> tik onderin op het deelicoon
+  acc+=`</div>`;
+  h+=klapKaart('werkt','Zo werkt de app',`in ${UITLEG.length} stappen`,acc);
+  h+=klapKaart('installeren','App op je telefoon','iPhone &amp; Android',
+    `<p class="hint" style="margin:0 0 8px"><b>iPhone \u00b7 Safari:</b> tik onderin op het deelicoon
       (vierkantje met pijl omhoog), kies \u2018Zet op beginscherm\u2019 en daarna \u2018Voeg toe\u2019.</p>
     <p class="hint" style="margin:0 0 8px"><b>Android \u00b7 Chrome:</b> tik rechtsboven op de drie puntjes
       en kies \u2018App installeren\u2019.</p>
     <p class="hint" style="margin:0">Daarna opent de app schermvullend, zonder adresbalk, en werkt hij
-      ook zonder internet \u2014 handig op een sportpark met slecht bereik.</p></div>`;
-  h+=`<div class="card"><h2>Goed om te weten</h2>
-    <p class="hint" style="margin:0 0 8px">De namen van je spelers staan alleen op dit toestel. Er is geen
+      ook zonder internet \u2014 handig op een sportpark met slecht bereik.</p>`);
+  h+=klapKaart('weten','Goed om te weten','privacy &amp; grenzen',
+    `<p class="hint" style="margin:0 0 8px">De namen van je spelers staan alleen op dit toestel. Er is geen
       account en geen inlog. Zonder samenwerken gaat er geen enkel spelersgegeven naar internet.</p>
     <p class="hint" style="margin:0 0 8px">Wel telt de app \u00e9\u00e9n keer per dag mee welk soort toestel,
       welke iOS-versie, welke schermmaat en welke versie van de app er draait, plus hoe vaak er een
@@ -5607,7 +5882,7 @@ function renderUitleg(){
       de categorie, want een foutmelding kan een spelersnaam bevatten. Zo zie ik op welke toestellen
       de app draait en waar hij stukgaat.</p>
     <p class="hint" style="margin:0">De app gaat uit van een elftal met vier kwarten van 17,5 minuut.
-      Achttal, zestal en zaalhockey worden niet ondersteund.</p></div>`;
+      Achttal, zestal en zaalhockey worden niet ondersteund.</p>`);
   // Back-up, schudden en diagnose staan onder een eigen kop, ná de uitleg. Ze
   // stonden tussen de instellingen, waardoor je erlangs moest scrollen om bij
   // 'zo werkt de app' te komen — precies de tekst waarvoor je hier komt.
@@ -5624,10 +5899,19 @@ function renderUitleg(){
       <button class="btn full" id="kijkKoppel" style="margin-top:8px">Koppelen</button></div>`;
   }
   h+=`<h2 class="sectiekop">Onderhoud</h2>`;
-  h+=`<div class="card"><h2>Back-up</h2>
-    <button class="btn ghost full" id="backupExport">${ico("opslaan")}Opslaan als back-upbestand</button>
+  // Delen met co-coach stond op Spelers, naast Samenwerken. Sinds samenwerken de
+  // gewone manier is om met z'n twee\u00ebn in dezelfde opstelling te werken, is een link
+  // heen en weer sturen geen dagelijkse handeling meer maar een uitwijk \u2014 net als de
+  // back-up eronder. Vandaar deze plek: allebei 'een kopie ergens anders heen'.
+  h+=klapKaart('delen','Delen met co-coach','link of bestand',
+    `<button class="btn ghost full" id="shareState">${ico("delen")}Deel actuele stand</button>
+    <button class="btn ghost full" id="importShare" style="margin-top:8px">${ico("ontvangen")}Gedeelde link overnemen&#8230;</button>
+    <p class="hint" style="margin-top:10px">Stuur de link in de coachgroep. De ontvanger tikt op de link, of kopieert hem en kiest hier &quot;Gedeelde link overnemen&quot;. Aanwezigheid, regels en het schema gaan allemaal mee.</p>
+    <p class="hint" style="margin-top:10px">Werk je met <b>Samenwerken</b> (op het tabblad Spelers), dan heb je dit meestal niet nodig: daar zien jij en je mede-coach dezelfde opstelling zonder iets te sturen.</p>`);
+  h+=klapKaart('backup','Back-up','',
+    `<button class="btn ghost full" id="backupExport">${ico("opslaan")}Opslaan als back-upbestand</button>
     <button class="btn ghost full" id="backupImport" style="margin-top:8px">${ico("map")}Herstel uit back-up&#8230;</button>
-    <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p></div>`;
+    <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p>`);
   // Schudden vraagt op iOS eenmalig toestemming. Wordt die geweigerd of gemist, dan
   // komt die vraag nooit meer vanzelf terug — vandaar deze knop.
   h+=`<div class="card"><h2>Schudden om ongedaan te maken</h2>
@@ -6051,6 +6335,22 @@ function bindQpills(root){
 }
 function bind(v){
   bindQpills(v);
+  // Dichtgeklapte kaarten: de browser doet het open- en dichtklappen zelf, wij houden
+  // alleen bij wat er open stond. Bewust geen render() erbij — dan zou het scherm bij
+  // elke tik opnieuw opgebouwd worden en sprong iOS terug naar boven.
+  v.querySelectorAll('details[data-klap]').forEach(d=>{
+    d.addEventListener('toggle',()=>{
+      if(d.open)_klapOpen.add(d.dataset.klap); else _klapOpen.delete(d.dataset.klap);
+    });
+  });
+  // Kwart wisselen in de bezettingskaart. Eigen naam, want .qpill hangt aan de
+  // kwartbolletjes van het wedstrijdtabblad en zou daar het getoonde kwart verzetten.
+  v.querySelectorAll('[data-heatq]').forEach(b=>b.onclick=()=>{
+    _heatQ=Number(b.dataset.heatq);
+    _klapOpen.add('druk');
+    const y=document.getElementById('view').scrollTop;
+    render(); document.getElementById('view').scrollTop=y;
+  });
   // Accordeon op het uitlegtabblad: één open tegelijk, zoals dichtklappen ook werkt.
   v.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{
     const id=b.dataset.acc;
@@ -6564,8 +6864,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=229;
-const VERSIE_LABEL='26.9.70';
+const APP_VERSION=230;
+const VERSIE_LABEL='26.9.71';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
