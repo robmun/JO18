@@ -16,7 +16,7 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="228">
+<meta name="app-version" content="229">
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -2821,7 +2821,11 @@ function kijkManifest(){
   try{
     const mf=document.querySelector('link[rel="manifest"]');
     if(mf)mf.href='manifest-kijk.webmanifest';
-    document.title='opstelling & wissels — kijken';
+    document.title='opstelling & wissels \u2014 kijken';
+    // De naam onder het pictogram komt op iOS uit deze meta, niet uit het manifest.
+    // Daar stond de teamnaam van de coach; een speler heeft daar niets aan.
+    const at=document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if(at)at.setAttribute('content','Opstelling');
   }catch(e){}
 }
 // Een teamcode is het enige dat je team beschermt: wie hem kent, leest alle namen.
@@ -6560,8 +6564,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=228;
-const VERSIE_LABEL='26.9.69';
+const APP_VERSION=229;
+const VERSIE_LABEL='26.9.70';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
