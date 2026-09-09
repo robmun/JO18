@@ -4368,8 +4368,10 @@ function bezettingsDruk(){
         if(!kand.has(x.naam)||x.rang<kand.get(x.naam))kand.set(x.naam,x.rang);
     }
     const namen=[...kand.keys()].sort((a,b)=>kand.get(a)-kand.get(b));
-    return {pos,aanbod:n?som/n:0,kwarten:n,mag,namen,
-      eerste:[...kand.values()].filter(r=>r===0).length};
+    // Hoeveel kandidaten zetten deze plek als eerste, tweede of derde voorkeur? Dat
+    // verklaart onder het veld waarom vier kandidaten toch weinig kunnen zijn.
+    const rangen=[0,1,2].map(i=>[...kand.values()].filter(r=>r===i).length);
+    return {pos,aanbod:n?som/n:0,kwarten:n,mag,namen,rangen};
   });
   // Krappe linies over de kwarten heen: de krapste telling wint.
   const krap={};
@@ -4449,7 +4451,9 @@ function drukKaart(){
 
   const getaluitleg=`<p class="hint" style="margin:9px 0 0">Het getal is hoeveel spelers er voor die plek overblijven
     nadat iedereen verdeeld is over alle plekken waar hij mag en wil staan. Wie de enige kandidaat is voor drie
-    posities, telt bij elk daarvan maar voor een derde mee \u2014 hij kan er tenslotte op \u00e9\u00e9n tegelijk staan.</p>`;
+    posities, telt bij elk daarvan maar voor een derde mee \u2014 hij kan er tenslotte op \u00e9\u00e9n tegelijk staan.
+    Alle drie de voorkeuren tellen mee, met aflopend gewicht: een tweede voorkeur telt bijna twee derde van een
+    eerste, een derde ongeveer de helft, en een plek waar iemand alleen m\u00e1g staan telt licht mee.</p>`;
 
   // De rangorde is relatief, en dat moet er met zoveel woorden bij staan. Anders leest
   // donkerrood als een storing terwijl er ook bij een prima selectie altijd \u00e9\u00e9n plek
@@ -4471,11 +4475,16 @@ function drukKaart(){
   if(!D.vlak){
     // Plekken met woord voor woord dezelfde reden in \u00e9\u00e9n regel. Vier verdedigersplekken
     // waar niemand wil staan is \u00e9\u00e9n kwestie, geen vier zinnen die je overslaat.
+    const opsom=n=>n.length===1?n[0]:n.slice(0,-1).join(', ')+' en '+n[n.length-1];
     const redenVan=r=>{
       if(!r.mag)return 'niemand mag hier staan volgens de linie-vinkjes en de regels.';
       if(!r.namen.length)return `niemand heeft dit als voorkeurspositie \u2014 er mogen er wel ${r.mag} staan, maar wie hier komt vroeg er niet om.`;
-      return `${r.namen.length} ${r.namen.length===1?'kandidaat':'kandidaten'} (${esc(r.namen.join(', '))}), `
-        +`${r.eerste===0?'geen':r.eerste} met deze plek als eerste keus.`;
+      // Alle drie de voorkeuren uitschrijven, niet alleen de eerste: anders leest de
+      // zin alsof een tweede of derde voorkeur niet zou meetellen \u2014 en dat doet hij wel.
+      const rn=['eerste','tweede','derde'];
+      const delen=r.rangen.map((n,i)=>n?`${n}\u00d7 ${rn[i]}`:'').filter(Boolean);
+      return `${r.namen.length} ${r.namen.length===1?'kandidaat':'kandidaten'} (${esc(r.namen.join(', '))}): `
+        +`${opsom(delen)} keus.`;
     };
     const groepen=[];
     for(const r of volgorde.slice(0,4)){
@@ -4483,7 +4492,6 @@ function drukKaart(){
       const g=groepen.find(x=>x.red===red);
       if(g)g.rijen.push(r); else groepen.push({red,kleur:r.kleur,rijen:[r]});
     }
-    const opsom=n=>n.length===1?n[0]:n.slice(0,-1).join(', ')+' en '+n[n.length-1];
     for(const g of groepen){
       const namen=g.rijen.map((r,i)=>i===0?r.pos.name:r.pos.name.toLowerCase());
       uitleg+=`<div class="heatrij"><i class="${g.kleur}"></i><span><b>${esc(opsom(namen))}</b> \u2014 ${g.red}</span></div>`;
@@ -6924,8 +6932,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=231;
-const VERSIE_LABEL='26.9.72';
+const APP_VERSION=232;
+const VERSIE_LABEL='26.9.73';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
