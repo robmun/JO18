@@ -3577,11 +3577,13 @@ function controleerSchema(){
 // open had is geen instelling die je wilt beheren, en na het opstarten hoort het
 // scherm er weer rustig uit te zien.
 let _klapOpen=new Set();
-function klapKaart(id,kop,sub,inhoud){
+// Met opent=true begint de kaart open ongeacht wat de gebruiker eerder deed. Dat is
+// er voor de diagnosekaart: is er iets stuk, dan hoort die open te staan.
+function klapKaart(id,kop,sub,inhoud,opent){
   const pijl='<span class="klappijl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
     +'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
     +'<polyline points="6 9 12 15 18 9"/></svg></span>';
-  return `<div class="card klapkaart"><details data-klap="${id}"${_klapOpen.has(id)?' open':''}>
+  return `<div class="card klapkaart"><details data-klap="${id}"${(opent||_klapOpen.has(id))?' open':''}>
     <summary><h2>${kop}${sub?`<span class="sub">${sub}</span>`:''}${pijl}</h2></summary>
     ${inhoud}
   </details></div>`;
@@ -3614,13 +3616,14 @@ function diagnoseKaart(){
   const kop = probleem
     ? (_fouten.length?_fouten.length+' fout'+(_fouten.length>1?'en':''):'let op')
     : 'alles in orde';
-  return `<div class="card"><details ${probleem?'open':''}>
-    <summary style="cursor:pointer;list-style:none"><h2 style="display:inline">Diagnose <span class="sub">${kop}</span></h2></summary>
-    <p class="hint" style="margin:8px 0 8px">Gaat er iets mis? Kopieer dit en stuur het naar de beheerder van de app.</p>
+  // Deze kaart had zijn eigen uitklapmarkering van v\u00f3\u00f3r er een gedeelde bestond, en
+  // was daardoor de enige zonder pijltje \u2014 je zag niet dat er iets onder zat.
+  return klapKaart('diagnose','Diagnose',kop,
+    `<p class="hint" style="margin:8px 0 8px">Gaat er iets mis? Kopieer dit en stuur het naar de beheerder van de app.</p>
     <pre style="white-space:pre-wrap;word-break:break-word;font-size:var(--fs-xs);color:var(--dim);margin:0 0 10px;font-family:inherit">${esc(diagnoseTekst())}</pre>
     <button class="btn ghost full" id="diagKopieer">${ico("klembord")}Kopieer voor de beheerder</button>
-    ${_fouten.length?'<button class="btn ghost full" id="diagWis" style="margin-top:8px">Lijst wissen</button>':''}
-  </details></div>`;
+    ${_fouten.length?'<button class="btn ghost full" id="diagWis" style="margin-top:8px">Lijst wissen</button>':''}`,
+    probleem);
 }
 function globaleBanners(){
   let h='';
@@ -4516,6 +4519,10 @@ function renderSpelers(){
   const regular=state.players.filter(p=>!p.guest).slice().sort((a,b)=>a.name.localeCompare(b.name,'nl',{sensitivity:'base'}));
   const presentCount=state.players.filter(p=>p.present).length;
   let html='';
+  // Deze uitleg hoort bij de spelerslijst erboven \u2014 het gaat over de \u25be achter een
+  // speler. Hij stond helemaal onderaan het tabblad, achter de gastspelers, de heatmap
+  // en samenwerken, en las daar als een losse opmerking bij Samenwerken.
+  const keeperHint=`<p class="hint" style="padding:0 6px 12px;margin-top:-4px">Keeper instellen? Geef &#233;&#233;n speler &#39;Keeper&#39; als eerste voorkeur via &#9662;. Daar zet je ook de aanvoerder aan &mdash; die krijgt een goud randje in de opstelling. Alles wordt automatisch bewaard op dit toestel.</p>`;
   const gastKaart=DEMO?'':`<div class="card"><h2>Gastspelers <span class="sub">max 2</span></h2>`
     +(guests.length?guests.map(p=>playerRow(p)).join(''):`<p class="empty">Nog geen gastspelers.</p>`)
     +(guests.length<2?`<button class="btn ghost full" id="addGuest" style="margin-top:12px">+ Gastspeler toevoegen</button>`:'')
@@ -4527,12 +4534,13 @@ function renderSpelers(){
     const links=Math.min(regular.length,Math.ceil((regular.length+2)/2));
     html+=`<div class="twocol">
       <div><div class="card"><h2>Selectie <span class="sub">${presentCount} aanwezig</span></h2>${regular.slice(0,links).map(p=>playerRow(p)).join('')}</div></div>
-      <div><div class="card"><h2>Selectie <span class="sub">vervolg</span></h2>${regular.slice(links).map(p=>playerRow(p)).join('')||'<p class="empty">—</p>'}</div>${gastKaart}${drukKaart()}</div>
+      <div><div class="card"><h2>Selectie <span class="sub">vervolg</span></h2>${regular.slice(links).map(p=>playerRow(p)).join('')||'<p class="empty">—</p>'}</div>${keeperHint}${gastKaart}${drukKaart()}</div>
     </div>`;
   }else{
     html+=`<div class="card"><h2>Selectie <span class="sub">${presentCount} aanwezig</span></h2>`;
     html+=regular.map(p=>playerRow(p)).join('');
     html+=`</div>`;
+    html+=keeperHint;
     html+=gastKaart;
     html+=drukKaart();
   }
@@ -4576,7 +4584,6 @@ function renderSpelers(){
     <button class="btn ghost full" id="cloudShareView" style="margin-top:8px">${ico("oog")}Deel kijk-link voor spelers</button>
     <button class="btn ghost full" id="cloudShareCoach" style="margin-top:8px">${ico("persoon")}Deel coach-link (mag wijzigen)</button>
     <p class="hint" style="margin-top:10px">De kijk-link geeft spelers alleen leesrechten; ze zien altijd de laatste stand, maar kunnen niets wijzigen. De coach-link is voor je mede-coach.</p>`);
-  html+=`<p class="hint" style="padding:0 6px 10px">Keeper instellen? Geef &#233;&#233;n speler &#39;Keeper&#39; als eerste voorkeur via &#9662;. Daar zet je ook de aanvoerder aan &mdash; die krijgt een goud randje in de opstelling. Alles wordt automatisch bewaard op dit toestel.</p>`;
   return html;
 }
 function dupNum(p){return p.num!==''&&p.num!=null&&state.players.filter(x=>x.num===p.num).length>1;}
@@ -6932,8 +6939,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=232;
-const VERSIE_LABEL='26.9.73';
+const APP_VERSION=233;
+const VERSIE_LABEL='26.9.74';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
