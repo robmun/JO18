@@ -16,7 +16,11 @@
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
 <link rel="manifest" href="manifest.webmanifest">
 <title>opstelling &amp; wissels</title>
-<meta name="app-version" content="229">
+<!-- Hier stond <meta name="app-version">. Weggehaald en niet bijgewerkt: niets las
+     hem, en hij stond twaalf versies achter. Er zijn al vier nummers die gelijk
+     moeten lopen (APP_VERSION, TIMER_VERSION, version.json en VERSIE_LABEL); een
+     vijfde die niemand leest wordt gegarandeerd weer vergeten, en een dood
+     versienummer is erger dan geen, want het ziet eruit alsof het klopt. -->
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -1334,6 +1338,10 @@ const WB={
   '{0} keus.':'{0} choice.',
   '{0} spelers aanwezig. Maak het wisselschema met eerlijke speelminuten voor alle vier de kwarten.':
     '{0} players available. Build the substitution plan with fair playing time across all four quarters.',
+  'Klok delen mislukt: {0}':'Sharing the clock failed: {0}',
+  'Iemand anders was net iets sneller \u2014 jouw wijziging is nog niet opgeslagen':
+    'Someone else was just ahead of you \u2014 your change has not been saved yet',
+  'Opslaan in cloud mislukt: {0}':'Saving to the cloud failed: {0}',
   // ── Updatemelding ──
   'Bijgewerkt naar versie':'Updated to version',
   // ── Kaarten op Meer ──
@@ -3116,14 +3124,48 @@ function cloudPush(force){
     if(!force&&CLOUD.vorig===nu)return;        // niets veranderd: geen schrijfactie
     const wat=beschrijfWijziging(CLOUD.vorig,state)||'Gegevens bijgewerkt';
     CLOUD.vorig=nu; CLOUD.lastWhat=wat;
-    // Volgnummer: we schrijven op basis van de laatste stand die we zagen. Komt er
-    // straks een stand terug die niet de onze is en ook niet op de onze volgt, dan
-    // heeft iemand tegelijk geschreven en is er iets overschreven.
-    const rev=(CLOUD.rev||0)+1;
-    CLOUD.rev=rev; CLOUD.eigenRev=rev;
-    // merge is essentieel: zonder merge wist elke gewone wijziging het klokveld
-    CLOUD.ref.set({state:nu,rev,updatedBy:CLOUD.name||'coach',updatedById:DEVICE_ID,updatedAt:Date.now(),updatedWhat:wat},{merge:true})
-      .catch(e=>toast('Opslaan in cloud mislukt: '+(e.message||e)));
+
+    // Schrijven in een transactie.
+    //
+    // Hiervóór werd het volgnummer lokaal opgehoogd — (CLOUD.rev||0)+1 — en daarna
+    // weggeschreven. Twee coaches die tegelijk iets veranderen zien dan allebei
+    // dezelfde huidige stand, schrijven allebei bijvoorbeeld 24, en de laatste wint.
+    // De wijziging van de ander is dan weg. De botsingsmelding hieronder zag dat wel,
+    // maar pas nadat het al gebeurd was, en herstellen kon ze niet.
+    //
+    // De transactie leest het volgnummer opnieuw binnen de schrijfactie zelf. Blijkt
+    // er ondertussen een nieuwere stand te staan, dan breken we af en schrijven we
+    // niets: de binnenkomende snapshot brengt die stand zo binnen, en dan bepaalt de
+    // coach wat er moet gebeuren. Beter een wijziging die niet doorgaat en zichtbaar
+    // is, dan een wijziging van een ander die stil verdwijnt.
+    const basisRev=Number(CLOUD.rev||0);
+    const ref=CLOUD.ref;
+    firebase.firestore().runTransaction(async t=>{
+      const snap=await t.get(ref);
+      const huidigeRev=Number((snap.exists&&snap.data().rev)||0);
+      // Iemand anders was ons voor: niet overschrijven.
+      if(huidigeRev>basisRev) return {overgeslagen:true, rev:huidigeRev};
+      const rev=huidigeRev+1;
+      // merge is essentieel: zonder merge wist elke gewone wijziging het klokveld
+      t.set(ref,{state:nu,rev,updatedBy:CLOUD.name||'coach',updatedById:DEVICE_ID,
+        updatedAt:Date.now(),updatedWhat:wat},{merge:true});
+      return {overgeslagen:false, rev};
+    }).then(r=>{
+      if(r.overgeslagen){
+        // Onze stand is niet weggeschreven. CLOUD.vorig hierboven vast op 'nu' zetten
+        // zou betekenen dat een volgende poging denkt dat er niets veranderd is, en
+        // dan blijft de wijziging voorgoed liggen. Terugzetten dus, zodat de eerste
+        // volgende wijziging hem alsnog meeneemt.
+        CLOUD.vorig=null;
+        CLOUD.rev=Math.max(r.rev,CLOUD.rev||0);
+        toast(T('Iemand anders was net iets sneller \u2014 jouw wijziging is nog niet opgeslagen'));
+      }else{
+        CLOUD.rev=r.rev; CLOUD.eigenRev=r.rev;
+      }
+    }).catch(e=>{
+      CLOUD.vorig=null;                        // niet geland: volgende keer opnieuw proberen
+      toast(Tf('Opslaan in cloud mislukt: {0}', e.message||e));
+    });
   }, force?0:600);
 }
 // Functie in plaats van constante: de tekst hangt nu van de taal af en wordt op het
@@ -5819,9 +5861,22 @@ function klokPush(k){
   CLOUD.klokT=setTimeout(()=>{
     // Wie als eerste de klok bedient, is de klokbaas en blijft dat ook na pauze.
     const baas={id:DEVICE_ID,naam:CLOUD.name||'coach'};
+    // Meteen lokaal zetten en niet wachten op Firestore: de klok moet direct reageren.
+    // Een knop die op een sportpark met slecht bereik een halve seconde niets doet, is
+    // een knop waar een coach twee keer op drukt. Maar mislukt de schrijfactie, dan
+    // denkt dit toestel dat het de klok bedient terwijl de rest daar niets van weet —
+    // dus bewaren we de vorige stand en zetten we die terug.
+    const vorigeBaas=CLOUD.klokBaas, vorigeKlok=CLOUD.klok;
     CLOUD.klokBaas=baas; CLOUD.klok={...k,baas,ts:Date.now()}; hartslagBijwerken();
     CLOUD.ref.set({klok:{...k,baas,ts:Date.now()}},{merge:true})
-      .catch(e=>toast('Klok delen mislukt: '+(e.message||e)));
+      .catch(e=>{
+        // Alleen terugdraaien als er ondertussen niets nieuwers is binnengekomen. Kwam
+        // er al een snapshot langs, dan is dát de waarheid en zou terugzetten de boel
+        // juist weer scheeftrekken.
+        if(CLOUD.klokBaas===baas){ CLOUD.klokBaas=vorigeBaas; CLOUD.klok=vorigeKlok; }
+        toast(Tf('Klok delen mislukt: {0}', e.message||e));
+        cloudUpdateCard();
+      });
   },150);
 }
 // Klok overnemen van een ander toestel: bewuste actie via de Samenwerken-kaart.
@@ -7478,8 +7533,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=241;
-const VERSIE_LABEL='26.9.82';
+const APP_VERSION=242;
+const VERSIE_LABEL='26.9.83';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='12 september 2026', VERSIE_DATUM_EN='12 September 2026';
