@@ -646,6 +646,62 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     // Zelfde demoschakelaar als de hoofdapp: het pad telt niet mee voor de
     // browseropslag, dus zonder eigen sleutel overschrijft de demo de echte stand.
     var DEMO = /\/demo(\/|$)/.test(location.pathname);
+    // ── Taal ──
+    // Dezelfde sleutel als de hoofdapp, per toestel. De timer leest hem bij het
+    // laden en luistert daarnaast naar een bericht, zodat omschakelen meteen
+    // doorkomt in plaats van pas na herladen.
+    var TAAL_SLEUTEL = (DEMO?'demo_':'') + 'ghc-taal';
+    var _taal = (function(){
+      try { var v = localStorage.getItem(TAAL_SLEUTEL); if (v==='nl'||v==='en') return v; } catch(e){}
+      return 'nl';
+    })();
+    function EN(){ return _taal === 'en'; }
+    var WB = {
+      'Wedstrijdtimer':'Match timer',
+      'Eerste helft':'First half',
+      'Tweede helft':'Second half',
+      'Start':'Start',
+      'Pauze':'Pause',
+      'Pauzeer Q':'Pause Q',
+      'Start Q':'Start Q',
+      'Reset kwart':'Reset quarter',
+      'Reset toch niet':'Undo reset',
+      'Resetten':'Reset',
+      'Laat maar':'Never mind',
+      'Nu wisselen!':'Substitute now!',
+      'Donker':'Dark', 'Zon':'Sun', 'Normaal':'Normal',
+      'demoversie':'trial version',
+      'resetten?':'reset?',
+      ' staat op ':' is at ',
+      '. Resetten zet dit kwart terug op nul; de gespeelde tijd is dan weg.':
+        '. Resetting puts this quarter back to zero; the time played is then gone.'
+    };
+    function T(nl){ if(!EN()) return nl; var v = WB[nl]; return v==null ? nl : v; }
+    // De vaste teksten in de opmaak staan in het Nederlands in het bestand. Bij het
+    // laden en bij elke taalwissel worden ze opnieuw gezet.
+    function taalToepassen(){
+      try {
+        document.documentElement.setAttribute('lang', _taal);
+        var sub = document.querySelector('.brandSub');
+        if (sub && sub.textContent.indexOf('demo') < 0) sub.textContent = T('Wedstrijdtimer');
+        var koppen = document.querySelectorAll('.halfTitle');
+        if (koppen[0]) koppen[0].innerHTML = T('Eerste helft') + '<span class="ul"></span>';
+        if (koppen[1]) koppen[1].innerHTML = T('Tweede helft') + '<span class="ul"></span>';
+        var rb = document.getElementById('reset');   if (rb) rb.textContent = T('Reset kwart');
+        var rt = document.getElementById('resetTerug');
+        if (rt) rt.innerHTML = '&#8630; ' + T('Reset toch niet');
+      } catch(e){}
+    }
+    function zetTaal(t){
+      if (t !== 'nl' && t !== 'en') return;
+      _taal = t;
+      try { localStorage.setItem(TAAL_SLEUTEL, t); } catch(e){}
+      taalToepassen();
+      if (typeof updateUI === 'function') updateUI();
+      // initTheme() leest de bewaarde stand en zet het knoplabel opnieuw; dat is de
+      // enige tekst in de themaknop die van de taal afhangt.
+      if (typeof initTheme === 'function') initTheme();
+    }
     // In de demo geen clubnaam, wapen of clubleuze: die versie gaat naar coaches
     // van andere verenigingen.
     // Neutraal hockeylogo voor de demo, op dezelfde plekken en in dezelfde maat als
@@ -1051,7 +1107,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
         el.onclick = () => { el.style.display='none'; clearTimeout(el._t); };
         document.body.appendChild(el);
       }
-      el.textContent = 'Nu wisselen!';
+      el.textContent = T('Nu wisselen!');
       el.style.display = 'block';
       el.style.opacity = '1';
       clearTimeout(el._t);
@@ -1097,6 +1153,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       if (e.data.ghcNaarActief) naarActiefKwart();
       if (e.data.ghcAntwoord) vraagAntwoord(e.data.ghcAntwoord.id, !!e.data.ghcAntwoord.ja);
       if (e.data.ghcTijdweergave) zetWeergave(String(e.data.ghcTijdweergave));
+      if (e.data.ghcTaal) zetTaal(String(e.data.ghcTaal));
       if (e.data.ghcSetQuarter) {
         var q = Number(e.data.ghcSetQuarter);
         // Loopt de klok, dan blijft die staan: de coach bekijkt alleen een ander kwart.
@@ -1248,7 +1305,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       //   je kijkt vooruit terwijl de klok loopt -> eerst pauzeren, dus niet te starten
       //   je kijkt vooruit met een stilstaande klok -> 'Start Q3', met bevestiging
       if (!kijktVooruit) {
-        startBtn.textContent = running ? 'Pauze' : 'Start';
+        startBtn.textContent = running ? T('Pauze') : T('Start');
         startBtn.classList.toggle('pause', running);
         startBtn.disabled = false; startBtn.style.opacity = '';
       } else if (running) {
@@ -1257,11 +1314,11 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
         // Eerder stond hier een uitgeschakelde knop met dezelfde tekst, en moest de
         // coach terug naar Q2, pauzeren, weer naar Q3 en dan starten — vier tikken
         // langs de lijn voor iets wat er één hoort te zijn.
-        startBtn.textContent = 'Pauzeer Q' + currentQuarter;
+        startBtn.textContent = T('Pauzeer Q') + currentQuarter;
         startBtn.classList.add('pause');
         startBtn.disabled = false; startBtn.style.opacity = '';
       } else {
-        startBtn.textContent = 'Start Q' + bekekenQuarter;
+        startBtn.textContent = T('Start Q') + bekekenQuarter;
         startBtn.classList.remove('pause');
         startBtn.disabled = false; startBtn.style.opacity = '';
       }
@@ -1445,7 +1502,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       document.body.classList.toggle('sun',  mode === 'sun');
       localStorage.setItem((DEMO?'demo_':'')+'ghc-theme', mode);
       // knop toont de VOLGENDE stand: normaal -> donker -> zon -> normaal
-      themeToggle.textContent = mode === 'dark' ? 'Zon' : (mode === 'sun' ? 'Normaal' : 'Donker');
+      themeToggle.textContent = mode === 'dark' ? T('Zon') : (mode === 'sun' ? T('Normaal') : T('Donker'));
       updateRingColors();
       updateUI();
     }
@@ -1522,10 +1579,10 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       var stand = quarterElapsed(currentQuarter);
       if (stand < 1) { resetCurrentQuarter(); meldKlok(); return; }
       vraag({
-        titel: 'Q' + currentQuarter + ' resetten?',
-        tekst: 'Q' + currentQuarter + ' staat op ' + fmt(stand)
-          + '. Resetten zet dit kwart terug op nul; de gespeelde tijd is dan weg.',
-        ok: 'Resetten', gevaar: true
+        titel: 'Q' + currentQuarter + ' ' + T('resetten?'),
+        tekst: 'Q' + currentQuarter + T(' staat op ') + fmt(stand)
+          + T('. Resetten zet dit kwart terug op nul; de gespeelde tijd is dan weg.'),
+        ok: T('Resetten'), gevaar: true
       }, function () {
         _vorigeReset = { q: currentQuarter, sec: stand, liep: running };
         resetCurrentQuarter(); meldKlok();
@@ -1613,6 +1670,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       }
     });
 
+    taalToepassen();
     initTheme();
     updateUI();
   </script>

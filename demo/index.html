@@ -1102,31 +1102,215 @@ body.viewer.kijkbalk-weg .appbar{top:0}
 <script>
 "use strict";
 //==CORE==
+/* ============ Taal ============ */
+// Per toestel, net als de klokrichting. Bewust NIET in state: de taal is een
+// kijkvoorkeur, geen teamafspraak. Een Engelstalige gastcoach kan zo meekijken in
+// de gedeelde stand zonder de app van de hoofdcoach om te zetten.
+//
+// In de opslag komt nooit vertaalde tekst terecht. Posities blijven 'lv', 'sp',
+// 'lman'; regels blijven hun type houden. Een deel-link uit een Nederlandse app
+// opent dus gewoon in een Engelse en andersom.
+function taal(){
+  try{
+    const v=localStorage.getItem((typeof DEMO!=='undefined'&&DEMO?'demo_':'')+'ghc-taal');
+    if(v==='nl'||v==='en')return v;
+  }catch(e){}
+  return 'nl';
+}
+const EN=()=>taal()==='en';
+// en-GB en niet en-US: dan blijft de datum '12 September' en de klok 24-uurs.
+// Voor een wedstrijdtimer is dat laatste geen smaakkwestie.
+const LOCALE=()=>EN()?'en-GB':'nl-NL';
+// Getal met de scheiding van de taal: 23,5 tegen 23.5.
+function getal(n,decimalen){
+  const s=(decimalen==null?String(n):Number(n).toFixed(decimalen));
+  return EN()?s:s.replace('.',',');
+}
+// Woordenboek: sleutel is de Nederlandse tekst, zodat een ontbrekende vertaling
+// vanzelf terugvalt op het Nederlands in plaats van op een lege plek of een sleutel
+// als 'btn.generate'. Zolang de app groeit is dat het veiligste gedrag.
+const WB={
+  // ── Tabbalk ──
+  'Timer':'Timer', 'Spelers':'Players', 'Regels':'Rules', 'Wedstrijd':'Match', 'Meer':'More',
+  // ── Losse woorden in samengestelde zinnen ──
+  'eerste':'first', 'tweede':'second', 'en':'and',
+  'de hele wedstrijd':'the whole match', 'keeper':'goalkeeper', 'bank':'bench',
+  '{0} keept de hele wedstrijd':'{0} keeps goal for the whole match',
+  'Speelvorm {0} de hele wedstrijd':'Formation {0} for the whole match',
+  // ── Coachregels ──
+  '{0} speelt alleen de {1} helft':'{0} plays the {1} half only',
+  '{0} en {1} liever niet samen op het veld':'Prefer not to have {0} and {1} on the pitch together',
+  '{0} speelt altijd in de {1}':'{0} always plays in {1}',
+  '{0} speelt nooit in de {1}':'{0} never plays in {1}',
+  '{0} speelt altijd {1}':'{0} always plays {1}',
+  '{0} speelt nooit {1}':'{0} never plays {1}',
+  '{0} speelt {1} als {2} niet meespeelt':'{0} plays {1} when {2} is not playing',
+  '{0} speelt niet in {1}':'{0} does not play in {1}',
+  '{0} speelt maximaal {1} minuten':'{0} plays {1} minutes at most',
+  '{0} speelt minimaal {1} minuten':'{0} plays at least {1} minutes',
+  '{0} begint in de basis':'{0} starts',
+  '{0} begint op de bank':'{0} starts on the bench',
+  '{0} speelt zeker de laatste ~10 minuten':'{0} is guaranteed the last ~10 minutes',
+  '{0} speelt zeker het hele laatste kwart':'{0} is guaranteed the whole final quarter',
+  // Het Nederlands zegt 'iedereen staat op maximaal'; als verbod leest het Engels beter.
+  'Iedereen staat op maximaal {0} verschillende posities':'Nobody plays more than {0} different positions',
+  '{0} en {1} wisselen elkaar af op {2}':'{0} and {1} rotate at {2}',
+  'Start Q3 gelijk aan start Q1':'Q3 starts the same as Q1',
+  '{0} keept {1}':'{0} keeps goal in {1}',
+  '{0} wisselmoment in elk kwart':'{0} substitution point per quarter',
+  '{0} wisselmomenten in elk kwart':'{0} substitution points per quarter',
+  'Speelvorm {0} in {1}':'Formation {0} in {1}',
+  // ── Wisselteksten ──
+  '{0} erin op {1}':'{0} on at {1}',
+  '{0} eruit':'{0} off',
+  '{0} eruit {1}':'{0} off {1}',
+  '{0} eruit ({1})':'{0} off ({1})',
+  'daardoor schuift {0}':'so {0}',
+  'daardoor {0}':'so {0}',
+  '{0} van {1} naar {2}':'{0} moves from {1} to {2}',
+  '{0} schuift van {1} naar {2}':'{0} moves from {1} to {2}',
+  // ── Meldingen ──
+  'Regel toegevoegd':'Rule added',
+  'Regel verwijderd':'Rule removed',
+  'Deze regel bestaat al':'That rule already exists',
+  'Er staat al een maximum \u2014 verwijder dat eerst':'There is already a maximum \u2014 remove that first',
+  'Kies twee verschillende spelers':'Pick two different players',
+  'Kies minstens \u00e9\u00e9n kwart':'Pick at least one quarter',
+  'Kies minstens \u00e9\u00e9n veldspeler':'Pick at least one outfield player',
+  'Kies een speler':'Pick a player',
+  'Minstens een linie is nodig':'At least one line is required',
+  'Genereer eerst een opstelling':'Generate a line-up first',
+  'Herplannen lukt niet met deze spelers':'Cannot replan with these players',
+  'Herplan klaar \u2014 let op botsende regels':'Replan done \u2014 watch out for conflicting rules',
+  'Let op: sommige regels botsen \u2014 zie de melding':'Careful: some rules conflict \u2014 see the notice',
+  'Alle vier de kwarten uitsluiten kan niet \u2014 zet de speler dan op afwezig':'You cannot exclude all four quarters \u2014 mark the player unavailable instead',
+  'Minimaal 11 aanwezige spelers nodig (incl. keeper)':'At least 11 available players needed (including the goalkeeper)',
+  'Een aangewezen keeper is afwezig \u2014 pas de keeper-regels aan':'A designated goalkeeper is unavailable \u2014 adjust the goalkeeper rules',
+  'Er zijn meerdere keepers \u2014 er mag er maar \u00e9\u00e9n zijn':'There are several goalkeepers \u2014 there can only be one',
+  'Geen aanvoerder ingesteld':'No captain set',
+  'Gastspeler verwijderd':'Guest player removed',
+  'Niets om ongedaan te maken':'Nothing to undo',
+  'Terugdraaien lukt niet':'Cannot undo that',
+  'Kan niet tijdens een wedstrijd':'Not possible during a match',
+  'Kan niet tijdens een wedstrijd \u2014 meld hem af op Spelers':'Not possible during a match \u2014 mark him unavailable under Players',
+  'Tik nu de speler aan om mee te ruilen':'Now tap the player to swap with',
+  'Melding weggedrukt \u2014 schud om terug te halen':'Notice dismissed \u2014 shake to bring it back',
+  'Schudden staat aan':'Shake is on',
+  'Schudden staat al aan':'Shake is already on',
+  'Dit toestel heeft geen bewegingssensor':'This device has no motion sensor',
+  'Toestemming geweigerd':'Permission denied',
+  // ── Delen, back-up en cloud ──
+  'Gekopieerd \u2014 plak het in een bericht':'Copied \u2014 paste it into a message',
+  'Link gekopieerd \u2014 plak hem in de coachgroep':'Link copied \u2014 paste it into the coaches\u2019 group',
+  'Kopi\u00ebren lukt niet; maak een schermafbeelding':'Copying is not possible; take a screenshot',
+  'Delen lukte niet':'Sharing failed',
+  'Afbeelding opgeslagen als download':'Image saved to downloads',
+  'Afbeelding maken lukte niet':'Could not create the image',
+  'Back-up opgeslagen als bestand':'Backup saved as a file',
+  'Back-up maken lukte niet':'Could not create the backup',
+  'Geen geldige back-up in dit bestand':'No valid backup in this file',
+  'Geen geldige deel-link gevonden':'No valid share link found',
+  'Dit lijkt geen geldige deel-link':'This does not look like a valid share link',
+  'Deel-link kon niet worden gelezen':'The share link could not be read',
+  'Geen link geplakt':'No link pasted',
+  'Plak eerst de link':'Paste the link first',
+  'Deze link vereist een nieuwere iOS-versie':'This link needs a newer version of iOS',
+  'Deze gegevens zijn onbruikbaar':'This data is unusable',
+  'Deze gegevens zijn te groot om te verwerken':'This data is too large to process',
+  'Enkele gegevens waren onbruikbaar en zijn hersteld':'Some data was unusable and has been repaired',
+  'Gedeelde stand overgenomen':'Shared state applied',
+  'Instellingen bewaard':'Settings saved',
+  'Nieuwe teamcode gemaakt':'New team code created',
+  'Geen teamcode in deze tekst gevonden':'No team code found in this text',
+  'Stel eerst een teamcode in (Instellen\u2026) en verbind':'Set a team code first (Set up\u2026) and connect',
+  'Vul eerst de Firebase-gegevens en een teamcode in':'Enter the Firebase details and a team code first',
+  'De Firebase-config is geen geldige JSON':'The Firebase config is not valid JSON',
+  'Inloggen bij de cloud mislukt':'Signing in to the cloud failed',
+  'Verbinding verbroken':'Disconnected',
+  'Je bent gekoppeld als coach':'You are connected as a coach',
+  'Je bent nu de eigenaar van dit team':'You are now the owner of this team',
+  'Alleen de eigenaar kan een coach toelaten':'Only the owner can allow a coach in',
+  'Koppelen staat 15 minuten open \u2014 laat je mede-coach nu de app openen':'Pairing is open for 15 minutes \u2014 have your co-coach open the app now',
+  'Je bedient nu de klok':'You are controlling the clock now',
+  'Alleen een verbonden coach kan de klok overnemen':'Only a connected coach can take over the clock',
+  'De demonstratieperiode is voorbij \u2014 wijzigen kan niet meer':'The trial period is over \u2014 changes are no longer possible',
+  // ── Updatemelding ──
+  'Bijgewerkt naar versie':'Updated to version',
+  // ── Kaarten op Meer ──
+  'Diagnose':'Diagnostics',
+  'Opstelling heatmap':'Line-up heat map',
+  'Samenwerken':'Working together',
+  'Hoe de klok loopt':'How the clock runs',
+  'Selectie beheren':'Manage the squad',
+  'Zo werkt de app':'How the app works',
+  'App op je telefoon':'The app on your phone',
+  'Goed om te weten':'Good to know',
+  'Delen met co-coach':'Share with your co-coach',
+  'Back-up':'Backup',
+  'Schudden om ongedaan te maken':'Shake to undo',
+  // ── Knoppen ──
+  'Sluiten':'Close', 'Annuleren':'Cancel', 'Bewaren':'Save',
+  'Opstelling genereren':'Generate line-up',
+  'Opnieuw genereren':'Generate again',
+  'Regel toevoegen':'Add rule',
+  'Verwerken':'Apply',
+  'Ongedaan maken':'Undo',
+  // ── Taalkaart op Meer ──
+  'Taal':'Language',
+  'Nederlands':'Dutch',
+  'Engels':'English',
+  'Alleen dit toestel. Je mede-coach houdt zijn eigen taal, ook in dezelfde gedeelde stand.':
+    'This device only. Your co-coach keeps his own language, even in the same shared state.',
+  'Posities, regels en schema\u2019s worden niet vertaald opgeslagen: een deel-link uit een Nederlandse app opent gewoon in een Engelse.':
+    'Positions, rules and plans are not stored translated: a share link from a Dutch app opens fine in an English one.'
+};
+function T(nl){
+  if(!EN())return nl;
+  const v=WB[nl];
+  return v==null?nl:v;
+}
+// Zinnen met gaten. De Engelse zin mag de gaten in een andere volgorde zetten —
+// precies waarvoor dit nodig is: 'X erin op Y' tegenover 'X on at Y' loopt gelijk,
+// maar 'daardoor schuift X van A naar B' niet.
+function Tf(nl,...w){
+  const sjabloon=T(nl);
+  return sjabloon.replace(/\{(\d+)\}/g,(m,i)=>w[Number(i)]==null?'':String(w[Number(i)]));
+}
 /* ============ Basisdata ============ */
 const KEEPER_HELM='<svg viewBox="0 0 44 46" width="78%" height="78%" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3c9 0 14.5 6 15 14 .2 3.2-.2 6-1 8.7-.7 2.4-1.5 4.6-1.8 7-.4 3-1.3 5.2-3.4 6.4-2 1.1-4.5 1.4-8.8 1.4s-6.8-.3-8.8-1.4c-2.1-1.2-3-3.4-3.4-6.4-.3-2.4-1.1-4.6-1.8-7-.8-2.7-1.2-5.5-1-8.7C7.5 9 13 3 22 3Z"/><path d="M12.5 9c5.5-2.4 13.5-2.4 19 0"/><ellipse cx="15.5" cy="13" rx="2.4" ry="1.4"/><ellipse cx="28.5" cy="13" rx="2.4" ry="1.4"/><path d="M8.5 20.5c8.5-2.6 18.5-2.6 27 0"/><path d="M10 28c7.5-2 16.5-2 24 0"/><path d="M22 17v19"/><path d="M15 17.5v18"/><path d="M29 17.5v18"/></svg>';
 // Alle posities die in enige speelvorm voorkomen. 'eq' zijn verwante posities: een speler
 // met voorkeur 'sp' past ook op 'sl'/'sr'/'mv', zodat je je voorkeuren niet hoeft aan te
 // passen als je een kwart in een andere speelvorm speelt.
 const POSITIONS=[
-  {id:'lv',  name:'Links voor',   kort:'LV',  line:'voor',   eq:['sl']},
-  {id:'sp',  name:'Spits',        kort:'SP',  line:'voor',   eq:['mv','sl','sr']},
-  {id:'rv',  name:'Rechts voor',  kort:'RV',  line:'voor',   eq:['sr']},
-  {id:'mv',  name:'Midden voor',  kort:'MV',  line:'voor',   eq:['sp']},
-  {id:'sl',  name:'Spits links',  kort:'SL',  line:'voor',   eq:['sp','lv']},
-  {id:'sr',  name:'Spits rechts', kort:'SR',  line:'voor',   eq:['sp','rv']},
-  {id:'lm',  name:'Links midden', kort:'LMi', line:'midden', eq:['ml']},
-  {id:'mm',  name:'Midden midden',kort:'MM',  line:'midden', eq:['ml','mr']},
-  {id:'rm',  name:'Rechts midden',kort:'RM',  line:'midden', eq:['mr']},
-  {id:'ml',  name:'Midden links', kort:'ML',  line:'midden', eq:['mm','lm']},
-  {id:'mr',  name:'Midden rechts',kort:'MR',  line:'midden', eq:['mm','rm']},
-  {id:'vs',  name:'Voorstopper',  kort:'VS',  line:'achter', eq:['lman','rca','lca']},
-  {id:'la',  name:'Links achter', kort:'LA',  line:'achter', eq:['lca']},
-  {id:'lman',name:'Laatste man',  kort:'LMa', line:'achter', eq:['vs','lca','rca']},
-  {id:'ra',  name:'Rechts achter',kort:'RA',  line:'achter', eq:['rca']},
-  {id:'lca', name:'Links centraal achter', kort:'LCA', line:'achter', eq:['lman','vs','la']},
-  {id:'rca', name:'Rechts centraal achter',kort:'RCA', line:'achter', eq:['vs','lman','ra']},
+  {id:'lv',  name:'Links voor',   kort:'LV',  en:'Left forward',  enKort:'LF',  line:'voor',   eq:['sl']},
+  {id:'sp',  name:'Spits',        kort:'SP',  en:'Striker',       enKort:'ST',  line:'voor',   eq:['mv','sl','sr']},
+  {id:'rv',  name:'Rechts voor',  kort:'RV',  en:'Right forward', enKort:'RF',  line:'voor',   eq:['sr']},
+  {id:'mv',  name:'Midden voor',  kort:'MV',  en:'Centre forward',enKort:'CF',  line:'voor',   eq:['sp']},
+  {id:'sl',  name:'Spits links',  kort:'SL',  en:'Left striker',  enKort:'LS',  line:'voor',   eq:['sp','lv']},
+  {id:'sr',  name:'Spits rechts', kort:'SR',  en:'Right striker', enKort:'RS',  line:'voor',   eq:['sp','rv']},
+  {id:'lm',  name:'Links midden', kort:'LMi', en:'Left midfield', enKort:'LM',  line:'midden', eq:['ml']},
+  {id:'mm',  name:'Midden midden',kort:'MM',  en:'Centre midfield',enKort:'CM', line:'midden', eq:['ml','mr']},
+  {id:'rm',  name:'Rechts midden',kort:'RM',  en:'Right midfield',enKort:'RM',  line:'midden', eq:['mr']},
+  {id:'ml',  name:'Midden links', kort:'ML',  en:'Left centre mid',enKort:'LCM',line:'midden', eq:['mm','lm']},
+  {id:'mr',  name:'Midden rechts',kort:'MR',  en:'Right centre mid',enKort:'RCM',line:'midden',eq:['mm','rm']},
+  {id:'vs',  name:'Voorstopper',  kort:'VS',  en:'Centre back',   enKort:'CB',  line:'achter', eq:['lman','rca','lca']},
+  {id:'la',  name:'Links achter', kort:'LA',  en:'Left back',     enKort:'LB',  line:'achter', eq:['lca']},
+  // 'Laatste man' is sweeper, niet 'last man'. Dat laatste is in het Engels de
+  // overtreding (last man foul), niet de plek op het veld.
+  {id:'lman',name:'Laatste man',  kort:'LMa', en:'Sweeper',       enKort:'SW',  line:'achter', eq:['vs','lca','rca']},
+  {id:'ra',  name:'Rechts achter',kort:'RA',  en:'Right back',    enKort:'RB',  line:'achter', eq:['rca']},
+  {id:'lca', name:'Links centraal achter', kort:'LCA', en:'Left centre back', enKort:'LCB', line:'achter', eq:['lman','vs','la']},
+  {id:'rca', name:'Rechts centraal achter',kort:'RCA', en:'Right centre back',enKort:'RCB', line:'achter', eq:['vs','lman','ra']},
 ];
 const POSMAP=Object.fromEntries(POSITIONS.map(p=>[p.id,p]));
+// Positienaam en -afkorting in de gekozen taal. Overal via deze twee, want de
+// afkorting op de veldtekening moet ook in het Engels binnen drie tekens blijven:
+// 'LMa' wordt 'SW', niet 'Sweeper'.
+function PN(id){ const p=POSMAP[id]; if(!p)return id; return EN()?p.en:p.name; }
+function PK(id){ const p=POSMAP[id]; if(!p)return id; return EN()?p.enKort:p.kort; }
+// Middenin een Nederlandse zin gaat een positienaam klein ('speelt altijd links
+// voor'); in het Engels blijft het een vaste aanduiding met hoofdletter.
+function PNz(id){ return EN()?PN(id):PN(id).toLowerCase(); }
 
 // Speelvormen: hockeynotatie van achter naar voren. Per positie de plek op het veld
 // (x = 0-100 breedte, y = 0-100 hoogte van de veldtekening; de keeper staat vast op 93).
@@ -1181,7 +1365,11 @@ function subsRule(rules){
   const r=rs.find(x=>x.type==='subs'&&x.n>=1&&x.n<=4);
   return r?Number(r.n):null;
 }
-const LINES={voor:'voorste linie',midden:'middenlinie',achter:'achterste linie'};
+const LINES_NL={voor:'voorste linie',midden:'middenlinie',achter:'achterste linie'};
+const LINES_EN={voor:'attack',midden:'midfield',achter:'defence'};
+// LINES blijft bestaan als lees-eigenschap, zodat bestaande aanroepen LINES[r.line]
+// ongewijzigd blijven werken en toch de taal volgen.
+const LINES=new Proxy({},{get:(_,k)=>(EN()?LINES_EN:LINES_NL)[k]});
 // Wanneer is deze demo voor het eerst geopend? Vanaf dat moment loopt de termijn.
 function demoStart(){
   try{
@@ -2227,7 +2415,7 @@ function chainsEmpty(d){return !d.chains.length&&!d.looseOuts.length&&!d.looseMo
 const _fouten=[];
 function onthoudFout(waar,e){
   try{
-    _fouten.unshift({t:new Date().toLocaleTimeString('nl-NL'),waar,wat:String(e&&e.message||e)});
+    _fouten.unshift({t:new Date().toLocaleTimeString(LOCALE()),waar,wat:String(e&&e.message||e)});
     if(_fouten.length>20)_fouten.pop();
     foutTel(waar);
   }catch(x){}
@@ -2306,7 +2494,7 @@ async function techniekSchrijf(velden){
     }
   }catch(e){
     // Bewust niet via onthoudFout: dat zou zichzelf weer aanroepen.
-    try{ _fouten.unshift({t:new Date().toLocaleTimeString('nl-NL'),
+    try{ _fouten.unshift({t:new Date().toLocaleTimeString(LOCALE()),
       waar:'techniekteller',wat:String(e&&e.message||e)}); }catch(x){}
   }finally{ _telBezig=false; }
 }
@@ -2529,7 +2717,7 @@ function cloudLoadSettings(){try{const r=JSON.parse(localStorage.getItem(SLEUTEL
 function cloudSaveSettings(){try{localStorage.setItem(SLEUTEL('gw_cloud'),JSON.stringify({on:CLOUD.on,cfg:CLOUD.cfg,team:CLOUD.team,role:CLOUD.role,name:CLOUD.name}));}catch(e){onthoudFout('cloudinstellingen bewaren',e);}}
 function loadScript(src){return new Promise((res,rej)=>{if([...document.scripts].some(x=>x.src===src))return res();const el=document.createElement('script');el.src=src;el.onload=()=>res();el.onerror=()=>rej(new Error('kan Firebase niet laden'));document.head.appendChild(el);});}
 async function cloudConnect(){
-  if(!CLOUD.cfg||!CLOUD.team){toast('Vul eerst de Firebase-gegevens en een teamcode in');return false;}
+  if(!CLOUD.cfg||!CLOUD.team){toast(T('Vul eerst de Firebase-gegevens en een teamcode in'));return false;}
   CLOUD.status='verbinden';cloudUpdateCard();
   try{
     await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
@@ -2540,7 +2728,7 @@ async function cloudConnect(){
     // welk toestel er klopt. Zonder dit kan iedereen die de teamcode raadt meelezen
     // en overschrijven.
     CLOUD.uid=await cloudLogin();
-    if(!CLOUD.uid){CLOUD.status='fout';cloudUpdateCard();toast('Inloggen bij de cloud mislukt');return false;}
+    if(!CLOUD.uid){CLOUD.status='fout';cloudUpdateCard();toast(T('Inloggen bij de cloud mislukt'));return false;}
     CLOUD.db=firebase.firestore();
     CLOUD.team=(CLOUD.team||'').trim().toLowerCase();
     CLOUD.ref=CLOUD.db.collection('teams').doc(CLOUD.team);
@@ -2577,7 +2765,7 @@ async function cloudClaimOfKoppel(){
       // Bestaand team van vóór deze beveiliging: de eerste die hem opent, claimt hem.
       await CLOUD.ref.set({owner:CLOUD.uid,editors:[CLOUD.uid]},{merge:true});
       CLOUD.rol='eigenaar'; noteerCoach('overgenomen');
-      toast('Je bent nu de eigenaar van dit team'); return;
+      toast(T('Je bent nu de eigenaar van dit team')); return;
     }
     const lijst=Array.isArray(d.editors)?d.editors:[];
     if(lijst.includes(CLOUD.uid)){
@@ -2612,7 +2800,7 @@ async function cloudClaimOfKoppel(){
     if(Number(d.koppelTot||0)>Date.now()){
       try{
         await CLOUD.ref.update({editors:firebase.firestore.FieldValue.arrayUnion(CLOUD.uid)});
-        CLOUD.rol='coach'; noteerCoach('gekoppeld'); toast('Je bent gekoppeld als coach'); return;
+        CLOUD.rol='coach'; noteerCoach('gekoppeld'); toast(T('Je bent gekoppeld als coach')); return;
       }catch(e){ onthoudFout('koppelen',e); }
     }
     CLOUD.rol='wacht';
@@ -2630,7 +2818,7 @@ function coachOverzichtHTML(){
   const c=CLOUD.coaches||{};
   const ids=Object.keys(c);
   if(!ids.length)return '';
-  const dag=t=>t?new Date(t).toLocaleDateString('nl-NL',{day:'numeric',month:'short'}):'—';
+  const dag=t=>t?new Date(t).toLocaleDateString(LOCALE(),{day:'numeric',month:'short'}):'—';
   const gel=t=>{
     if(!t)return '—';
     const u=Math.round((Date.now()-t)/36e5);
@@ -2673,11 +2861,11 @@ function noteerCoach(hoe){
 }
 // Zet het koppelvenster een kwartier open zodat een mede-coach zich kan aanmelden.
 function koppelvensterOpen(){
-  if(!CLOUD.ref||CLOUD.rol!=='eigenaar'){toast('Alleen de eigenaar kan een coach toelaten');return;}
+  if(!CLOUD.ref||CLOUD.rol!=='eigenaar'){toast(T('Alleen de eigenaar kan een coach toelaten'));return;}
   const tot=Date.now()+15*60*1000;
   CLOUD.ref.set({koppelTot:tot},{merge:true})
     .then(()=>{CLOUD.koppelTot=tot;cloudUpdateCard();render();
-      toast('Koppelen staat 15 minuten open — laat je mede-coach nu de app openen');})
+      toast(T('Koppelen staat 15 minuten open — laat je mede-coach nu de app openen'));})
     .catch(e=>{onthoudFout('koppelvenster',e);toast('Openen mislukt: '+(e.message||e));});
 }
 function cloudDisconnect(){
@@ -2821,7 +3009,7 @@ function cloudPush(force){
 }
 const READONLY_MSG='Spelers kunnen alleen lezen — coaches/manager kan wijzigen';
 function cloudShareLink(rol){
-  if(!CLOUD.team){toast('Stel eerst een teamcode in (Instellen…) en verbind');return;}
+  if(!CLOUD.team){toast(T('Stel eerst een teamcode in (Instellen…) en verbind'));return;}
   const url=location.origin+location.pathname+'?team='+encodeURIComponent(CLOUD.team)+'&rol='+(rol==='viewer'?'kijker':'coach');
   const titel=rol==='viewer'?'Kijk-link (spelers, alleen lezen)':'Coach-link (mag wijzigen)';
   if(navigator.share){ navigator.share({title:'opstelling & wissels',text:titel,url}).catch(()=>{}); }
@@ -2834,7 +3022,7 @@ function cloudShowLink(titel,url){
     <h3>${esc(titel)}</h3>
     <p style="font-size:var(--fs-sm);color:var(--dim)">Kopieer deze link en stuur hem in de groep:</p>
     <textarea class="cin" style="height:70px" readonly>${esc(url)}</textarea>
-    <div class="row" style="margin-top:10px"><button class="btn" id="mok">Sluiten</button></div>
+    <div class="row" style="margin-top:10px"><button class="btn" id="mok">${T('Sluiten')}</button></div>
   </div></div>`;
   document.getElementById('mback').onclick=e=>{if(e.target.id==='mback')closeModal();};
   document.getElementById('mok').onclick=closeModal;
@@ -2843,7 +3031,7 @@ function cloudShowLink(titel,url){
 // route als de kijkstand, zodat elke knop die iets verandert er vanzelf onder valt.
 function demoOpSlot(){
   if(!DEMO||!demoVerlopen())return false;
-  toast('De demonstratieperiode is voorbij — wijzigen kan niet meer');
+  toast(T('De demonstratieperiode is voorbij — wijzigen kan niet meer'));
   return true;
 }
 // Eén controle voor élke wijziging: kijkstand of een verlopen demo. Er waren twee
@@ -3018,7 +3206,7 @@ function canUndo(){return _undoStack.length>0;}
 function undoLabel(){return _undoStack.length?_undoStack[_undoStack.length-1].label:'';}
 function doUndo(){
   if(cloudViewerBlocked())return;
-  if(!_undoStack.length){toast('Niets om ongedaan te maken');return;}
+  if(!_undoStack.length){toast(T('Niets om ongedaan te maken'));return;}
   const stap=_undoStack.pop();
   try{
     const oud=JSON.parse(stap.stand);
@@ -3028,7 +3216,7 @@ function doUndo(){
     state.keeperId      = oud.keeperId;
     state.genHash       = oud.genHash;
     state.gebeurtenissen= oud.gebeurtenissen||[];
-  }catch(e){ onthoudFout('ongedaan maken',e); toast('Terugdraaien lukt niet'); return; }
+  }catch(e){ onthoudFout('ongedaan maken',e); toast(T('Terugdraaien lukt niet')); return; }
   selChip=null;save();render();sendSwapTimesToTimer();
   toast('Ongedaan gemaakt'+(_undoStack.length?' \u2014 nog '+_undoStack.length+' stap'+(_undoStack.length>1?'pen':'')+' terug mogelijk':''));
 }
@@ -3229,7 +3417,7 @@ function neemStandOver(s,herkomst){
   if(!r.ok){ onthoudFout('stand '+herkomst,new Error(r.klachten.join('; '))); return false; }
   if(r.klachten.length){
     onthoudFout('stand '+herkomst,new Error(r.klachten.slice(0,4).join('; ')));
-    setTimeout(()=>toast('Enkele gegevens waren onbruikbaar en zijn hersteld'),300);
+    setTimeout(()=>toast(T('Enkele gegevens waren onbruikbaar en zijn hersteld')),300);
     // Meteen wegschrijven, anders staat dezelfde rommel er de volgende keer nog en
     // krijg je die melding elke keer opnieuw. Komt hij uit de cloud, dan moet de
     // opgeschoonde versie ook terug naar de cloud — anders stuurt die hem bij de
@@ -3266,20 +3454,20 @@ async function shareState(){
       catch(e){if(e&&e.name==='AbortError')return;}
     }
     await navigator.clipboard.writeText(text+'\n'+url);
-    toast('Link gekopieerd \u2014 plak hem in de coachgroep');
-  }catch(e){toast('Delen lukte niet');}
+    toast(T('Link gekopieerd \u2014 plak hem in de coachgroep'));
+  }catch(e){toast(T('Delen lukte niet'));}
 }
 async function importShared(txt){
   const m=(txt||'').match(/#([sr])=([A-Za-z0-9_\-]+)/);
-  if(!m){toast('Geen geldige deel-link gevonden');return;}
-  if(m[2].length>MAX_CODE){toast('Deze gegevens zijn te groot om te verwerken');return;}
+  if(!m){toast(T('Geen geldige deel-link gevonden'));return;}
+  if(m[2].length>MAX_CODE){toast(T('Deze gegevens zijn te groot om te verwerken'));return;}
   try{
     let u8=b64uDec(m[2]);
     if(m[1]==='s'){
-      if(typeof DecompressionStream==='undefined'){toast('Deze link vereist een nieuwere iOS-versie');return;}
+      if(typeof DecompressionStream==='undefined'){toast(T('Deze link vereist een nieuwere iOS-versie'));return;}
       u8=await ghcInflate(u8);
     }
-    if(u8.length>MAX_UITGEPAKT){toast('Deze gegevens zijn te groot om te verwerken');return;}
+    if(u8.length>MAX_UITGEPAKT){toast(T('Deze gegevens zijn te groot om te verwerken'));return;}
     const inc=JSON.parse(new TextDecoder().decode(u8));
     if(!inc||!Array.isArray(inc.players))throw 0;
     const present=inc.players.filter(p=>p.present).length;
@@ -3299,13 +3487,13 @@ async function importShared(txt){
           rules:Array.isArray(inc.rules)?inc.rules:[],schedule:inc.schedule||null,
           genHash:inc.genHash||null,gebeurtenissen:Array.isArray(inc.gebeurtenissen)?inc.gebeurtenissen:[]};
         migrateState(nieuw);
-        if(!neemStandOver(nieuw,'uit de deel-link')){toast('Deze gegevens zijn onbruikbaar');return;}
+        if(!neemStandOver(nieuw,'uit de deel-link')){toast(T('Deze gegevens zijn onbruikbaar'));return;}
         state=nieuw;
         save();selChip=null;activeTab='spelers';render();document.getElementById('view').scrollTop=0;
-        toast('Gedeelde stand overgenomen');
+        toast(T('Gedeelde stand overgenomen'));
       }
     });
-  }catch(e){toast('Deel-link kon niet worden gelezen');}
+  }catch(e){toast(T('Deel-link kon niet worden gelezen'));}
 }
 async function importSharePrompt(){
   // Probeer eerst automatisch van het klembord (lukt niet op elk toestel)
@@ -3315,8 +3503,8 @@ async function importSharePrompt(){
   // Anders: betrouwbare invoer via dialoog (plakken werkt daar altijd)
   inputDialog({title:'Gedeelde link overnemen',body:'Plak hier de link uit de coachgroep (houd het tekstvak ingedrukt → Plakken).',placeholder:'https://…#s=…',okLabel:'Overnemen',onOk:v=>{
     v=(v||'').trim();
-    if(!v){toast('Geen link geplakt');return;}
-    if(!/#[sr]=/.test(v)){toast('Dit lijkt geen geldige deel-link');return;}
+    if(!v){toast(T('Geen link geplakt'));return;}
+    if(!/#[sr]=/.test(v)){toast(T('Dit lijkt geen geldige deel-link'));return;}
     importShared(v);
   }});
 }
@@ -3346,8 +3534,8 @@ async function backupExport(){
     a.download='wisselplanner-backup-'+stamp+'.txt';
     document.body.appendChild(a);a.click();
     setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
-    toast('Back-up opgeslagen als bestand');
-  }catch(e){toast('Back-up maken lukte niet');}
+    toast(T('Back-up opgeslagen als bestand'));
+  }catch(e){toast(T('Back-up maken lukte niet'));}
 }
 function backupImportPrompt(){
   // Twee manieren: een bestand kiezen, of de code plakken (werkt overal).
@@ -3357,7 +3545,7 @@ function backupImportPrompt(){
     const f=inp.files&&inp.files[0];
     if(!f){return;}
     const rd=new FileReader();
-    rd.onload=()=>{const m=String(rd.result||'').match(/#[sr]=[A-Za-z0-9_\-]+/);if(m)importShared(m[0]);else toast('Geen geldige back-up in dit bestand');};
+    rd.onload=()=>{const m=String(rd.result||'').match(/#[sr]=[A-Za-z0-9_\-]+/);if(m)importShared(m[0]);else toast(T('Geen geldige back-up in dit bestand'));};
     rd.readAsText(f);
   };
   inp.click();
@@ -3416,7 +3604,7 @@ function pKort(id){
   return p?(String(p.name||'').trim().split(/\s+/)[0]||p.name):'?';
 }
 function pNum(id){const p=byId(id);return p&&p.num!==''&&p.num!=null?p.num:'·';}
-function fmtMin(x){return (Math.round(x*100)/100).toString().replace('.',',');}
+function fmtMin(x){const s=(Math.round(x*100)/100).toString();return EN()?s:s.replace('.',',');}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function toast(msg){
   const t=document.getElementById('toast');
@@ -3484,7 +3672,7 @@ function cloudSetupDialog(){
       <textarea id="cfgIn" class="cin" style="height:80px" placeholder='{"apiKey":"...","projectId":"...","appId":"..."}'>${esc(cfgStr)}</textarea>
     </details>
     <div class="row" style="margin-top:12px">
-      <button class="btn ghost" id="mcancel">Annuleren</button>
+      <button class="btn ghost" id="mcancel">${T('Annuleren')}</button>
       <button class="btn" id="mok">Bewaren</button>
     </div>
   </div></div>`;
@@ -3496,12 +3684,12 @@ function cloudSetupDialog(){
     const tekens='abcdefghjkmnpqrstuvwxyz23456789';
     let c='';for(let i=0;i<12;i++)c+=tekens[Math.floor(Math.random()*tekens.length)];
     document.getElementById('teamIn').value=c;
-    toast('Nieuwe teamcode gemaakt');
+    toast(T('Nieuwe teamcode gemaakt'));
   };
   document.getElementById('mok').onclick=()=>{
     const raw=document.getElementById('cfgIn').value.trim();
     let cfg=FB_CONFIG;
-    if(raw){ try{ cfg=JSON.parse(raw); }catch(e){ toast('De Firebase-config is geen geldige JSON'); return; } }
+    if(raw){ try{ cfg=JSON.parse(raw); }catch(e){ toast(T('De Firebase-config is geen geldige JSON')); return; } }
     CLOUD.cfg=cfg;
     CLOUD.team=document.getElementById('teamIn').value.trim().toLowerCase();
     CLOUD.role=document.getElementById('roleIn').value;
@@ -3509,7 +3697,7 @@ function cloudSetupDialog(){
     cloudSaveSettings();
     document.body.classList.toggle('viewer',CLOUD.role==='viewer');
     closeModal();
-    toast('Instellingen bewaard');
+    toast(T('Instellingen bewaard'));
     cloudUpdateCard();
   };
 }
@@ -3527,7 +3715,7 @@ function inputDialog(opts){
         ?`<input id="minput" type="text" placeholder="${esc(opts.placeholder||'')}" style="width:100%;padding:11px 12px;border-radius:var(--r-md);border:1px solid var(--stroke);background:var(--glass);color:var(--txt);font:inherit;font-size:var(--fs-md)">`
         :`<textarea id="minput" placeholder="${esc(opts.placeholder||'')}"></textarea>`}
       <div class="row">
-        <button class="btn ghost" id="mcancel">Annuleren</button>
+        <button class="btn ghost" id="mcancel">${T('Annuleren')}</button>
         <button class="btn" id="mok">${esc(opts.okLabel||'Overnemen')}</button>
       </div>
     </div></div>`;
@@ -3632,7 +3820,7 @@ function diagnoseKaart(){
     : 'alles in orde';
   // Deze kaart had zijn eigen uitklapmarkering van v\u00f3\u00f3r er een gedeelde bestond, en
   // was daardoor de enige zonder pijltje \u2014 je zag niet dat er iets onder zat.
-  return klapKaart('diagnose','Diagnose',kop,
+  return klapKaart('diagnose',T('Diagnose'),kop,
     `<p class="hint" style="margin:8px 0 8px">Gaat er iets mis? Kopieer dit en stuur het naar de beheerder van de app.</p>
     <pre style="white-space:pre-wrap;word-break:break-word;font-size:var(--fs-xs);color:var(--dim);margin:0 0 10px;font-family:inherit">${esc(diagnoseTekst())}</pre>
     <button class="btn ghost full" id="diagKopieer">${ico("klembord")}Kopieer voor de beheerder</button>
@@ -3653,7 +3841,7 @@ function globaleBanners(){
     }
   }
   if(schemaFout){
-    h+=`<div class="banner err">${ico("waarschuwing")}<span>Het wisselschema is beschadigd: ${esc(schemaFout)}. Genereer het opnieuw.</span><button class="btn small" data-regen>Opnieuw genereren</button></div>`;
+    h+=`<div class="banner err">${ico("waarschuwing")}<span>Het wisselschema is beschadigd: ${esc(schemaFout)}. Genereer het opnieuw.</span><button class="btn small" data-regen>${T('Opnieuw genereren')}</button></div>`;
   }
   if(botsing){
     h+=`<div class="banner err">${ico("waarschuwing")}<span>${esc(botsing.wie)} wijzigde op hetzelfde moment iets. Eén van de twee wijzigingen is overschreven &mdash; controleer de opstelling en de spelerslijst.</span><button class="btn small" id="botsingOk">Begrepen</button></div>`;
@@ -3787,7 +3975,7 @@ function gebrokenAfspraken(sch){
   }
   const uit=[];
   for(const pid in verbod)
-    uit.push(`${pName(pid)} staat toch op ${[...verbod[pid]].map(x=>POSMAP[x]?POSMAP[x].name.toLowerCase():x).join(' en ')}, `
+    uit.push(`${pName(pid)} staat toch op ${[...verbod[pid]].map(x=>PNz(x)).join(' en ')}, `
       +`terwijl daar een regel tegen is. Er was geen andere plek voor hem \u2014 kijk of de regel kan vervallen.`);
   for(const pid in linie)
     uit.push(`${pName(pid)} staat in ${[...linie[pid].q].map(q=>'Q'+q).join(' + ')} in de `
@@ -3894,24 +4082,42 @@ function warnBoxesHTML(){
 /* ============ Regels: zinnen ============ */
 function ruleSentence(r){
   const n=id=>pName(id);
+  // Sjablonen met genummerde gaten: het Engels mag ze in een andere volgorde zetten.
+  // De Nederlandse zin is tegelijk de sleutel, dus een regeltype waarvoor nog geen
+  // vertaling bestaat blijft gewoon leesbaar in plaats van leeg te vallen.
+  const qs=l=>(l||[]).map(q=>'Q'+q).join(' + ');
   switch(r.type){
-    case 'half':   return `${n(r.p1)} speelt alleen de ${r.half===1?'eerste':'tweede'} helft`;
-    case 'apart':  return `${n(r.p1)} en ${n(r.p2)} liever niet samen op het veld`;
-    case 'line':   return `${n(r.p1)} speelt altijd in de ${LINES[r.line]}`;
-    case 'pos':    return `${n(r.p1)} speelt altijd ${POSMAP[r.pos].name.toLowerCase()}`;
-    case 'condpos':return `${n(r.p1)} speelt ${POSMAP[r.pos].name.toLowerCase()} als ${n(r.p2)} niet meespeelt`;
-    case 'noq':    {const qs=noqQs(r);return `${n(r.p1)} speelt niet in ${qs.map(q=>'Q'+q).join(' + ')}`;}
-    case 'minutes':return `${n(r.p1)} speelt ${r.mm==='max'?'maximaal':'minimaal'} ${r.min} minuten`;
-    case 'start':  return `${n(r.p1)} begint ${r.start==='base'?'in de basis':'op de bank'}`;
-    case 'endstrong': return `${n(r.p1)} speelt zeker ${r.amt==='min10'?'de laatste ~10 minuten':'het hele laatste kwart'}`;
-    case 'noline': return `${n(r.p1)} speelt nooit in de ${LINES[r.line]}`;
-    case 'nopos':  return `${n(r.p1)} speelt nooit ${POSMAP[r.pos]?POSMAP[r.pos].name.toLowerCase():r.pos}`;
-    case 'maxpos': return `Iedereen staat op maximaal ${r.n} verschillende posities`;
-    case 'rotate': return `${n(r.p1)} en ${n(r.p2)} wisselen elkaar af op ${POSMAP[r.pos]?POSMAP[r.pos].name.toLowerCase():r.pos}`;
-    case 'q3likeq1': return `Start Q3 gelijk aan start Q1`;
-    case 'gk': return `${n(r.p1)} keept ${(r.qs||[]).length===4?'de hele wedstrijd':(r.qs||[]).map(q=>'Q'+q).join(' + ')}`;
-    case 'subs': return `${r.n}${r.n===1?' wisselmoment':' wisselmomenten'} in elk kwart`;
-    case 'form': return `Speelvorm ${r.form} in ${(r.qs||[]).length===4?'de hele wedstrijd':(r.qs||[]).map(q=>'Q'+q).join(' + ')}`;
+    case 'half':   return Tf('{0} speelt alleen de {1} helft', n(r.p1), r.half===1?T('eerste'):T('tweede'));
+    case 'apart':  return Tf('{0} en {1} liever niet samen op het veld', n(r.p1), n(r.p2));
+    case 'line':   return Tf('{0} speelt altijd in de {1}', n(r.p1), LINES[r.line]);
+    case 'pos':    return Tf('{0} speelt altijd {1}', n(r.p1), PNz(r.pos));
+    case 'condpos':return Tf('{0} speelt {1} als {2} niet meespeelt', n(r.p1), PNz(r.pos), n(r.p2));
+    case 'noq':    return Tf('{0} speelt niet in {1}', n(r.p1), qs(noqQs(r)));
+    case 'minutes':return r.mm==='max'
+                     ? Tf('{0} speelt maximaal {1} minuten', n(r.p1), r.min)
+                     : Tf('{0} speelt minimaal {1} minuten', n(r.p1), r.min);
+    case 'start':  return r.start==='base'
+                     ? Tf('{0} begint in de basis', n(r.p1))
+                     : Tf('{0} begint op de bank', n(r.p1));
+    case 'endstrong': return r.amt==='min10'
+                     ? Tf('{0} speelt zeker de laatste ~10 minuten', n(r.p1))
+                     : Tf('{0} speelt zeker het hele laatste kwart', n(r.p1));
+    case 'noline': return Tf('{0} speelt nooit in de {1}', n(r.p1), LINES[r.line]);
+    case 'nopos':  return Tf('{0} speelt nooit {1}', n(r.p1), PNz(r.pos));
+    case 'maxpos': return Tf('Iedereen staat op maximaal {0} verschillende posities', r.n);
+    case 'rotate': return Tf('{0} en {1} wisselen elkaar af op {2}', n(r.p1), n(r.p2), PNz(r.pos));
+    case 'q3likeq1': return T('Start Q3 gelijk aan start Q1');
+    // De hele wedstrijd krijgt een eigen zin: 'keeps goal in the whole match' loopt
+    // niet, terwijl 'keeps goal in Q1 + Q2' juist wel klopt.
+    case 'gk': return (r.qs||[]).length===4
+                     ? Tf('{0} keept de hele wedstrijd', n(r.p1))
+                     : Tf('{0} keept {1}', n(r.p1), qs(r.qs));
+    case 'subs': return r.n===1
+                     ? Tf('{0} wisselmoment in elk kwart', r.n)
+                     : Tf('{0} wisselmomenten in elk kwart', r.n);
+    case 'form': return (r.qs||[]).length===4
+                     ? Tf('Speelvorm {0} de hele wedstrijd', r.form)
+                     : Tf('Speelvorm {0} in {1}', r.form, qs(r.qs));
   }
   return '';
 }
@@ -4194,15 +4400,15 @@ function levendBlok(q){
   return Math.max(0,Math.min(perQ-1,Math.floor(klok.sec/blokSec)));
 }
 const TABS=[
-  {id:'timer',label:'Timer'},
-  {id:'spelers',label:'Spelers'},
-  {id:'regels',label:'Regels'},
-  {id:'wedstrijd',label:'Wedstrijd'},
+  {id:'timer',get label(){return T('Timer');}},
+  {id:'spelers',get label(){return T('Spelers');}},
+  {id:'regels',get label(){return T('Regels');}},
+  {id:'wedstrijd',get label(){return T('Wedstrijd');}},
   // Het label werd 'Meer'. De id blijft 'uitleg': die zit in bewaarde voorkeuren en
   // in de schuifrichting van de tabwissel. Het tabblad heet Meer omdat er inmiddels
   // net zoveel knoppen als uitleg op staan — back-up, diagnose, schudden, en nu ook
   // de klokrichting en het beheer van de selectie.
-  {id:'uitleg',label:'Meer'},
+  {id:'uitleg',get label(){return T('Meer');}},
 ];
 // Welk kwart toont het wedstrijdtabblad? Er is nog maar één tabblad, dus het kwart
 // is een aparte keuze geworden. Standaard volgt hij de wedstrijdklok; kiest de coach
@@ -4272,7 +4478,7 @@ function renderTabbar(){
     if(t.id==='timer')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.8 1.8"/><path d="M9.5 2.5h5"/><path d="M12 2.5V6"/></svg>${t.label}</button>`;
     if(t.id==='spelers')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 19c.7-3.2 3.4-5 6.5-5s5.8 1.8 6.5 5"/><circle cx="17.5" cy="9.5" r="2.6"/><path d="M16 14.2c2.9.2 5 1.8 5.5 4.3"/></svg>${t.label}</button>`;
     if(t.id==='regels')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 4h14v17l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 9h6M9 13h6"/></svg>${t.label}</button>`;
-    if(t.id==='wedstrijd')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18M12 4v16"/><circle cx="12" cy="12" r="2.5"/></svg><span>Wedstrijd</span></button>`;
+    if(t.id==='wedstrijd')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18M12 4v16"/><circle cx="12" cy="12" r="2.5"/></svg><span>${T('Wedstrijd')}</span></button>`;
     if(t.id==='uitleg')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a2.5 2.5 0 0 1 2 1 2.5 2.5 0 0 1 2-1h4.5A1.5 1.5 0 0 1 20 5.5V18a1 1 0 0 1-1 1h-5a2 2 0 0 0-2 1 2 2 0 0 0-2-1H5a1 1 0 0 1-1-1z"/><path d="M12 5v15"/></svg><span>Meer</span></button>`;
     return '';
   }).join('');
@@ -4284,7 +4490,7 @@ function renderTabbar(){
 /* ============ Tab: Spelers ============ */
 function prefSummary(p){
   if(p.prefs&&p.prefs[0]==='keeper')return ico('keeper',14)+'Keeper';
-  const parts=(p.prefs||[]).filter(Boolean).map((x,i)=>POSMAP[x]?POSMAP[x].kort:'').filter(Boolean);
+  const parts=(p.prefs||[]).filter(Boolean).map((x,i)=>POSMAP[x]?PK(x):'').filter(Boolean);
   return parts.length?parts.join(' · '):'Geen voorkeur';
 }
 /* ============ Kaart: opstelling heatmap ============
@@ -4450,11 +4656,11 @@ function keeperDruk(){
 }
 
 // Nederlandse komma, \u00e9\u00e9n decimaal. '1.4' onder een bolletje leest als een fout.
-function heatGetal(x){ return (Math.round(x*10)/10).toFixed(1).replace('.',','); }
+function heatGetal(x){ const s=(Math.round(x*10)/10).toFixed(1); return EN()?s:s.replace('.',','); }
 
 function drukKaart(){
   const aanwezig=state.players.filter(p=>p.present&&!p.uit).length;
-  if(aanwezig<7)return klapKaart('druk','Opstelling heatmap','te weinig spelers',
+  if(aanwezig<7)return klapKaart('druk',T('Opstelling heatmap'),'te weinig spelers',
     `<p class="hint" style="margin:0">Zet eerst meer spelers op aanwezig; met ${aanwezig} speler${aanwezig===1?'':'s'} zegt dit plaatje nog niets.</p>`);
   let D,kp;
   try{ D=bezettingsDruk(); kp=keeperDruk(); }
@@ -4467,7 +4673,7 @@ function drukKaart(){
       +heatGetal(r.aanbod)+' spelers beschikbaar \u00b7 '
       +(r.namen.length?'voorkeur: '+r.namen.join(', '):'niemand met deze voorkeur');
     veld+=`<div class="chip" style="left:${r.pos.x}%;top:${r.pos.y}%" title="${esc(titel)}">
-      <div class="ball ${r.kleur}"><span class="bk${r.pos.kort.length>=4?' long':''}">${r.pos.kort}</span></div>
+      <div class="ball ${r.kleur}"><span class="bk${PK(r.pos.id).length>=4?' long':''}">${PK(r.pos.id)}</span></div>
       <div class="tag">${heatGetal(r.aanbod)}</div></div>`;
   }
   veld+=`<div class="chip" style="left:50%;top:93%" title="Keeper">
@@ -4537,7 +4743,7 @@ function drukKaart(){
   if(D.wisselend)voet+=`<p class="hint" style="margin:10px 0 0">Je speelt niet elk kwart dezelfde speelvorm. Getekend is <b>${D.hoofdVorm}</b>, die van de meeste kwarten; per plek is gemiddeld over de kwarten waarin hij bestaat.</p>`;
   voet+=`<p class="hint" style="margin:10px 0 0">Je verandert dit plaatje op <b>Spelers</b> \u2014 voorkeursposities en de linie-vinkjes \u2014 en op <b>Regels</b>. Het aantal wissels per kwart verandert de volgorde niet: meer wissels maken elke plek even veel drukker.</p>`;
 
-  return klapKaart('druk','Opstelling heatmap',
+  return klapKaart('druk',T('Opstelling heatmap'),
     D.vlak?'overal gelijk':'moeilijkst: '+esc(volgorde[0].pos.name.toLowerCase()),
     veld+legenda+getaluitleg+relatief+uitleg+voet);
 }
@@ -4603,7 +4809,7 @@ function renderSpelers(){
   // De status staat in de kop en niet alleen in de kaart: dichtgeklapt moet je nog
   // steeds kunnen zien of je verbonden bent. cloudUpdateCard() werkt hem los bij,
   // want die functie hertekent bewust niet het hele scherm.
-  html+=klapKaart('samenwerken','Samenwerken',
+  html+=klapKaart('samenwerken',T('Samenwerken'),
     `<span id="cloudSub">${cloudKorteStatus()}</span>`,
     `<p class="hint" style="margin:0 0 10px">E&#233;n gedeelde versie voor coach en manager, met live-sync. Je mede-coach hoeft alleen dezelfde teamcode in te vullen. Standaard staat dit uit; je huidige werkwijze verandert niet tot je verbindt.</p>
     <div id="cloudStatus" class="cloudstat">Uit — alleen deze telefoon</div>
@@ -4674,7 +4880,7 @@ function renderRegels(){
   if(newRule.type==='gk' && keeperAanwezig)newRule.type='noq'; // val terug op geldig type
   const t=newRule.type;
   if(isWide())html+=`</div><div>`;
-  html+=`<div class="card"><h2>Regel toevoegen</h2>
+  html+=`<div class="card"><h2>${T('Regel toevoegen')}</h2>
     <label class="hint">Soort regel</label>
     <select class="sel" id="nrType" style="margin-bottom:10px">
       <option value="noq" ${t==='noq'?'selected':''}>Speelt niet in een bepaald kwart</option>
@@ -4726,7 +4932,7 @@ function renderRegels(){
   if(t==='start')html+=`<div class="frow"><label class="hint">Begint</label><select class="sel" id="nrStart"><option value="base">In de basis (start Q1)</option><option value="bench">Op de bank (start Q1)</option></select></div>`;
   
   if(t==='rotate')html+=`<div class="frow"><label class="hint">Wisselt af met</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div><div class="frow"><label class="hint">Op positie</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
-  html+=`<button class="btn full" id="addRule" style="margin-top:4px">Regel toevoegen</button></div>`;
+  html+=`<button class="btn full" id="addRule" style="margin-top:4px">${T('Regel toevoegen')}</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
   if(isWide())html+=`</div></div>`;
   html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie '+VERSIE_LABEL+' &middot; '+VERSIE_DATUM+'</div>';
@@ -4751,7 +4957,7 @@ function formConflicts(){
   rs.filter(r=>(r.type==='pos'||r.type==='condpos'||r.type==='rotate')&&r.pos).forEach(r=>{
     const mist=[0,1,2,3].filter(q=>!heeft(q,r.pos));
     if(mist.length&&mist.length<4){
-      out.push(`${nm(r.p1)} heeft ${POSMAP[r.pos]?POSMAP[r.pos].name.toLowerCase():r.pos} als vaste plek, maar die bestaat niet in de speelvorm van ${mist.map(q=>'Q'+(q+1)).join(', ')} — daar krijgt hij de meest verwante plek.`);
+      out.push(`${nm(r.p1)} heeft ${PNz(r.pos)} als vaste plek, maar die bestaat niet in de speelvorm van ${mist.map(q=>'Q'+(q+1)).join(', ')} — daar krijgt hij de meest verwante plek.`);
     }
   });
   // Q3-spiegel met een andere speelvorm in Q3 dan in Q1
@@ -4800,7 +5006,7 @@ function detectRuleConflicts(){
     fixedPos.forEach(pos=>{
       const l=lineOf(pos);
       if(l&&!toegestaan.includes(l))
-        out.push(`${nm(pid)} moet altijd ${POSMAP[pos].name.toLowerCase()} spelen, maar bij zijn naam staat de ${LINES[l]} niet aangevinkt — die botsen.`);
+        out.push(`${nm(pid)} moet altijd ${PNz(pos)} spelen, maar bij zijn naam staat de ${LINES[l]} niet aangevinkt — die botsen.`);
     });
     // twee verschillende vaste posities
     if(new Set(fixedPos).size>1) out.push(`${nm(pid)} heeft meerdere vaste posities — alleen de eerste kan gelden.`);
@@ -4889,7 +5095,7 @@ function resolveKeeperOrWarn(){
 
   if(vasteKeeperAanwezig){
     // Normale situatie: de vaste keeper doet de hele wedstrijd
-    if(keepers.length>1){toast('Er zijn meerdere keepers — er mag er maar één zijn');activeTab='spelers';render();return false;}
+    if(keepers.length>1){toast(T('Er zijn meerdere keepers — er mag er maar één zijn'));activeTab='spelers';render();return false;}
     state.keeperId=keepers[0].id;
   } else if(gastKeeper){
     // Een aanwezige gastspeler is als keeper aangewezen: die doet het
@@ -4903,11 +5109,11 @@ function resolveKeeperOrWarn(){
     }
     // check dat de aangewezen keepers ook bestaan en aanwezig zijn
     const afwezig=Object.values(gkDekking).some(id=>{const p=byId(id);return !p||!p.present;});
-    if(afwezig){toast('Een aangewezen keeper is afwezig — pas de keeper-regels aan');activeTab='regels';render();return false;}
+    if(afwezig){toast(T('Een aangewezen keeper is afwezig — pas de keeper-regels aan'));activeTab='regels';render();return false;}
     state.keeperId=null; // geen vaste keeper; per kwart geregeld via gkDekking
   }
   // 10 veldspelers + keeper = 11 aanwezigen minimaal
-  if(present.length<11){toast('Minimaal 11 aanwezige spelers nodig (incl. keeper)');return false;}
+  if(present.length<11){toast(T('Minimaal 11 aanwezige spelers nodig (incl. keeper)'));return false;}
   return true;
 }
 let _regenBevestigd=false;
@@ -4958,7 +5164,7 @@ function regenerate(){
   demoTel('schema_gemaakt');
   if(conflicts.length){
     swapWarnings=conflicts;
-    toast('Let op: sommige regels botsen — zie de melding');
+    toast(T('Let op: sommige regels botsen — zie de melding'));
   }else{
     const _pq=state.schedule.perQ, _bl=Math.round(17.5/_pq*10)/10;
     toast(_pq===2?'Schema gemaakt — 1 wissel halverwege elk kwart'
@@ -4999,7 +5205,7 @@ function spelerActies(pid,q){
   const html=`<div class="modal-back" id="mback"><div class="modal">
     <h3>${esc(p.name)} <span class="sub">${waar}</span></h3>
     ${knoppen.map(([k,t,gevaar])=>`<button class="btn ${gevaar?'gevaar':'ghost'} full" data-act2="${k}" style="margin-top:8px;text-align:left">${t}</button>`).join('')}
-    <button class="btn ghost full" id="mcancel" style="margin-top:14px">Annuleren</button>
+    <button class="btn ghost full" id="mcancel" style="margin-top:14px">${T('Annuleren')}</button>
   </div></div>`;
   document.getElementById('modalHost').innerHTML=html;
   const back=document.getElementById('mback');
@@ -5007,7 +5213,7 @@ function spelerActies(pid,q){
   document.getElementById('mcancel').onclick=closeModal;
   document.querySelectorAll('[data-act2]').forEach(el=>el.onclick=()=>{
     const act=el.dataset.act2; closeModal();
-    if(act==='ruil'){ selChip=pid; render(); toast('Tik nu de speler aan om mee te ruilen'); return; }
+    if(act==='ruil'){ selChip=pid; render(); toast(T('Tik nu de speler aan om mee te ruilen')); return; }
     if(act==='blessure'){
       snapshot('blessure '+p.name);
       p.uit=true;
@@ -5102,7 +5308,7 @@ function volgendeInzet(pid,vanafBlok){
     const q=Math.floor(b/perQ), m=b%perQ;
     const pos=Object.keys(sch.assignments[b]).find(k=>sch.assignments[b][k]===pid);
     return {blok:b, kwart:q+1, nu:b===start, minuut:Math.round(m*blokMin),
-            pos, plek:POSMAP[pos]?POSMAP[pos].name.toLowerCase():null};
+            pos, plek:POSMAP[pos]?PNz(pos):null};
   }
   return null;
 }
@@ -5138,7 +5344,7 @@ function haalUitHuidigBlok(pid){
 function herplanHeleWedstrijd(label){
   if(!resolveKeeperOrWarn())return false;
   const vers=buildSchedule(state);
-  if(!vers){toast('Herplannen lukt niet met deze spelers');return false;}
+  if(!vers){toast(T('Herplannen lukt niet met deze spelers'));return false;}
   state.schedule=vers; state.genHash=inputHash(state);
   planInfo=[label+' \u2014 de klok staat op nul, dus het hele wisselschema is opnieuw gemaakt.'];
   save();render();sendSwapTimesToTimer();
@@ -5156,7 +5362,7 @@ function tekstVanGebeurtenis(g,oud,nieuw,vanaf,nood){
     const k=KAARTEN[g.soort]||{min:0,naam:'kaart'};
     const pos2=Object.keys(oud[vanaf]||{}).find(x=>(oud[vanaf]||{})[x]===g.pid);
     const verv=pos2?(nieuw[vanaf]||{})[pos2]:null;
-    const plek2=pos2&&POSMAP[pos2]?POSMAP[pos2].name.toLowerCase():'';
+    const plek2=pos2&&POSMAP[pos2]?PNz(pos2):'';
     return naam+' krijgt een '+k.naam+' en staat '+k.min+' minuten buiten het veld'
       +(verv?', vervangen door '+pKort(verv)+(plek2?' die op '+plek2+' gaat spelen':''):'')+'.';
   }
@@ -5165,7 +5371,7 @@ function tekstVanGebeurtenis(g,oud,nieuw,vanaf,nood){
   // Is er een noodwissel gedaan, dan is dát het verhaal: één speler eruit, één erin.
   // Wat er daarna bij het volgende wisselmoment gebeurt staat verderop in het schema.
   if(nood){
-    const plek0=POSMAP[nood.pos]?POSMAP[nood.pos].name.toLowerCase():'';
+    const plek0=POSMAP[nood.pos]?PNz(nood.pos):'';
     return naam+' raakt geblesseerd en gaat er meteen uit; '+pKort(nood.in)
       +(plek0?' komt erin op '+plek0:' komt erin')+'.';
   }
@@ -5173,12 +5379,12 @@ function tekstVanGebeurtenis(g,oud,nieuw,vanaf,nood){
   const pos=Object.keys(a).find(k=>a[k]===g.pid);
   const vervanger=pos?b[pos]:null;
   if(!vervanger)return naam+' raakt geblesseerd en gaat eruit.';
-  const plek=POSMAP[pos]?POSMAP[pos].name.toLowerCase():'';
+  const plek=POSMAP[pos]?PNz(pos):'';
   return naam+' raakt geblesseerd en wordt vervangen door '+pKort(vervanger)
     +(plek?' die op '+plek+' gaat spelen':'')+'.';
 }
 function beschrijfHerplan(oud,nieuw,vanaf,perQ,later){
-  const posNaam=(asg,pid)=>{for(const k in asg)if(asg[k]===pid)return POSMAP[k]?POSMAP[k].name.toLowerCase():k;return null;};
+  const posNaam=(asg,pid)=>{for(const k in asg)if(asg[k]===pid)return PNz(k);return null;};
   const a=oud[vanaf]||{}, b=nieuw[vanaf]||{};
   const inA=[...new Set(Object.values(a))], inB=[...new Set(Object.values(b))];
   const eruit=inA.filter(p=>!inB.includes(p));
@@ -5231,7 +5437,7 @@ function gebeurtenisWeg(id){
   if(!g)return;
   snapshot('melding weggedrukt');
   g.weg=true; save(); render();
-  toast('Melding weggedrukt \u2014 schud om terug te halen');
+  toast(T('Melding weggedrukt \u2014 schud om terug te halen'));
 }
 function wisGebeurtenissen(){ state.gebeurtenissen=[]; }
 // ── Noodwissel bij een acute blessure ──
@@ -5274,7 +5480,7 @@ function noodwissel(pid){
 }
 
 function herplanVanafNu(label,vanafVolgende,gebeurtenis,nood){
-  if(!state.schedule){toast('Genereer eerst een opstelling');return false;}
+  if(!state.schedule){toast(T('Genereer eerst een opstelling'));return false;}
   const sch=state.schedule, perQ=sch.perQ, B=perQ*4;
   // Het aantal wisselmomenten ligt vast zodra de wedstrijd loopt: de blokgrenzen
   // zijn deels al gespeeld, en ze verschuiven zou de al verstreken speeltijd
@@ -5310,7 +5516,7 @@ function herplanVanafNu(label,vanafVolgende,gebeurtenis,nood){
   const oudAssign=JSON.parse(JSON.stringify(sch.assignments));
   const fresh=buildSchedule(state,{forcePerQ:perQ,fromBlock:vanaf,fixedBlocks,playedSoFar,
     vastAssignments:sch.assignments});
-  if(!fresh){toast('Herplannen lukt niet met deze spelers');return false;}
+  if(!fresh){toast(T('Herplannen lukt niet met deze spelers'));return false;}
   state.schedule=fresh; state.genHash=inputHash(state);
   const blokLen=17.5/perQ;
   const blokIndex=vanaf-q*perQ;
@@ -5320,7 +5526,7 @@ function herplanVanafNu(label,vanafVolgende,gebeurtenis,nood){
     : 'Q'+(q+1)+(min?' na '+min+' min':' vanaf de start');
   planInfo=[(nood
       ? label+' \u2014 nu meteen alleen '+pKort(nood.in)+' erin op '
-        +(POSMAP[nood.pos]?POSMAP[nood.pos].name.toLowerCase():'zijn plek')
+        +(POSMAP[nood.pos]?PNz(nood.pos):'zijn plek')
         +'; de rest van het veld blijft staan. Vanaf '+wanneer+' is de verdeling bijgewerkt. '
       : label+' \u2014 schema aangepast vanaf '+wanneer+'. ')
     +beschrijfHerplan(oudAssign,fresh.assignments,vanaf,perQ,!!vanafVolgende)];
@@ -5359,7 +5565,7 @@ function replanFromQuarter(fromQ){
   state.genHash=inputHash(state);
   const conflicts=detectRuleConflicts().concat(formConflicts()).concat(nietGehaaldeRegels(state.schedule));
   save();render();sendSwapTimesToTimer();
-  if(conflicts.length){swapWarnings=conflicts;toast('Herplan klaar — let op botsende regels');}
+  if(conflicts.length){swapWarnings=conflicts;toast(T('Herplan klaar — let op botsende regels'));}
   else toast('Vanaf Q'+(fromQ+1)+' opnieuw gepland met de huidige spelers');
 }
 // Vertel de timer welk kwart de coach in de app bekijkt.
@@ -5460,11 +5666,11 @@ function vraagKlokOvernemen(){
   });
 }
 function klokOvernemen(){
-  if(!CLOUD.on||!CLOUD.ref||CLOUD.role!=='editor'){toast('Alleen een verbonden coach kan de klok overnemen');return;}
+  if(!CLOUD.on||!CLOUD.ref||CLOUD.role!=='editor'){toast(T('Alleen een verbonden coach kan de klok overnemen'));return;}
   const baas={id:DEVICE_ID,naam:CLOUD.name||'coach'};
   CLOUD.klokBaas=baas;
   CLOUD.ref.set({klok:{...(CLOUD.klok||{q:1,basis:0,sinds:null,loopt:false}),baas,ts:Date.now()}},{merge:true})
-    .then(()=>{toast('Je bedient nu de klok');hartslagBijwerken();klokNaarTimer(null);render();})
+    .then(()=>{toast(T('Je bedient nu de klok'));hartslagBijwerken();klokNaarTimer(null);render();})
     .catch(e=>toast('Overnemen mislukt: '+(e.message||e)));
 }
 function sendQuarterToTimer(q){
@@ -5596,7 +5802,7 @@ function spelerBlokken(pid){
     for(let m=0;m<perQ;m++){
       const a=sch.assignments[q*perQ+m]||{};
       const pos=Object.keys(a).find(k=>a[k]===pid)||null;
-      const plek=pos?(POSMAP[pos]?POSMAP[pos].name:pos):'bank';
+      const plek=pos?(PN(pos)):'bank';
       const laatste=stukken[stukken.length-1];
       if(laatste&&laatste.plek===plek)laatste.tot=(m+1)*blokMin;
       else stukken.push({plek, van:m*blokMin, tot:(m+1)*blokMin});
@@ -5621,11 +5827,12 @@ function spelerPosities(pid){
     if(stuk.plek==='keeper'){keept=true;continue;}
     if(!gezien.includes(stuk.plek))gezien.push(stuk.plek);
   }
-  const volgorde=POSITIONS.map(p=>p.name);
+  const volgorde=POSITIONS.map(p=>EN()?p.en:p.name);
   gezien.sort((a,b)=>volgorde.indexOf(a)-volgorde.indexOf(b));
   // De afkortingen erbij: in de speeltijdkaart is geen ruimte voor 'Rechts achter',
   // en op de spelerskaart staan diezelfde afkortingen al, dus ze zijn bekend.
-  const kort=gezien.map(n=>{const p=POSITIONS.find(x=>x.name===n);return p?p.kort:n;});
+  // Zoeken op de naam in de gekozen taal: 'plek' is hierboven met PN() gevuld.
+  const kort=gezien.map(n=>{const p=POSITIONS.find(x=>(EN()?x.en:x.name)===n);return p?PK(p.id):n;});
   return {namen:gezien, kort, keept};
 }
 // Kort genoeg voor een lijstregel: '2: LA, VS'. Leeg als er geen schema is.
@@ -5679,7 +5886,7 @@ function toonSpelerSchema(pid){
     return;
   }
   const k=spelerBlokken(pid);
-  if(!k){ toast('Genereer eerst een opstelling'); return; }
+  if(!k){ toast(T('Genereer eerst een opstelling')); return; }
   const min=(speeltijdPerSpeler()||{})[pid]||0;
   const rijen=k.map((st,i)=>`<div class="qrij"><b>Q${i+1}</b><span>${esc(kwartZin(st))}</span></div>`).join('')
     +`<div class="qrij posrij"><b>Posities</b><span>${esc(positieZin(pid))}</span></div>`;
@@ -5694,8 +5901,8 @@ function toonSpelerSchema(pid){
   const kb=document.getElementById('kopieerSpeler');
   if(kb)kb.onclick=async()=>{
     try{ await navigator.clipboard.writeText(spelerSchemaTekst(pid));
-         toast('Gekopieerd \u2014 plak het in een bericht'); }
-    catch(e){ onthoudFout('kopi\u00ebren',e); toast('Kopi\u00ebren lukt niet; maak een schermafbeelding'); }
+         toast(T('Gekopieerd \u2014 plak het in een bericht')); }
+    catch(e){ onthoudFout('kopi\u00ebren',e); toast(T('Kopi\u00ebren lukt niet; maak een schermafbeelding')); }
   };
 }
 
@@ -5825,12 +6032,40 @@ function klokVoorbeeld(m){
   if(m==='aflopend') return klokCijfers(Math.ceil(QLEN-sec));
   return klokCijfers(Math.floor(sec+QLEN));
 }
+
+// ── Taal: alleen dit toestel ──
+// Zelfde opzet als de klokrichting hierboven, en om dezelfde reden: het is een
+// kijkvoorkeur, geen teamafspraak. De timer leest dezelfde sleutel, dus die krijgt
+// een bericht om meteen om te schakelen in plaats van pas na herladen.
+function zetTaal(t){
+  if(t!=='nl'&&t!=='en')return;
+  try{ localStorage.setItem((DEMO?'demo_':'')+'ghc-taal',t); }catch(e){}
+  try{
+    const th=document.getElementById('timerHost');
+    const ifr=th&&th.querySelector('iframe');
+    if(ifr&&ifr.contentWindow)ifr.contentWindow.postMessage({ghcTaal:t},location.origin);
+  }catch(e){}
+  document.documentElement.setAttribute('lang',t);
+  render(); veldKlokBijwerken();
+}
+function taalKaart(){
+  const nu=taal();
+  const opties=[['nl','NL','Nederlands'],['en','EN','Engels']];
+  return klapKaart('taal',T('Taal'),nu==='en'?'English':'Nederlands',
+    `<p class="hint" style="margin:0 0 10px">${esc(T('Alleen dit toestel. Je mede-coach houdt zijn eigen taal, ook in dezelfde gedeelde stand.'))}</p>
+    <div class="keuzelijst">${opties.map(([id,badge,tekst])=>`
+      <button class="keuze${nu===id?' aan':''}" data-taal="${id}">
+        <span class="keuzebadge">${badge}</span>
+        <span class="keuzetekst">${esc(T(tekst))}</span>
+      </button>`).join('')}</div>
+    <p class="hint" style="margin:10px 0 0">${esc(T('Posities, regels en schema\u2019s worden niet vertaald opgeslagen: een deel-link uit een Nederlandse app opent gewoon in een Engelse.'))}</p>`);
+}
 function klokRichtingKaart(){
   const nu=tijdweergave();
   // De gekozen stand in de kop: dat is precies wat je wilt zien als de kaart dicht is,
   // en het scheelt hem opendoen om te controleren wat er ook alweer aan stond.
   const gekozen=(KLOKSTANDEN.find(k=>k[0]===nu)||['','',''])[1];
-  return klapKaart('klok','Hoe de klok loopt',esc(gekozen||'alleen dit toestel'),
+  return klapKaart('klok',T('Hoe de klok loopt'),esc(gekozen||'alleen dit toestel'),
     `<p class="hint" style="margin:0 0 10px">Geldt voor de timer, voor het klokje op de veldtekening en voor de
       tijden bij de wisselmomenten. Jij en je mede-coach mogen hier verschillend in staan.</p>
     <div class="keuzelijst">${KLOKSTANDEN.map(([id,badge,tekst])=>`
@@ -5886,7 +6121,7 @@ function selectieKaart(){
   // Loopt de wedstrijd, dan staan er geen knoppen maar een uitleg waarom niet. Dat
   // zetten we in de kop, want anders open je de kaart om te ontdekken dat er niets te
   // doen valt.
-  return klapKaart('selectie','Selectie beheren',
+  return klapKaart('selectie',T('Selectie beheren'),
     bezig?'wedstrijd loopt':`${vast.length} speler${vast.length===1?'':'s'}`,h);
 }
 
@@ -5896,7 +6131,7 @@ function spelerToevoegen(){
   if(wijzigenGeblokkeerd())return;
   // De knop is tijdens een wedstrijd niet in beeld, maar de functie zelf controleerde
   // dat niet. Verwijderen deed dat wel; nu allebei.
-  if(wedstrijdBezig()){ toast('Kan niet tijdens een wedstrijd'); return; }
+  if(wedstrijdBezig()){ toast(T('Kan niet tijdens een wedstrijd')); return; }
   const vast=state.players.filter(p=>!p.guest);
   if(vast.length>=MAX_SELECTIE){
     confirmDialog({title:'De selectie is vol',
@@ -5921,7 +6156,7 @@ function spelerToevoegen(){
 // zestien bevestigingen betekenen.
 function selectieVerwijderen(){
   if(wijzigenGeblokkeerd())return;
-  if(wedstrijdBezig()){ toast('Kan niet tijdens een wedstrijd \u2014 meld hem af op Spelers'); return; }
+  if(wedstrijdBezig()){ toast(T('Kan niet tijdens een wedstrijd \u2014 meld hem af op Spelers')); return; }
   const weg=state.players.filter(p=>!p.guest&&_selGekozen.has(p.id));
   if(!weg.length)return;
   const namen=weg.map(p=>p.name||'(naamloos)');
@@ -5963,6 +6198,7 @@ function selectieVerwijderen(){
 // helemaal onderaan, want die heb je alleen nodig als er iets stuk is.
 function renderUitleg(){
   let h=`<h2 class="sectiekop">Instellingen</h2>`;
+  h+=taalKaart();
   h+=klokRichtingKaart();
   h+=selectieKaart();
   h+=`<h2 class="sectiekop">Uitleg</h2>`;
@@ -5975,15 +6211,15 @@ function renderUitleg(){
     </div>`;
   });
   acc+=`</div>`;
-  h+=klapKaart('werkt','Zo werkt de app',`in ${UITLEG.length} stappen`,acc);
-  h+=klapKaart('installeren','App op je telefoon','iPhone &amp; Android',
+  h+=klapKaart('werkt',T('Zo werkt de app'),`in ${UITLEG.length} stappen`,acc);
+  h+=klapKaart('installeren',T('App op je telefoon'),'iPhone &amp; Android',
     `<p class="hint" style="margin:0 0 8px"><b>iPhone \u00b7 Safari:</b> tik onderin op het deelicoon
       (vierkantje met pijl omhoog), kies \u2018Zet op beginscherm\u2019 en daarna \u2018Voeg toe\u2019.</p>
     <p class="hint" style="margin:0 0 8px"><b>Android \u00b7 Chrome:</b> tik rechtsboven op de drie puntjes
       en kies \u2018App installeren\u2019.</p>
     <p class="hint" style="margin:0">Daarna opent de app schermvullend, zonder adresbalk, en werkt hij
       ook zonder internet \u2014 handig op een sportpark met slecht bereik.</p>`);
-  h+=klapKaart('weten','Goed om te weten','privacy &amp; grenzen',
+  h+=klapKaart('weten',T('Goed om te weten'),'privacy &amp; grenzen',
     `<p class="hint" style="margin:0 0 8px">De namen van je spelers staan alleen op dit toestel. Er is geen
       account en geen inlog. Zonder samenwerken gaat er geen enkel spelersgegeven naar internet.</p>
     <p class="hint" style="margin:0 0 8px">Wel telt de app \u00e9\u00e9n keer per dag mee welk soort toestel,
@@ -6014,18 +6250,18 @@ function renderUitleg(){
   // gewone manier is om met z'n twee\u00ebn in dezelfde opstelling te werken, is een link
   // heen en weer sturen geen dagelijkse handeling meer maar een uitwijk \u2014 net als de
   // back-up eronder. Vandaar deze plek: allebei 'een kopie ergens anders heen'.
-  h+=klapKaart('delen','Delen met co-coach','link of bestand',
+  h+=klapKaart('delen',T('Delen met co-coach'),'link of bestand',
     `<button class="btn ghost full" id="shareState">${ico("delen")}Deel actuele stand</button>
     <button class="btn ghost full" id="importShare" style="margin-top:8px">${ico("ontvangen")}Gedeelde link overnemen&#8230;</button>
     <p class="hint" style="margin-top:10px">Stuur de link in de coachgroep. De ontvanger tikt op de link, of kopieert hem en kiest hier &quot;Gedeelde link overnemen&quot;. Aanwezigheid, regels en het schema gaan allemaal mee.</p>
     <p class="hint" style="margin-top:10px">Werk je met <b>Samenwerken</b> (op het tabblad Spelers), dan heb je dit meestal niet nodig: daar zien jij en je mede-coach dezelfde opstelling zonder iets te sturen.</p>`);
-  h+=klapKaart('backup','Back-up','',
+  h+=klapKaart('backup',T('Back-up'),'',
     `<button class="btn ghost full" id="backupExport">${ico("opslaan")}Opslaan als back-upbestand</button>
     <button class="btn ghost full" id="backupImport" style="margin-top:8px">${ico("map")}Herstel uit back-up&#8230;</button>
     <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p>`);
   // Schudden vraagt op iOS eenmalig toestemming. Wordt die geweigerd of gemist, dan
   // komt die vraag nooit meer vanzelf terug — vandaar deze knop.
-  h+=klapKaart('schudden','Schudden om ongedaan te maken','undo',
+  h+=klapKaart('schudden',T('Schudden om ongedaan te maken'),'undo',
     `<p class="hint" style="margin-bottom:10px">${
       _schudStatus==='aan'?'&#10003; Staat aan. Schud je telefoon om de laatste actie terug te draaien.'
       :_schudStatus==='geweigerd'?ico("kruis",16)+'Je hebt de bewegingssensor geweigerd. Tik hieronder om het opnieuw te vragen; lukt dat niet, zet dan Bewegen en ori&#235;ntatie aan bij Instellingen &rarr; Safari.'
@@ -6114,15 +6350,15 @@ function renderQuarter(q){
       <div style="margin-bottom:10px;color:var(--dim)">${ico("bal",34)}</div>
       <p style="font-size:15px;font-weight:700;margin-bottom:6px">Klaar om te genereren</p>
       <p class="hint" style="margin-bottom:16px">${presentNow} spelers aanwezig. Maak het wisselschema met eerlijke speelminuten voor alle vier de kwarten.</p>
-      <button class="btn" data-regen>Opstelling genereren</button></div>`;
+      <button class="btn" data-regen>${T('Opstelling genereren')}</button></div>`;
     return html;
   }
   if(stale&&!isKijker()){
     html+= wedstrijdBezig()
       // Tijdens de wedstrijd nooit het hele schema opnieuw: wat gespeeld is blijft staan
       // en het lopende blok ook, anders verdwijnen spelers halverwege van het veld.
-      ? `<div class="banner">${ico("waarschuwing")}Spelers of regels zijn gewijzigd. Verwerken kan vanaf het volgende wisselmoment.<button class="btn small" id="verwerkNuBtn">Verwerken</button></div>`
-      : `<div class="banner">${ico("waarschuwing")}Spelers of regels zijn gewijzigd.<button class="btn small" data-regen>Opnieuw genereren</button></div>`;
+      ? `<div class="banner">${ico("waarschuwing")}Spelers of regels zijn gewijzigd. Verwerken kan vanaf het volgende wisselmoment.<button class="btn small" id="verwerkNuBtn">${T('Verwerken')}</button></div>`
+      : `<div class="banner">${ico("waarschuwing")}Spelers of regels zijn gewijzigd.<button class="btn small" data-regen>${T('Opnieuw genereren')}</button></div>`;
   }
   html+=warnBoxesHTML();
   const sch=state.schedule, perQ=sch.perQ, blockLen=17.5/perQ;
@@ -6231,15 +6467,15 @@ function renderQuarter(q){
       // meeloopt staat in de banklijst.
       const p=byId(pid), k=KAARTEN[p.kaart.soort];
       veld+=`<div class="chip kaartleeg ${p.kaart.soort}" style="left:${pos.x}%;top:${pos.y}%">
-        <div class="ball">${pos.kort}</div><div class="tag">${k.min} min</div></div>`;
+        <div class="ball">${PK(pos.id)}</div><div class="tag">${k.min} min</div></div>`;
       continue;
     }
     if(pid){
       const isC=pid===capt;
       veld+=`<div class="chip ${selChip===pid?'selected':''}" data-chip="${pid}" style="left:${pos.x}%;top:${pos.y}%">
-        <div class="ball${isC?' capt':''}"><span class="bk${pos.kort.length>=4?' long':''}">${pos.kort}</span>${isC?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(pKort(pid))}</div></div>`;
+        <div class="ball${isC?' capt':''}"><span class="bk${PK(pos.id).length>=4?' long':''}">${PK(pos.id)}</span>${isC?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(pKort(pid))}</div></div>`;
     }else{
-      veld+=`<div class="chip" style="left:${pos.x}%;top:${pos.y}%;opacity:.45"><div class="ball" style="border-style:dashed;background:none">·</div><div class="pos">${pos.kort}</div></div>`;
+      veld+=`<div class="chip" style="left:${pos.x}%;top:${pos.y}%;opacity:.45"><div class="ball" style="border-style:dashed;background:none">·</div><div class="pos">${PK(pos.id)}</div></div>`;
     }
   }
   // pKort, net als alle andere spelers op het veld: hier stond de volledige naam,
@@ -6340,17 +6576,24 @@ function renderQuarter(q){
 }
 function wisselLines(d){
   let s='';
+  // De naam en de positie zitten in de sjablonen als {0} en {1}, inclusief hun
+  // opmaak. Dat moet wel: in het Engels staat 'moves from A to B' op dezelfde plek
+  // in de zin, maar bij 'X off' verhuist het werkwoord naar achteren.
+  const inN=x=>`<b class="pl-in">${esc(pKort(x))}</b>`;
+  const uitN=x=>`<b class="pl-out">${esc(pKort(x))}</b>`;
+  const mvN=x=>`<b class="pl-mv">${esc(pKort(x))}</b>`;
   for(const ch of d.chains){
-    let line=`<b class="pl-in">${esc(pKort(ch.inP))}</b> erin op <span class="posname">${POSMAP[ch.pos].name}</span>`;
-    if(ch.outP)line+=` &middot; <b class="pl-out">${esc(pKort(ch.outP))}</b> eruit`;
-    if(ch.moves.length)line+=`; daardoor schuift `+ch.moves.map(m=>`<b class="pl-mv">${esc(pKort(m.pid))}</b> van ${POSMAP[m.from].name} naar ${POSMAP[m.to].name}`).join(' en ');
+    let line=Tf('{0} erin op {1}', inN(ch.inP), `<span class="posname">${PN(ch.pos)}</span>`);
+    if(ch.outP)line+=' &middot; '+Tf('{0} eruit', uitN(ch.outP));
+    if(ch.moves.length)line+='; '+Tf('daardoor schuift {0}',
+      ch.moves.map(m=>Tf('{0} van {1} naar {2}', mvN(m.pid), PN(m.from), PN(m.to))).join(' '+T('en')+' '));
     s+=`<div class="wline"><span class="arr in">&#8645;</span><span>${line}</span></div>`;
   }
   for(const o of d.looseOuts){
-    s+=`<div class="wline"><span class="arr out">&#9660;</span><span><b class="pl-out">${esc(pKort(o.pid))}</b> eruit <span class="posname">— ${POSMAP[o.pos].name}</span></span></div>`;
+    s+=`<div class="wline"><span class="arr out">&#9660;</span><span>${Tf('{0} eruit {1}', uitN(o.pid), `<span class="posname">— ${PN(o.pos)}</span>`)}</span></div>`;
   }
   for(const m of d.looseMoves){
-    s+=`<div class="wline"><span class="arr mv">&#8594;</span><span><b class="pl-mv">${esc(pKort(m.pid))}</b> schuift van ${POSMAP[m.from].name} naar ${POSMAP[m.to].name}</span></div>`;
+    s+=`<div class="wline"><span class="arr mv">&#8594;</span><span>${Tf('{0} schuift van {1} naar {2}', mvN(m.pid), PN(m.from), PN(m.to))}</span></div>`;
   }
   return s;
 }
@@ -6508,7 +6751,7 @@ function bind(v){
       if(!huidig.length){
         // Nul linies zou betekenen dat hij nergens kan staan; dan liever alles weer aan.
         e.target.checked=true;
-        toast('Minstens een linie is nodig');
+        toast(T('Minstens een linie is nodig'));
         return;
       }
     }
@@ -6523,7 +6766,7 @@ function bind(v){
     // Er kan er maar een aanvoerder zijn: bij aanzetten vervalt de rol bij de vorige.
     state.players.forEach(p=>{delete p.captain;});
     if(aan){const p=byId(el.dataset.id);p.captain=true;toast(p.name+' is aanvoerder');}
-    else toast('Geen aanvoerder ingesteld');
+    else toast(T('Geen aanvoerder ingesteld'));
     save();render();
   });
   v.querySelectorAll('[data-act="expand"]').forEach(el=>el.onclick=()=>{expandedPlayer=expandedPlayer===el.dataset.id?null:el.dataset.id;render();});
@@ -6533,7 +6776,7 @@ function bind(v){
     confirmDialog({title:'Gastspeler verwijderen?',body:(p?esc(p.name):'Deze speler')+' wordt uit de selectie gehaald. Eventuele regels voor deze speler vervallen ook.',okLabel:'Verwijderen',danger:true,onOk:()=>{
       state.players=state.players.filter(x=>x.id!==el.dataset.id);
       state.rules=state.rules.filter(r=>!regelGaatOver(r,el.dataset.id));
-      save();render();toast('Gastspeler verwijderd');
+      save();render();toast(T('Gastspeler verwijderd'));
     }});
   });
   v.querySelectorAll('[data-act="pref"]').forEach(el=>el.onchange=e=>{
@@ -6578,8 +6821,8 @@ function bind(v){
   const dgk=v.querySelector('#diagKopieer');
   if(dgk)dgk.onclick=async()=>{
     const t=diagnoseTekst();
-    try{ await navigator.clipboard.writeText(t); toast('Gekopieerd — plak het in een bericht'); }
-    catch(e){ onthoudFout('kopiëren',e); toast('Kopiëren lukt niet; maak een schermafbeelding'); }
+    try{ await navigator.clipboard.writeText(t); toast(T('Gekopieerd — plak het in een bericht')); }
+    catch(e){ onthoudFout('kopiëren',e); toast(T('Kopiëren lukt niet; maak een schermafbeelding')); }
   };
   const dgw=v.querySelector('#diagWis');
   if(dgw)dgw.onclick=()=>{_fouten.length=0;render();};
@@ -6590,6 +6833,8 @@ function bind(v){
   klokKlikbaar(v.querySelector('#grklok'));
   // ── Tabblad Meer: klokrichting ──
   v.querySelectorAll('[data-klokstand]').forEach(el=>el.onclick=()=>zetTijdweergave(el.dataset.klokstand));
+  // ── Tabblad Meer: taal ──
+  v.querySelectorAll('[data-taal]').forEach(el=>el.onclick=()=>zetTaal(el.dataset.taal));
   // ── Tabblad Meer: selectie ──
   const st=v.querySelector('#selToevoegen');
   if(st)st.onclick=spelerToevoegen;
@@ -6645,7 +6890,7 @@ function bind(v){
   if(bex)bex.onclick=backupExport;
   const koppelUitTekst=(inp)=>{
     const tekst=(inp&&inp.value||'').trim();
-    if(!tekst){ toast('Plak eerst de link'); return; }
+    if(!tekst){ toast(T('Plak eerst de link')); return; }
     // Zowel een volledige link als alleen de code moet werken; wie hem uit een appje
     // plakt krijgt er soms tekst omheen.
     let team='', rol='kijker';
@@ -6657,7 +6902,7 @@ function bind(v){
     }else if(/^[a-z0-9_-]{3,40}$/i.test(tekst)){
       team=tekst;
     }
-    if(!team){ toast('Geen teamcode in deze tekst gevonden'); return; }
+    if(!team){ toast(T('Geen teamcode in deze tekst gevonden')); return; }
     CLOUD.cfg=FB_CONFIG;
     CLOUD.team=team.toLowerCase();
     CLOUD.role=(rol==='kijker'||rol==='viewer')?'viewer':'editor';
@@ -6678,7 +6923,7 @@ function bind(v){
   const shc=v.querySelector('#cloudShareCoach');
   if(shc)shc.onclick=()=>cloudShareLink('editor');
   const ct=v.querySelector('#cloudToggle');
-  if(ct)ct.onclick=()=>{ if(CLOUD.on){cloudDisconnect();toast('Verbinding verbroken');} else {cloudConnect().then(ok=>{if(ok)toast('Verbonden met team '+CLOUD.team);});} };
+  if(ct)ct.onclick=()=>{ if(CLOUD.on){cloudDisconnect();toast(T('Verbinding verbroken'));} else {cloudConnect().then(ok=>{if(ok)toast('Verbonden met team '+CLOUD.team);});} };
   cloudUpdateCard();
   const ag=v.querySelector('#addGuest');
   if(ag)ag.onclick=()=>{
@@ -6692,7 +6937,7 @@ function bind(v){
     if(wijzigenGeblokkeerd())return;
     const r=state.rules.find(x=>x.id===el.dataset.delrule);
     confirmDialog({title:'Regel verwijderen?',body:r?ruleSentence(r):'',okLabel:'Verwijderen',danger:true,onOk:()=>{
-      state.rules=state.rules.filter(x=>x.id!==el.dataset.delrule);save();render();toast('Regel verwijderd');
+      state.rules=state.rules.filter(x=>x.id!==el.dataset.delrule);save();render();toast(T('Regel verwijderd'));
     }});
   });
   const nt=v.querySelector('#nrType');
@@ -6709,8 +6954,8 @@ function bind(v){
     else if(_ty==='q3likeq1'){r={id:'r'+Date.now(),type:_ty};}
     else if(_ty==='gk'){
       const qs=[...v.querySelectorAll('.nrGKq:checked')].map(c=>Number(c.value));
-      if(!g('#nrP1')){toast('Kies een speler');return;}
-      if(!qs.length){toast('Kies minstens één kwart');return;}
+      if(!g('#nrP1')){toast(T('Kies een speler'));return;}
+      if(!qs.length){toast(T('Kies minstens één kwart'));return;}
       r={id:'r'+Date.now(),type:'gk',p1:g('#nrP1'),qs};
     }
     else {r={id:'r'+Date.now(),type:_ty,p1:g('#nrP1')};}
@@ -6719,31 +6964,31 @@ function bind(v){
     if(r.type==='maxpos')r.n=Number(g('#nrMaxPos'));
     if(r.type==='subs'){
       r.n=Number(g('#nrSubs'))||2;
-      if(state.rules.some(x=>x.type==='subs')){toast('Deze regel bestaat al');return;}
+      if(state.rules.some(x=>x.type==='subs')){toast(T('Deze regel bestaat al'));return;}
     }
     if(r.type==='form'){
       const qs=[...v.querySelectorAll('.nrFormq:checked')].map(c=>Number(c.value));
-      if(!qs.length){toast('Kies minstens één kwart');return;}
+      if(!qs.length){toast(T('Kies minstens één kwart'));return;}
       const bezet=state.rules.filter(x=>x.type==='form').flatMap(x=>x.qs||[]).filter(q=>qs.includes(q));
       if(bezet.length){toast('Voor '+bezet.map(q=>'Q'+q).join(', ')+' is al een speelvorm gekozen');return;}
       r.form=g('#nrForm')||DEFAULT_FORM; r.qs=qs;
     }
     if(r.type==='noq'){
       const qs=[...v.querySelectorAll('.nrNoQq:checked')].map(c=>Number(c.value));
-      if(!qs.length){toast('Kies minstens één kwart');return;}
-      if(qs.length===4){toast('Alle vier de kwarten uitsluiten kan niet — zet de speler dan op afwezig');return;}
+      if(!qs.length){toast(T('Kies minstens één kwart'));return;}
+      if(qs.length===4){toast(T('Alle vier de kwarten uitsluiten kan niet — zet de speler dan op afwezig'));return;}
       r.qs=qs;
     }
     if(r.type==='minutes'){r.mm=g('#nrMM');r.min=Number(g('#nrMin'));}
     if(r.type==='start')r.start=g('#nrStart');
     if(r.type==='endstrong')r.amt=g('#nrEndAmt')||'q4';
     if(r.type==='rotate'){r.p2=g('#nrP2');r.pos=g('#nrPos');}
-    if((r.type==='apart'||r.type==='condpos'||r.type==='rotate')&&r.p1===r.p2){toast('Kies twee verschillende spelers');return;}
-    if(r.type==='q3likeq1'&&state.rules.some(x=>x.type==='q3likeq1')){toast('Deze regel bestaat al');return;}
-    if(r.type==='maxpos'&&state.rules.some(x=>x.type==='maxpos')){toast('Er staat al een maximum \u2014 verwijder dat eerst');return;}
+    if((r.type==='apart'||r.type==='condpos'||r.type==='rotate')&&r.p1===r.p2){toast(T('Kies twee verschillende spelers'));return;}
+    if(r.type==='q3likeq1'&&state.rules.some(x=>x.type==='q3likeq1')){toast(T('Deze regel bestaat al'));return;}
+    if(r.type==='maxpos'&&state.rules.some(x=>x.type==='maxpos')){toast(T('Er staat al een maximum \u2014 verwijder dat eerst'));return;}
     // Twee afspraken die elkaar uitsluiten hoort de app niet zelf op te lossen.
     if(r.type==='nopos'){
-      if(state.rules.some(x=>x.type==='nopos'&&x.p1===r.p1&&x.pos===r.pos)){toast('Deze regel bestaat al');return;}
+      if(state.rules.some(x=>x.type==='nopos'&&x.p1===r.p1&&x.pos===r.pos)){toast(T('Deze regel bestaat al'));return;}
       const bots=state.rules.find(x=>['pos','condpos','rotate'].includes(x.type)&&x.pos===r.pos&&(x.p1===r.p1||x.p2===r.p1));
       if(bots){toast('Dat botst met \u2018'+ruleSentence(bots)+'\u2019');return;}
     }
@@ -6767,7 +7012,7 @@ function bind(v){
         return;
       }
     }
-    state.rules.push(r);save();render();toast('Regel toegevoegd');
+    state.rules.push(r);save();render();toast(T('Regel toegevoegd'));
   };
   // Chips ruilen
   v.querySelectorAll('[data-chip]').forEach(el=>el.onclick=()=>chipTap(el.dataset.chip));
@@ -6796,7 +7041,7 @@ function chipTap(pid){
   if(pa&&pb){snapshot('ruil');asg[pa]=pid;asg[pb]=selChip;}
   else if(pa&&!pb){snapshot('ruil');asg[pa]=pid;}
   else if(!pa&&pb){snapshot('ruil');asg[pb]=selChip;}
-  else{toast('Kies minstens één veldspeler');selChip=null;render();return;}
+  else{toast(T('Kies minstens één veldspeler'));selChip=null;render();return;}
   // waarschuwing bij hardere regels — blijft staan tot weggeklikt
   const half=q<2?1:2;
   const found=[];
@@ -6804,7 +7049,7 @@ function chipTap(pid){
     for(const id of [pid,selChip]){
       if(r.type==='half'&&r.p1===id&&r.half!==half)found.push(`${pName(id)} hoort volgens de regels alleen de ${r.half===1?'eerste':'tweede'} helft te spelen.`);
       if(r.type==='noq'&&r.p1===id&&noqQs(r).includes(q+1))found.push(`Een regel zegt dat ${pName(id)} niet in Q${q+1} speelt.`);
-      if(r.type==='pos'&&r.p1===id){const np=Object.keys(asg).find(k=>asg[k]===id);if(np&&np!==r.pos)found.push(`${pName(id)} staat normaal vast op ${POSMAP[r.pos]?POSMAP[r.pos].name:r.pos}.`);}
+      if(r.type==='pos'&&r.p1===id){const np=Object.keys(asg).find(k=>asg[k]===id);if(np&&np!==r.pos)found.push(`${pName(id)} staat normaal vast op ${PN(r.pos)}.`);}
     }
   }
   // Een handmatige ruil mag alles, maar niet stilletjes: wat je met een tik doorbreekt
@@ -6814,7 +7059,7 @@ function chipTap(pid){
     if(!np)continue;
     const POS=positionsOfQ(q,state.rules);
     if(verbodenPosities(id,state.rules,POS).has(np))
-      found.push(`Een regel zegt dat ${pName(id)} nooit ${POSMAP[np]?POSMAP[np].name.toLowerCase():np} speelt.`);
+      found.push(`Een regel zegt dat ${pName(id)} nooit ${PNz(np)} speelt.`);
     const lijn=POSMAP[np]&&POSMAP[np].line, sp=byId(id);
     if(lijn&&sp&&!magInLinie(sp,lijn))
       found.push(`${pName(id)} mag volgens Spelers niet in de ${LINES[lijn]} staan.`);
@@ -6855,7 +7100,7 @@ function printFieldSVG(asg,keeperId,POSLIST){
     const pid=asg[pos.id];if(!pid)continue;
     const x=pos.x,y=my(pos.y);
     s+=`<circle cx="${x}" cy="${y}" r="4.4" fill="#fff" stroke="#000" stroke-width="1"/><text x="${x}" y="${y+1.5}" text-anchor="middle" font-size="4.2" font-weight="700" fill="#000">${pNum(pid)}</text>
-    <text x="${x}" y="${y+8.4}" text-anchor="middle" font-size="3.6" font-weight="700" fill="#000">${POSMAP[pos.id].kort}&#160;${esc(pKort(pid))}</text>`;
+    <text x="${x}" y="${y+8.4}" text-anchor="middle" font-size="3.6" font-weight="700" fill="#000">${PK(pos.id)}&#160;${esc(pKort(pid))}</text>`;
     if(pid===capt)s+=captMark(x,y);
   }
   const k=byId(keeperId);
@@ -6870,19 +7115,20 @@ function printFieldSVG(asg,keeperId,POSLIST){
 function printChainText(d){
   const parts=[];
   for(const ch of d.chains){
-    let t=`<b>${esc(pKort(ch.inP))}</b> erin op ${POSMAP[ch.pos].kort}${ch.outP?` &middot; <b>${esc(pKort(ch.outP))}</b> eruit`:''}`;
-    if(ch.moves.length)t+=`; daardoor ${ch.moves.map(m=>`${esc(pKort(m.pid))} ${POSMAP[m.from].kort}&#8594;${POSMAP[m.to].kort}`).join(', ')}`;
+    let t=Tf('{0} erin op {1}', `<b>${esc(pKort(ch.inP))}</b>`, PK(ch.pos));
+    if(ch.outP)t+=' &middot; '+Tf('{0} eruit', `<b>${esc(pKort(ch.outP))}</b>`);
+    if(ch.moves.length)t+='; '+Tf('daardoor {0}', ch.moves.map(m=>`${esc(pKort(m.pid))} ${PK(m.from)}&#8594;${PK(m.to)}`).join(', '));
     parts.push(t);
   }
-  for(const o of d.looseOuts)parts.push(`<b>${esc(pKort(o.pid))}</b> eruit (${POSMAP[o.pos].kort})`);
-  for(const m of d.looseMoves)parts.push(`${esc(pKort(m.pid))} ${POSMAP[m.from].kort}&#8594;${POSMAP[m.to].kort}`);
+  for(const o of d.looseOuts)parts.push(Tf('{0} eruit ({1})', `<b>${esc(pKort(o.pid))}</b>`, PK(o.pos)));
+  for(const m of d.looseMoves)parts.push(`${esc(pKort(m.pid))} ${PK(m.from)}&#8594;${PK(m.to)}`);
   return parts.join('<br>');
 }
 function renderPrint(){
   const area=document.getElementById('printArea');
   if(!state.schedule){area.innerHTML='<p>Genereer eerst een opstelling.</p>';return;}
   const sch=state.schedule,perQ=sch.perQ,blockLen=17.5/perQ;
-  const d=new Date(),ds=d.toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const d=new Date(),ds=d.toLocaleDateString(LOCALE(),{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   let cells='';
   for(let q=0;q<4;q++){
     const b0=q*perQ,asg0=sch.assignments[b0];
@@ -6993,36 +7239,23 @@ const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 //
-// Dit stond eerder in vier regels: lees het laatst gezien nummer, zet zo nodig een
-// melding klaar op 900 ms, en schrijf het nieuwe nummer meteen weg. Die derde stap
-// was het probleem. Het nummer werd opgeslagen op het moment dat de melding werd
-// ingepland, niet op het moment dat je hem zag — en dus verviel de kans
-// onherroepelijk als de melding niet aankwam.
-//
-// En die kwam vaak niet aan. Precies de start ná een update is een koude start: op
-// het beginscherm van iOS staat dan een startscherm dat er makkelijk een seconde of
-// langer over doet, en daar verdween de melding achter. Hij was al weer weg voordat
-// de app in beeld kwam. Dat is ook waarom hij 'soms' leek te werken: vanuit een
-// tabblad in Safari, waar geen startscherm is, ging het wel goed.
-//
-// Nu wordt er pas geteld als de melding echt op het scherm heeft gestaan. Komt hij
-// er niet aan, dan staat hij er de volgende keer gewoon weer klaar.
+// Het nummer wordt pas vastgelegd als de melding echt op het scherm heeft gestaan.
+// Stond dat hierboven, dan verviel de kans onherroepelijk wanneer de melding niet
+// aankwam — en dat gebeurde meestal, want de start ná een update is een koude start
+// en daar staat op iOS een startscherm van ruim een seconde voor.
 (function(){
   let gezien=0;
   try{ gezien=Number(localStorage.getItem(SLEUTEL('wisselplanner_lastver'))||0); }
-  catch(e){ return; }                       // opslag geblokkeerd: hier valt niets te melden
+  catch(e){ return; }
   const vastleggen=()=>{ try{ localStorage.setItem(SLEUTEL('wisselplanner_lastver'),String(APP_VERSION)); }catch(e){} };
-  // Eerste keer op dit toestel, of al bij: niets te melden, alleen het nummer vastleggen.
   if(!gezien || gezien>=APP_VERSION){ vastleggen(); return; }
   let klaar=false;
   const melden=()=>{
     if(klaar)return;
     klaar=true;
-    toast('Bijgewerkt naar versie '+VERSIE_LABEL);
-    vastleggen();                           // pas nu is de melding echt geweest
+    toast(T('Bijgewerkt naar versie')+' '+VERSIE_LABEL);
+    vastleggen();
   };
-  // Anderhalve seconde nadat de app zichtbaar is — ruim voorbij het startscherm van
-  // iOS, en ná de eerste tekening, zodat er geen andere melding overheen komt.
   const straks=()=>setTimeout(melden,1500);
   if(document.visibilityState==='visible')straks();
   else{
@@ -7477,8 +7710,9 @@ function toonZelftest(){
 function plainChainText(d){
   const parts=[];
   for(const ch of d.chains){
-    let t=`${pKort(ch.inP)} erin op ${POSMAP[ch.pos].kort}${ch.outP?` · ${pKort(ch.outP)} eruit`:''}`;
-    if(ch.moves.length)t+=`; ${ch.moves.map(m=>`${pKort(m.pid)} ${POSMAP[m.from].kort}→${POSMAP[m.to].kort}`).join(', ')}`;
+    let t=Tf('{0} erin op {1}', pKort(ch.inP), PK(ch.pos));
+    if(ch.outP)t+=' · '+Tf('{0} eruit', pKort(ch.outP));
+    if(ch.moves.length)t+=`; ${ch.moves.map(m=>`${pKort(m.pid)} ${PK(m.from)}→${PK(m.to)}`).join(', ')}`;
     parts.push(t);
   }
   return parts;
@@ -7490,7 +7724,7 @@ function wrapText(t,max){
   return lines;
 }
 async function shareQuarterImage(q){
-  const sch=state.schedule; if(!sch){toast('Genereer eerst een opstelling');return;}
+  const sch=state.schedule; if(!sch){toast(T('Genereer eerst een opstelling'));return;}
   const perQ=sch.perQ,b0=q*perQ,blockLen=17.5/perQ;
   const asg0=sch.assignments[b0];
   const esc2=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
@@ -7516,7 +7750,7 @@ async function shareQuarterImage(q){
   <rect width="${W}" height="${H}" fill="#0e2247"/>
   <text x="${W/2}" y="72" text-anchor="middle" font-size="44" font-weight="bold" fill="#ffffff">Q${q+1} · ${q<2?'eerste':'tweede'} helft</text>
   <text x="${W/2}" y="118" text-anchor="middle" font-size="27" fill="#aec3ec">speelvorm ${formOfQ(q)} · HC Gooische</text>
-  <text x="${W/2}" y="158" text-anchor="middle" font-size="24" fill="#7f9bc6">${esc2(new Date().toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long'}))}</text>
+  <text x="${W/2}" y="158" text-anchor="middle" font-size="24" fill="#7f9bc6">${esc2(new Date().toLocaleDateString(LOCALE(),{weekday:'long',day:'numeric',month:'long'}))}</text>
   <rect x="${pitchX}" y="${pitchY}" width="${pitchW}" height="${pitchH}" rx="18" fill="#2f8f4e"/>
   <rect x="${pitchX+14}" y="${pitchY+14}" width="${pitchW-28}" height="${pitchH-28}" rx="10" fill="none" stroke="#ffffff" stroke-opacity=".85" stroke-width="3"/>
   <line x1="${pitchX+14}" y1="${pitchY+pitchH*0.35}" x2="${pitchX+pitchW-14}" y2="${pitchY+pitchH*0.35}" stroke="#ffffff" stroke-opacity=".85" stroke-width="3"/>
@@ -7530,7 +7764,7 @@ async function shareQuarterImage(q){
     const cx=pitchX+pitchW*pos.x/100, cy=pitchY+pitchH*((pos.y-38)/62);
     const isK=pos.id==='keeper';
     svg+=`<circle cx="${cx}" cy="${cy}" r="40" fill="${isK?'#ffffff':'#16335f'}" stroke="${pid===capt?'#f2c94c':(isK?'#16335f':'#ffffff')}" stroke-width="${pid===capt?5:3.5}"/>
-    <text x="${cx}" y="${cy+9}" text-anchor="middle" font-size="${pos.kort.length>=3?22:26}" font-weight="bold" fill="${isK?'#16335f':'#ff8a8a'}">${pos.kort}</text>
+    <text x="${cx}" y="${cy+9}" text-anchor="middle" font-size="${PK(pos.id).length>=3?22:26}" font-weight="bold" fill="${isK?'#16335f':'#ff8a8a'}">${PK(pos.id)}</text>
     <rect x="${cx-92}" y="${cy+50}" width="184" height="42" rx="21" fill="#ffffff"/>
     <text x="${cx}" y="${cy+79}" text-anchor="middle" font-size="27" font-weight="bold" fill="#0e2247">${esc2(pKort(pid))}</text>`;
     if(pid===capt)svg+=captMarkImg(cx,cy);
@@ -7568,9 +7802,9 @@ async function shareQuarterImage(q){
     }else{
       const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=file.name;
       document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);
-      toast('Afbeelding opgeslagen als download');
+      toast(T('Afbeelding opgeslagen als download'));
     }
-  }catch(e){ if(e&&e.name==='AbortError')return; toast('Afbeelding maken lukte niet'); }
+  }catch(e){ if(e&&e.name==='AbortError')return; toast(T('Afbeelding maken lukte niet')); }
 }
 
 /* ============ Swipen tussen tabbladen ============ */
@@ -7787,15 +8021,15 @@ function schudVraag(){
   });
 }
 function schuddenAanzetten(vanKnop){
-  if(_schudActief){ if(vanKnop)toast('Schudden staat al aan'); return; }
+  if(_schudActief){ if(vanKnop)toast(T('Schudden staat al aan')); return; }
   const zet=()=>{ _schudActief=true; _schudStatus='aan'; window.addEventListener('devicemotion',schudGebeurtenis);
-    if(vanKnop){toast('Schudden staat aan');render();} };
+    if(vanKnop){toast(T('Schudden staat aan'));render();} };
   try{
-    if(typeof DeviceMotionEvent==='undefined'){ _schudStatus='kan niet'; if(vanKnop)toast('Dit toestel heeft geen bewegingssensor'); return; }
+    if(typeof DeviceMotionEvent==='undefined'){ _schudStatus='kan niet'; if(vanKnop)toast(T('Dit toestel heeft geen bewegingssensor')); return; }
     if(typeof DeviceMotionEvent.requestPermission==='function'){
       // iOS vraagt toestemming, en dat mag alleen direct na een aanraking.
       DeviceMotionEvent.requestPermission()
-        .then(r=>{ if(r==='granted')zet(); else {_schudStatus='geweigerd'; if(vanKnop){toast('Toestemming geweigerd');render();}} })
+        .then(r=>{ if(r==='granted')zet(); else {_schudStatus='geweigerd'; if(vanKnop){toast(T('Toestemming geweigerd'));render();}} })
         .catch(e=>{
           _schudStatus='geweigerd';
           try{ localStorage.setItem(SLEUTEL('gw_schudnee'),'1'); }catch(x){}
@@ -7860,7 +8094,7 @@ function printSchermTerug(){
 window.addEventListener('afterprint',printSchermTerug);
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible')printSchermTerug(); });
 document.getElementById('printBtn').onclick=()=>{
-  if(!state.schedule){toast('Genereer eerst een opstelling');return;}
+  if(!state.schedule){toast(T('Genereer eerst een opstelling'));return;}
   renderPrint();
   document.body.classList.add('printbezig');
   document.getElementById('view').innerHTML='';   // wordt uit de toestand teruggebouwd
@@ -7933,6 +8167,7 @@ if(DEMO){
   },1500);
 }
 if(CLOUD.on&&CLOUD.cfg&&CLOUD.team){ cloudConnect().then(ok=>{ if(!ok)CLOUD.on=false; }); }
+try{document.documentElement.setAttribute('lang',taal());}catch(e){}
 render();
 checkIncomingShare();
 // ?zelftest=1 — controleert de planner zonder de eigen gegevens aan te raken
