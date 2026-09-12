@@ -1332,6 +1332,8 @@ const WB={
   '{0} kandidaat ({1}): ':'{0} candidate ({1}): ',
   '{0} kandidaten ({1}): ':'{0} candidates ({1}): ',
   '{0} keus.':'{0} choice.',
+  '{0} spelers aanwezig. Maak het wisselschema met eerlijke speelminuten voor alle vier de kwarten.':
+    '{0} players available. Build the substitution plan with fair playing time across all four quarters.',
   // ── Updatemelding ──
   'Bijgewerkt naar versie':'Updated to version',
   // ── Kaarten op Meer ──
@@ -6472,12 +6474,17 @@ function renderUitleg(){
   // buitenaf niet te sturen — het manifest en het adres schoonhouden hielpen allebei
   // niet. Daarom deze uitweg, die er niet van afhangt: plak de link opnieuw.
   if(!CLOUD.on || !CLOUD.team){
-    h+=`<div class="card"><h2>${U('Kijk-link gebruiken','Using a view link')}</h2>
-      <p class="hint" style="margin-bottom:10px">${U('Heb je een link van je coach gekregen en zie je hier niet de opstelling van je team? Plak de link hieronder. Dat hoeft maar \u00e9\u00e9n keer.','Got a link from your coach but you are not seeing your team\u2019s line-up here? Paste the link below. You only need to do this once.')}</p>
+    // Wél een klapkaart, zodat hij er net zo uitziet als de rest van dit tabblad, maar
+    // met 'opent' aan: hij staat er juist voor iemand die de weg kwijt is, en die gaat
+    // geen dichtgeklapte kaart opendoen om te zien of het antwoord er misschien in zit.
+    h+=klapKaart('kijklink',U('Kijk-link gebruiken','Using a view link'),
+      U('link plakken','paste a link'),
+      `<p class="hint" style="margin:0 0 10px">${U('Heb je een link van je coach gekregen en zie je hier niet de opstelling van je team? Plak de link hieronder. Dat hoeft maar \u00e9\u00e9n keer.','Got a link from your coach but you are not seeing your team\u2019s line-up here? Paste the link below. You only need to do this once.')}</p>
       <input id="kijkPlak" class="plakin" type="text" inputmode="url" autocapitalize="none"
         autocorrect="off" spellcheck="false"
         placeholder="https://\u2026?team=\u2026&amp;rol=kijker">
-      <button class="btn full" id="kijkKoppel" style="margin-top:8px">${U('Koppelen','Connect')}</button></div>`;
+      <button class="btn full" id="kijkKoppel" style="margin-top:8px">${U('Koppelen','Connect')}</button>`,
+      true);
   }
   h+=`<h2 class="sectiekop">${U('Onderhoud','Maintenance')}</h2>`;
   // Delen met co-coach stond op Spelers, naast Samenwerken. Sinds samenwerken de
@@ -6576,21 +6583,18 @@ function renderQuarter(q){
     // maar alleen als er nog niets is ingericht — een coach die zijn team al heeft
     // ingevuld hoeft het niet te zien.
     if(!CLOUD.team && !state.genHash){
-      html+=`<div class="card"><h2>Heb je een kijk-link gekregen?</h2>
-        <p class="hint" style="margin-bottom:10px">Dan hoor je hier de opstelling van je team te zien,
-          niet deze voorbeeldspelers. Plak de link uit het bericht van je coach; dat hoeft maar
-          \u00e9\u00e9n keer.</p>
+      html+=`<div class="card"><h2>${U('Heb je een kijk-link gekregen?','Been given a view link?')}</h2>
+        <p class="hint" style="margin-bottom:10px">${U('Dan hoor je hier de opstelling van je team te zien, niet deze voorbeeldspelers. Plak de link uit het bericht van je coach; dat hoeft maar \u00e9\u00e9n keer.','Then you should be seeing your team\u2019s line-up here, not these sample players. Paste the link from your coach\u2019s message; you only need to do this once.')}</p>
         <input id="kijkPlak2" class="plakin" type="text" inputmode="url" autocapitalize="none"
           autocorrect="off" spellcheck="false"
           placeholder="https://\u2026?team=\u2026&amp;rol=kijker">
-        <button class="btn full" id="kijkKoppel2" style="margin-top:8px">Koppelen</button>
-        <p class="hint" style="margin:10px 0 0">Ben je coach en ga je je eigen team invullen?
-          Dan kun je dit overslaan.</p></div>`;
+        <button class="btn full" id="kijkKoppel2" style="margin-top:8px">${U('Koppelen','Connect')}</button>
+        <p class="hint" style="margin:10px 0 0">${U('Ben je coach en ga je je eigen team invullen? Dan kun je dit overslaan.','Are you a coach, about to fill in your own team? Then you can skip this.')}</p></div>`;
     }
     html+=`<div class="card" style="text-align:center;padding:34px 18px">
       <div style="margin-bottom:10px;color:var(--dim)">${ico("bal",34)}</div>
-      <p style="font-size:15px;font-weight:700;margin-bottom:6px">Klaar om te genereren</p>
-      <p class="hint" style="margin-bottom:16px">${presentNow} spelers aanwezig. Maak het wisselschema met eerlijke speelminuten voor alle vier de kwarten.</p>
+      <p style="font-size:15px;font-weight:700;margin-bottom:6px">${U('Klaar om te genereren','Ready to generate')}</p>
+      <p class="hint" style="margin-bottom:16px">${Tf('{0} spelers aanwezig. Maak het wisselschema met eerlijke speelminuten voor alle vier de kwarten.',presentNow)}</p>
       <button class="btn" data-regen>${T('Opstelling genereren')}</button></div>`;
     return html;
   }
@@ -7474,8 +7478,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=240;
-const VERSIE_LABEL='26.9.81';
+const APP_VERSION=241;
+const VERSIE_LABEL='26.9.82';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='12 september 2026', VERSIE_DATUM_EN='12 September 2026';
