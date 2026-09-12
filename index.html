@@ -1315,6 +1315,10 @@ const WB={
     '{0} plays in {2} in {1}, while Players says he is not allowed there.',
   '{0} staat op {1} verschillende posities, terwijl het maximum {2} is.':
     '{0} plays {1} different positions, while the maximum is {2}.',
+  // ── Heat map ──
+  '{0} kandidaat ({1}): ':'{0} candidate ({1}): ',
+  '{0} kandidaten ({1}): ':'{0} candidates ({1}): ',
+  '{0} keus.':'{0} choice.',
   // ── Updatemelding ──
   'Bijgewerkt naar versie':'Updated to version',
   // ── Kaarten op Meer ──
@@ -4811,24 +4815,26 @@ function drukKaart(){
   // andere kwestie dan 'weinig keus' en is uit het getal niet af te lezen.
   for(const l of LINE_IDS){
     const k=krap[l]; if(!k)continue;
-    uitleg+=`<div class="heatrij"><i class="donkerrood"></i><span><b>De ${LINES[l]}</b> \u2014 er mogen ${k.kan} speler${k.kan===1?'':'s'}
-      staan voor ${k.plek} plekken. Wie daar speelt kan dus niet rusten zonder dat er iemand op zijn plek komt die er volgens
-      zijn instellingen niet hoort. Vink bij een paar spelers de ${LINES[l]} aan op <b>Spelers</b>, of kies een speelvorm met
-      minder plekken daar.</span></div>`;
+    uitleg+=`<div class="heatrij"><i class="donkerrood"></i><span><b>${U('De ','')}${LINES[l]}</b> \u2014 ${
+      U(`er mogen ${k.kan} speler${k.kan===1?'':'s'} staan voor ${k.plek} plekken. Wie daar speelt kan dus niet rusten zonder dat er iemand op zijn plek komt die er volgens zijn instellingen niet hoort. Vink bij een paar spelers de ${LINES[l]} aan op <b>Spelers</b>, of kies een speelvorm met minder plekken daar.`,
+        `${k.kan} player${k.kan===1?'':'s'} are allowed here for ${k.plek} places. Anyone playing there cannot rest without someone taking his place who is not supposed to be there according to his own settings. Tick ${LINES[l]} for a couple of players under <b>Players</b>, or pick a formation with fewer places there.`)
+    }</span></div>`;
   }
   if(!D.vlak){
     // Plekken met woord voor woord dezelfde reden in \u00e9\u00e9n regel. Vier verdedigersplekken
     // waar niemand wil staan is \u00e9\u00e9n kwestie, geen vier zinnen die je overslaat.
-    const opsom=n=>n.length===1?n[0]:n.slice(0,-1).join(', ')+' en '+n[n.length-1];
+    const opsom=n=>n.length===1?n[0]:n.slice(0,-1).join(', ')+' '+T('en')+' '+n[n.length-1];
     const redenVan=r=>{
       if(!r.mag)return U('niemand mag hier staan volgens de linie-vinkjes en de regels.','nobody is allowed here according to the line tick boxes and the rules.');
       if(!r.namen.length)return `niemand heeft dit als voorkeurspositie \u2014 er mogen er wel ${r.mag} staan, maar wie hier komt vroeg er niet om.`;
       // Alle drie de voorkeuren uitschrijven, niet alleen de eerste: anders leest de
       // zin alsof een tweede of derde voorkeur niet zou meetellen \u2014 en dat doet hij wel.
-      const rn=['eerste','tweede','derde'];
+      const rn=EN()?['first','second','third']:['eerste','tweede','derde'];
       const delen=r.rangen.map((n,i)=>n?`${n}\u00d7 ${rn[i]}`:'').filter(Boolean);
-      return `${r.namen.length} ${r.namen.length===1?'kandidaat':'kandidaten'} (${esc(r.namen.join(', '))}): `
-        +`${opsom(delen)} keus.`;
+      return (r.namen.length===1
+        ? Tf('{0} kandidaat ({1}): ', r.namen.length, esc(r.namen.join(', ')))
+        : Tf('{0} kandidaten ({1}): ', r.namen.length, esc(r.namen.join(', '))))
+        +Tf('{0} keus.', opsom(delen));
     };
     const groepen=[];
     for(const r of volgorde.slice(0,4)){
@@ -4837,18 +4843,18 @@ function drukKaart(){
       if(g)g.rijen.push(r); else groepen.push({red,kleur:r.kleur,rijen:[r]});
     }
     for(const g of groepen){
-      const namen=g.rijen.map((r,i)=>i===0?r.pos.name:r.pos.name.toLowerCase());
+      const namen=g.rijen.map((r,i)=>i===0?PN(r.pos.id):PNz(r.pos.id));
       uitleg+=`<div class="heatrij"><i class="${g.kleur}"></i><span><b>${esc(opsom(namen))}</b> \u2014 ${g.red}</span></div>`;
     }
     const ruim=volgorde.slice(-2).reverse();
-    uitleg+=`<div class="heatrij"><i class="groen"></i><span><b>Meeste ruimte</b> \u2014 ${esc(ruim.map(r=>r.pos.name.toLowerCase()).join(' en '))}. Daar kan de planner het makkelijkst schuiven als het elders knelt.</span></div>`;
+    uitleg+=`<div class="heatrij"><i class="groen"></i><span><b>${U('Meeste ruimte','Most room')}</b> \u2014 ${esc(ruim.map(r=>PNz(r.pos.id)).join(' '+T('en')+' '))}. ${U('Daar kan de planner het makkelijkst schuiven als het elders knelt.','That is where the planner can shuffle most easily when it gets tight elsewhere.')}</span></div>`;
   }
-  if(kp.uitleg)uitleg+=`<div class="heatrij"><i class="rood"></i><span><b>Keeper</b> \u2014 ${kp.uitleg}</span></div>`;
+  if(kp.uitleg)uitleg+=`<div class="heatrij"><i class="rood"></i><span><b>${U('Keeper','Goalkeeper')}</b> \u2014 ${kp.uitleg}</span></div>`;
   uitleg+=`</div>`;
 
   let voet='';
-  if(D.wisselend)voet+=`<p class="hint" style="margin:10px 0 0">Je speelt niet elk kwart dezelfde speelvorm. Getekend is <b>${D.hoofdVorm}</b>, die van de meeste kwarten; per plek is gemiddeld over de kwarten waarin hij bestaat.</p>`;
-  voet+=`<p class="hint" style="margin:10px 0 0">Je verandert dit plaatje op <b>Spelers</b> \u2014 voorkeursposities en de linie-vinkjes \u2014 en op <b>Regels</b>. Het aantal wissels per kwart verandert de volgorde niet: meer wissels maken elke plek even veel drukker.</p>`;
+  if(D.wisselend)voet+=`<p class="hint" style="margin:10px 0 0">${U(`Je speelt niet elk kwart dezelfde speelvorm. Getekend is <b>${D.hoofdVorm}</b>, die van de meeste kwarten; per plek is gemiddeld over de kwarten waarin hij bestaat.`,`You do not play the same formation every quarter. Drawn here is <b>${D.hoofdVorm}</b>, the one used in most quarters; each place is averaged over the quarters in which it exists.`)}</p>`;
+  voet+=`<p class="hint" style="margin:10px 0 0">${U('Je verandert dit plaatje op <b>Spelers</b> \u2014 voorkeursposities en de linie-vinkjes \u2014 en op <b>Regels</b>. Het aantal wissels per kwart verandert de volgorde niet: meer wissels maken elke plek even veel drukker.','You change this picture under <b>Players</b> \u2014 preferred positions and the line tick boxes \u2014 and under <b>Rules</b>. The number of substitutions per quarter does not change the order: more substitutions make every place equally busier.')}</p>`;
 
   return klapKaart('druk',T('Opstelling heatmap'),
     D.vlak?U('overal gelijk','level everywhere'):U('moeilijkst: ','hardest: ')+esc(PNz(volgorde[0].pos.id)),
@@ -6198,23 +6204,21 @@ function speeltijdHTML(){
   // Twee kopregels: de grid loopt rij voor rij, dus de eerste twee cellen komen
   // bovenaan de linker- en de rechterkolom terecht.
   const kop=`<div class="sprij spkop"><span class="spnaam"></span>
-      <span class="sppos">Posities</span><span class="spmin">Min</span></div>`;
-  return `<div class="card"><h2>Geplande speeltijd en posities <span class="eenheid">(in min.)</span></h2>
-    <p class="hint" style="margin:-2px 0 8px">Tik op een naam voor zijn schema per kwart.</p>
+      <span class="sppos">${U('Posities','Positions')}</span><span class="spmin">${U('Min','Min')}</span></div>`;
+  return `<div class="card"><h2>${U('Geplande speeltijd en posities','Planned playing time and positions')} <span class="eenheid">${U('(in min.)','(in min.)')}</span></h2>
+    <p class="hint" style="margin:-2px 0 8px">${U('Tik op een naam voor zijn schema per kwart.','Tap a name for his plan per quarter.')}</p>
     <div class="sptijd">${kop+kop}${rijen.map(r=>`
       <div class="sprij${minder(r)?' minder':''}${r.aanwezig?'':' weg'}" data-spschema="${r.id}" role="button" tabindex="0">
         <span class="spnaam">${esc(r.naam)}${
-          !r.aanwezig?' <i>afwezig</i>'
+          !r.aanwezig?' <i>'+U('afwezig','out')+'</i>'
           :(reden.has(r.id)&&reden.get(r.id)!=='keeper')?` <i>${esc(reden.get(r.id))}</i>`:''}</span>
         <span class="sppos">${r.aanwezig?esc(positieKort(r.id)):''}</span>
         <span class="spmin"><b>${r.aanwezig?Math.round(r.minuten):0}</b></span>
       </div>`).join('')}</div>
     <p class="hint" style="margin:10px 0 0">${gelijk
-      ? 'Iedereen staat op hetzelfde aantal minuten gepland \u2014 zo hoort het.'
-      : 'Wie duidelijk minder gepland staat dan de rest is gemarkeerd.'}
-      Staat er iets achter een naam, dan komt zijn afwijkende tijd uit een regel die je zelf hebt ingesteld:
-      niet in bepaalde kwarten, alleen een halve wedstrijd, een maximum of minimum aantal minuten, of tijd op doel.
-      Tijd op doel telt mee als speeltijd. De hele selectie staat er, ook wie is afgemeld.</p></div>`;
+      ? U('Iedereen staat op hetzelfde aantal minuten gepland \u2014 zo hoort het.','Everyone is planned for the same number of minutes \u2014 as it should be.')
+      : U('Wie duidelijk minder gepland staat dan de rest is gemarkeerd.','Anyone planned for clearly less than the rest is marked.')}
+      ${U('Staat er iets achter een naam, dan komt zijn afwijkende tijd uit een regel die je zelf hebt ingesteld: niet in bepaalde kwarten, alleen een halve wedstrijd, een maximum of minimum aantal minuten, of tijd op doel. Tijd op doel telt mee als speeltijd. De hele selectie staat er, ook wie is afgemeld.','If there is something after a name, his different total comes from a rule you set yourself: not in certain quarters, half a match only, a maximum or minimum number of minutes, or time in goal. Time in goal counts as playing time. The whole squad is listed, including anyone who is out.')}</p></div>`;
 }
 
 
@@ -6481,11 +6485,11 @@ function renderUitleg(){
   // komt die vraag nooit meer vanzelf terug — vandaar deze knop.
   h+=klapKaart('schudden',T('Schudden om ongedaan te maken'),'undo',
     `<p class="hint" style="margin-bottom:10px">${
-      _schudStatus==='aan'?'&#10003; Staat aan. Schud je telefoon om de laatste actie terug te draaien.'
-      :_schudStatus==='geweigerd'?ico("kruis",16)+'Je hebt de bewegingssensor geweigerd. Tik hieronder om het opnieuw te vragen; lukt dat niet, zet dan Bewegen en ori&#235;ntatie aan bij Instellingen &rarr; Safari.'
-      :_schudStatus==='kan niet'?'Dit toestel heeft geen bruikbare bewegingssensor.'
-      :'Nog niet aangezet. iOS vraagt eenmalig toestemming voor de bewegingssensor.'}</p>
-    <button class="btn ghost full" id="schudBtn">${ico("telefoon")}Schudden ${_schudStatus==='aan'?'opnieuw instellen':'aanzetten'}</button>`);
+      _schudStatus==='aan'?'&#10003; '+U('Staat aan. Schud je telefoon om de laatste actie terug te draaien.','On. Shake your phone to undo the last action.')
+      :_schudStatus==='geweigerd'?ico("kruis",16)+U('Je hebt de bewegingssensor geweigerd. Tik hieronder om het opnieuw te vragen; lukt dat niet, zet dan Bewegen en ori&#235;ntatie aan bij Instellingen &rarr; Safari.','You refused the motion sensor. Tap below to ask again; if that does not work, switch on Motion &amp; Orientation under Settings &rarr; Safari.')
+      :_schudStatus==='kan niet'?U('Dit toestel heeft geen bruikbare bewegingssensor.','This device has no usable motion sensor.')
+      :U('Nog niet aangezet. iOS vraagt eenmalig toestemming voor de bewegingssensor.','Not switched on yet. iOS asks once for permission to use the motion sensor.')}</p>
+    <button class="btn ghost full" id="schudBtn">${ico("telefoon")}${_schudStatus==='aan'?U('Schudden opnieuw instellen','Set up shake again'):U('Schudden aanzetten','Switch shake on')}</button>`);
   h+=diagnoseKaart();
   return h;
 }
@@ -6786,7 +6790,7 @@ function renderQuarter(q){
       tekst+=`<button class="btn ghost full" data-regen style="margin-bottom:8px">&#8635; Nieuwe wedstrijd beginnen&#8230;</button>`;
       tekst+=`<p class="hint" style="margin:0 0 10px">${elders}Herplannen laat de gespeelde kwarten staan en begint altijd bij het kwart waar de wedstrijd nu is. Het aantal wisselmomenten per kwart ligt vast zolang deze wedstrijd loopt.</p>`;
     }else{
-      tekst+=`<button class="btn gevaar full" data-regen style="margin-bottom:8px">&#8635; Opstelling opnieuw genereren</button>`;
+      tekst+=`<button class="btn gevaar full" data-regen style="margin-bottom:8px">&#8635; ${U('Opstelling opnieuw genereren','Generate the line-up again')}</button>`;
       if(q>0)tekst+=`<button class="btn ghost full" id="replanBtn" data-q="${q}" style="margin-bottom:8px">&#9654; Herplan vanaf Q${q+1} met huidige spelers</button>`;
     }
   }
@@ -7455,8 +7459,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=238;
-const VERSIE_LABEL='26.9.79';
+const APP_VERSION=239;
+const VERSIE_LABEL='26.9.80';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='12 september 2026', VERSIE_DATUM_EN='12 September 2026';
