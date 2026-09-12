@@ -1199,6 +1199,51 @@ const WB={
   'Schudden staat al aan':'Shake is already on',
   'Dit toestel heeft geen bewegingssensor':'This device has no motion sensor',
   'Toestemming geweigerd':'Permission denied',
+  // ── Gebeurtenissen tijdens de wedstrijd ──
+  'groene kaart':'green card', 'gele kaart':'yellow card', 'het veld':'the pitch',
+  '{0} krijgt een {1} en staat {2} minuten buiten het veld':'{0} gets a {1} and is off the pitch for {2} minutes',
+  '{0} krijgt een {1} en staat {2} minuten buiten het veld; het team speelt zolang met een man minder.':
+    '{0} gets a {1} and is off the pitch for {2} minutes; the team plays a man down until then.',
+  ', vervangen door {0}':', replaced by {0}',
+  ' die op {0} gaat spelen':', who takes over at {0}',
+  '{0} is weer inzetbaar en zit op de bank.':'{0} is available again and is on the bench.',
+  '{0} is afgemeld voor de rest van de wedstrijd.':'{0} is out for the rest of the match.',
+  '{0} raakt geblesseerd en gaat er meteen uit; {1} komt erin op {2}.':
+    '{0} is injured and comes straight off; {1} goes on at {2}.',
+  '{0} raakt geblesseerd en gaat er meteen uit; {1} komt erin.':
+    '{0} is injured and comes straight off; {1} goes on.',
+  '{0} raakt geblesseerd en gaat eruit.':'{0} is injured and comes off.',
+  '{0} raakt geblesseerd en wordt vervangen door {1} die op {2} gaat spelen.':
+    '{0} is injured and is replaced by {1}, who takes over at {2}.',
+  '{0} raakt geblesseerd en wordt vervangen door {1}.':'{0} is injured and is replaced by {1}.',
+  '{0} mag terug en gaat naar {1}.':'{0} can come back on, at {1}.',
+  '{0} mag terug, maar staat volgens het schema nu op de bank; hij komt {1}.':
+    '{0} can come back on, but the plan has him on the bench right now; he is {1}.',
+  '{0} mag terug, maar staat volgens het schema de rest van de wedstrijd op de bank.':
+    '{0} can come back on, but the plan has him on the bench for the rest of the match.',
+  '{0} is weer beschikbaar en staat {1}.':'{0} is available again and is {1}.',
+  '{0} terug op {1}':'{0} back on at {1}',
+  '{0} mag terug \u2014 staat op de bank':'{0} can come back on \u2014 he is on the bench',
+  '{0} minuten eruit':'{0} minutes off',
+  'Herplannen lukt niet \u2014 {0} staat nog op niet inzetbaar':'Cannot replan \u2014 {0} is still marked unavailable',
+  // ── Beschrijving van een herplanning ──
+  'Bij de volgende wissel: ':'At the next substitution: ',
+  'Nu meteen: ':'Right now: ',
+  'Doorschuiven: ':'Moving across: ',
+  '{0} naar {1}':'{0} to {1}',
+  'Bij de volgende wissel verandert er niets.':'Nothing changes at the next substitution.',
+  'Op het veld verandert er nu niets.':'Nothing changes on the pitch right now.',
+  'Daarna zijn {0} wisselmomenten opnieuw verdeeld, in {1}.':'After that, {0} substitution points have been reshuffled, in {1}.',
+  'Daarna is {0} wisselmoment opnieuw verdeeld, in {1}.':'After that, {0} substitution point has been reshuffled, in {1}.',
+  'De rest van de wedstrijd blijft ongewijzigd.':'The rest of the match is unchanged.',
+  // ── Wanneer komt hij terug ──
+  'de rest van de wedstrijd op de bank':'on the bench for the rest of the match',
+  'nu op {0}':'on at {0} now',
+  'na {0} min in Q{1}':'after {0} min in Q{1}',
+  'bij de start van Q{0}':'at the start of Q{0}',
+  // 'due on ...' draagt zowel 'is weer beschikbaar en staat ...' als 'hij komt ...';
+  // een letterlijke vertaling met 'at the substitution' liep in beide zinnen vast.
+  'bij de wissel {0} op {1}':'due on {0}, at {1}',
   // ── Delen, back-up en cloud ──
   'Gekopieerd \u2014 plak het in een bericht':'Copied \u2014 paste it into a message',
   'Link gekopieerd \u2014 plak hem in de coachgroep':'Link copied \u2014 paste it into the coaches\u2019 group',
@@ -1234,6 +1279,15 @@ const WB={
   'Je bedient nu de klok':'You are controlling the clock now',
   'Alleen een verbonden coach kan de klok overnemen':'Only a connected coach can take over the clock',
   'De demonstratieperiode is voorbij \u2014 wijzigen kan niet meer':'The trial period is over \u2014 changes are no longer possible',
+  // ── Samenwerken ──
+  'Uit — alleen deze telefoon':'Off — this phone only',
+  'Koppelen staat open, nog {0} — laat je mede-coach nu de app openen.':
+    'Pairing is open for another {0} — have your co-coach open the app now.',
+  'laatst bijgewerkt door {0} om {1}':'last updated by {0} at {1}',
+  'Klok van {0} reageert niet meer':'{0}’s clock has stopped responding',
+  'Klok wordt bediend door {0}':'The clock is being controlled by {0}',
+  'De teamcode is maar {0} teken lang.':'The team code is only {0} character long.',
+  'De teamcode is maar {0} tekens lang.':'The team code is only {0} characters long.',
   // ── Updatemelding ──
   'Bijgewerkt naar versie':'Updated to version',
   // ── Kaarten op Meer ──
@@ -1272,6 +1326,12 @@ function T(nl){
 // Zinnen met gaten. De Engelse zin mag de gaten in een andere volgorde zetten —
 // precies waarvoor dit nodig is: 'X erin op Y' tegenover 'X on at Y' loopt gelijk,
 // maar 'daardoor schuift X van A naar B' niet.
+// Lange, eenmalige uitleg gaat niet via het woordenboek: een sleutel van tien regels
+// met opmaak erin is onleesbaar en makkelijk stuk te maken. Voor die teksten staan de
+// twee talen naast elkaar op de plek waar ze gebruikt worden, zodat een wijziging in
+// het Nederlands meteen de Engelse versie ernaast laat zien. Korte, herhaalde labels
+// blijven wél in WB staan — die komen op tientallen plekken terug.
+function U(nl,en){ return EN()?en:nl; }
 function Tf(nl,...w){
   const sjabloon=T(nl);
   return sjabloon.replace(/\{(\d+)\}/g,(m,i)=>w[Number(i)]==null?'':String(w[Number(i)]));
@@ -1412,10 +1472,12 @@ async function beheerLezen(){
 // Alles terugzetten naar de beginstand. Onmisbaar in een demo: wie de opstelling
 // in de war heeft gehaald wil met één tik opnieuw kunnen beginnen.
 function demoReset(){
-  confirmDialog({title:'Demo opnieuw beginnen?',
-    body:'De selectie, de regels en het schema gaan terug naar de beginstand. De teller van '
+  confirmDialog({title:U('Demo opnieuw beginnen?','Start the demo over?'),
+    body:U('De selectie, de regels en het schema gaan terug naar de beginstand. De teller van '
       +DEMO_DAGEN+' dagen loopt gewoon door.',
-    okLabel:'Opnieuw beginnen', danger:true,
+      'The squad, the rules and the plan go back to their starting state. The '
+      +DEMO_DAGEN+'-day countdown keeps running.'),
+    okLabel:U('Opnieuw beginnen','Start over'), danger:true,
     onOk:()=>{
       try{ localStorage.removeItem(LS_KEY); }catch(e){}
       state=defaultState(); _undoStack=[]; klok={q:null,sec:0,loopt:false};
@@ -1439,17 +1501,25 @@ function demoTips(){
   if(!DEMO||!state.schedule)return;
   if(!/^q[0-3]$/.test(activeTab))return;
   if(klok.loopt){
-    demoUitleg('loopt','De wedstrijd loopt',
-      'Tik nu een speler aan en je kunt vier dingen doen: hem spontaan wisselen met '
-      +'iemand van de bank, een blessure doorgeven, hem voor de rest van de wedstrijd '
-      +'afmelden, of een groene of gele kaart registreren. '
-      +'Het schema past zich meteen aan en wat er gebeurde komt op de juiste minuut '
-      +'in het wisseloverzicht te staan.');
+    demoUitleg('loopt',U('De wedstrijd loopt','The match is running'),
+      U('Tik nu een speler aan en je kunt vier dingen doen: hem spontaan wisselen met '
+        +'iemand van de bank, een blessure doorgeven, hem voor de rest van de wedstrijd '
+        +'afmelden, of een groene of gele kaart registreren. '
+        +'Het schema past zich meteen aan en wat er gebeurde komt op de juiste minuut '
+        +'in het wisseloverzicht te staan.',
+        'Tap a player now and you can do four things: substitute him on the spot with '
+        +'someone from the bench, report an injury, rule him out for the rest of the '
+        +'match, or record a green or yellow card. '
+        +'The plan adjusts straight away and what happened appears at the right minute '
+        +'in the substitution overview.'));
   }else{
-    demoUitleg('stil','Spelers ruilen',
-      'De klok staat stil, dus je bent de opstelling aan het voorbereiden. '
-      +'Tik twee spelers aan en ze wisselen van plek — dat mag ook met iemand van de bank. '
-      +'Zodra de wedstrijd loopt, verandert wat je met een tik kunt doen.');
+    demoUitleg('stil',U('Spelers ruilen','Swapping players'),
+      U('De klok staat stil, dus je bent de opstelling aan het voorbereiden. '
+        +'Tik twee spelers aan en ze wisselen van plek — dat mag ook met iemand van de bank. '
+        +'Zodra de wedstrijd loopt, verandert wat je met een tik kunt doen.',
+        'The clock is stopped, so you are preparing the line-up. '
+        +'Tap two players and they swap places \u2014 including with someone on the bench. '
+        +'Once the match is running, what a tap does changes.'));
   }
 }
 // ── Gebruiksteller voor de demo ──
@@ -1516,11 +1586,14 @@ async function demoTel(wat){
   }
 }
 function demoNietBeschikbaar(wat){
-  confirmDialog({title:'Niet in de demo',
-    body:wat+' werkt alleen in de echte versie. Daarvoor is een gedeelde teamcode nodig '
+  confirmDialog({title:U('Niet in de demo','Not in the demo'),
+    body:U(wat+' werkt alleen in de echte versie. Daarvoor is een gedeelde teamcode nodig '
       +'en dat past niet in een demonstratie. Alle andere functies kun je hier gewoon '
       +'uitproberen. Vragen? robertmunnichs@gmail.com',
-    okLabel:'Begrepen', cancelLabel:'', onOk:()=>{}});
+      wat+' only works in the real version. It needs a shared team code, and that does not '
+      +'fit in a demonstration. Everything else you can try out here as normal. '
+      +'Questions? robertmunnichs@gmail.com'),
+    okLabel:U('Begrepen','Got it'), cancelLabel:'', onOk:()=>{}});
 }
 // ── Demostand ──
 // Eén codebase, twee gedaantes. Staat de app in een map 'demo', dan draait hij als
@@ -2835,7 +2908,7 @@ function coachOverzichtHTML(){
       <br>sinds ${dag(r.sinds)} &middot; actief ${gel(r.laatst)}
       <br><span style="font-family:ui-monospace,monospace;font-size:11px;opacity:.75">${esc(uid)}</span></div>`;
   });
-  h+='<div class="hint" style="margin:8px 0 0;padding-left:22px">Iemand verwijderen doe je in de Firebase-console: teams &rarr; jouw teamcode &rarr; het veld <b>editors</b>, en haal daar het kenmerk hierboven uit.</div>';
+  h+='<div class="hint" style="margin:8px 0 0;padding-left:22px">'+U('Iemand verwijderen doe je in de Firebase-console: teams &rarr; jouw teamcode &rarr; het veld <b>editors</b>, en haal daar het kenmerk hierboven uit.','To remove someone, go to the Firebase console: teams &rarr; your team code &rarr; the <b>editors</b> field, and take the id above out of it.')+'</div>';
   return h;
 }
 function noteerCoach(hoe){
@@ -3007,7 +3080,9 @@ function cloudPush(force){
       .catch(e=>toast('Opslaan in cloud mislukt: '+(e.message||e)));
   }, force?0:600);
 }
-const READONLY_MSG='Spelers kunnen alleen lezen — coaches/manager kan wijzigen';
+// Functie in plaats van constante: de tekst hangt nu van de taal af en wordt op het
+// moment van tonen opgebouwd, niet bij het laden van het bestand.
+const READONLY_MSG=()=>U('Spelers kunnen alleen lezen — coaches/manager kan wijzigen','Players can only read — coaches and the manager can edit');
 function cloudShareLink(rol){
   if(!CLOUD.team){toast(T('Stel eerst een teamcode in (Instellen…) en verbind'));return;}
   const url=location.origin+location.pathname+'?team='+encodeURIComponent(CLOUD.team)+'&rol='+(rol==='viewer'?'kijker':'coach');
@@ -3090,8 +3165,10 @@ function kijkManifest(){
 function zwakkeTeamcode(code){
   const c=String(code||'').trim().toLowerCase();
   if(!c)return null;
-  if(c.length<10)return 'De teamcode is maar '+c.length+' teken'+(c.length===1?'':'s')+' lang.';
-  if(/^[a-z]+$/.test(c)&&c.length<14)return 'De teamcode bestaat alleen uit letters.';
+  if(c.length<10)return c.length===1
+    ? Tf('De teamcode is maar {0} teken lang.',c.length)
+    : Tf('De teamcode is maar {0} tekens lang.',c.length);
+  if(/^[a-z]+$/.test(c)&&c.length<14)return U('De teamcode bestaat alleen uit letters.','The team code is made up of letters only.');
   return null;
 }
 function cloudViewerBlocked(){
@@ -3101,51 +3178,52 @@ function cloudViewerBlocked(){
   // met slecht bereik dus regelmatig. Een kijker werd daarmee stilzwijgend coach: hij
   // kon spelers ruilen en kaarten geven. Wie via een kijk-link binnenkomt is kijker,
   // verbonden of niet.
-  if(CLOUD.role==='viewer'){toast(READONLY_MSG);return true;}
+  if(CLOUD.role==='viewer'){toast(READONLY_MSG());return true;}
   return false; }
 // Wat er in de kop van de dichtgeklapte kaart past: drie woorden, niet de hele stand.
 // Dit is het enige dat je met een gesloten kaart nog wilt weten — loopt het of niet.
 function cloudKorteStatus(){
-  if(!CLOUD.on&&CLOUD.status!=='verbinden')return 'uit';
-  if(CLOUD.status==='verbonden')return CLOUD.role==='viewer'?'verbonden &middot; kijker':'verbonden';
-  if(CLOUD.status==='verbinden')return 'verbinden&#8230;';
-  if(CLOUD.status==='fout')return 'verbindingsfout';
-  return 'uit';
+  if(!CLOUD.on&&CLOUD.status!=='verbinden')return U('uit','off');
+  if(CLOUD.status==='verbonden')return CLOUD.role==='viewer'?U('verbonden &middot; kijker','connected &middot; viewer'):U('verbonden','connected');
+  if(CLOUD.status==='verbinden')return U('verbinden','connecting')+'&#8230;';
+  if(CLOUD.status==='fout')return U('verbindingsfout','connection error');
+  return U('uit','off');
 }
 function cloudUpdateCard(){
   const sub=document.getElementById('cloudSub');
   if(sub)sub.innerHTML=cloudKorteStatus();
   const el=document.getElementById('cloudStatus'); if(!el)return;
-  const map={uit:'Uit — alleen deze telefoon',verbinden:'Verbinden…',verbonden:'Verbonden',fout:'Verbindingsfout'};
+  const map={uit:T('Uit — alleen deze telefoon'),verbinden:U('Verbinden…','Connecting…'),verbonden:U('Verbonden','Connected'),fout:U('Verbindingsfout','Connection error')};
   let t=map[CLOUD.status]||'';
   if(CLOUD.status==='verbonden'){
-    t+=' &middot; rol: '+(CLOUD.role==='viewer'?'Kijker (alleen lezen)':'Coach (mag wijzigen)');
+    t+=' &middot; '+U('rol','role')+': '+(CLOUD.role==='viewer'?U('Kijker (alleen lezen)','Viewer (read-only)'):U('Coach (mag wijzigen)','Coach (can edit)'));
     // Wat de database van dit toestel vindt — dat is bepalender dan de zelfgekozen rol.
     if(CLOUD.rol==='eigenaar'){
-      t+='<br>'+ico('sleutel',16)+'Jij bent de eigenaar van dit team &middot; <button class="btn small" id="koppelBtn">Coach toelaten</button>';
+      t+='<br>'+ico('sleutel',16)+U('Jij bent de eigenaar van dit team','You are the owner of this team')
+        +' &middot; <button class="btn small" id="koppelBtn">'+U('Coach toelaten','Allow a coach in')+'</button>';
       if(Number(CLOUD.koppelTot||0)>Date.now()){
         const min=Math.ceil((CLOUD.koppelTot-Date.now())/60000);
-        t+='<br>'+ico('klok',16)+'Koppelen staat open, nog <b id="koppelTeller">'+min+':00</b> &mdash; laat je mede-coach nu de app openen.';
+        t+='<br>'+ico('klok',16)+Tf('Koppelen staat open, nog {0} — laat je mede-coach nu de app openen.','<b id="koppelTeller">'+min+':00</b>');
       }
       t+=coachOverzichtHTML();
     }else if(CLOUD.rol==='coach'){
-      t+='<br>'+ico('sleutel',16)+'Je bent gekoppeld als coach.';
+      t+='<br>'+ico('sleutel',16)+U('Je bent gekoppeld als coach.','You are connected as a coach.');
     }else if(CLOUD.rol==='wacht'){
-      t+='<br>'+ico('waarschuwing')+'<b>Je bent nog niet gekoppeld.</b> Je kunt meelezen maar niet wijzigen. Vraag de hoofdcoach om op ‘Coach toelaten’ te tikken en open daarna deze app opnieuw.';
+      t+='<br>'+ico('waarschuwing')+U('<b>Je bent nog niet gekoppeld.</b> Je kunt meelezen maar niet wijzigen. Vraag de hoofdcoach om op ‘Coach toelaten’ te tikken en open daarna deze app opnieuw.','<b>You are not paired yet.</b> You can read along but not change anything. Ask the head coach to tap ‘Allow a coach in’, then open this app again.');
     }
     if(CLOUD.lastAt){
       const d=new Date(CLOUD.lastAt);
-      t+='<br>laatst bijgewerkt door '+esc(CLOUD.lastBy||'?')+' om '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+      t+='<br>'+Tf('laatst bijgewerkt door {0} om {1}', esc(CLOUD.lastBy||'?'), String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'));
       if(CLOUD.lastWhat)t+='<br><b>'+esc(CLOUD.lastWhat)+'</b>';
     }
     if(CLOUD.status==='verbonden'&&CLOUD.role==='editor'){
       if(CLOUD.klokBaas&&CLOUD.klokBaas.id!==DEVICE_ID)
         t+='<br>'+ico('klok',16)+(klokVerlaten()
-            ? 'Klok van '+esc(CLOUD.klokBaas.naam)+' reageert niet meer'
-            : 'Klok wordt bediend door '+esc(CLOUD.klokBaas.naam))
-          +' &middot; <button class="btn small" id="klokOver">Klok overnemen</button>';
+            ? Tf('Klok van {0} reageert niet meer', esc(CLOUD.klokBaas.naam))
+            : Tf('Klok wordt bediend door {0}', esc(CLOUD.klokBaas.naam)))
+          +' &middot; <button class="btn small" id="klokOver">'+U('Klok overnemen','Take over the clock')+'</button>';
       else if(CLOUD.klokBaas)
-        t+='<br>'+ico('klok',16)+'Jij bedient de klok';
+        t+='<br>'+ico('klok',16)+U('Jij bedient de klok','You are controlling the clock');
     }
   }
   el.innerHTML=t;
@@ -4756,10 +4834,10 @@ function renderSpelers(){
   // Deze uitleg hoort bij de spelerslijst erboven \u2014 het gaat over de \u25be achter een
   // speler. Hij stond helemaal onderaan het tabblad, achter de gastspelers, de heatmap
   // en samenwerken, en las daar als een losse opmerking bij Samenwerken.
-  const keeperHint=`<p class="hint" style="padding:0 6px 12px;margin-top:-4px">Keeper instellen? Geef &#233;&#233;n speler &#39;Keeper&#39; als eerste voorkeur via &#9662;. Daar zet je ook de aanvoerder aan &mdash; die krijgt een goud randje in de opstelling. Alles wordt automatisch bewaard op dit toestel.</p>`;
-  const gastKaart=DEMO?'':`<div class="card"><h2>Gastspelers <span class="sub">max 2</span></h2>`
-    +(guests.length?guests.map(p=>playerRow(p)).join(''):`<p class="empty">Nog geen gastspelers.</p>`)
-    +(guests.length<2?`<button class="btn ghost full" id="addGuest" style="margin-top:12px">+ Gastspeler toevoegen</button>`:'')
+  const keeperHint=`<p class="hint" style="padding:0 6px 12px;margin-top:-4px">${U('Keeper instellen? Geef &#233;&#233;n speler &#39;Keeper&#39; als eerste voorkeur via &#9662;. Daar zet je ook de aanvoerder aan &mdash; die krijgt een goud randje in de opstelling. Alles wordt automatisch bewaard op dit toestel.','Setting a goalkeeper? Give one player &#39;Goalkeeper&#39; as their first preference via &#9662;. That is also where you switch the captain on &mdash; he gets a gold rim in the line-up. Everything is saved on this device automatically.')}</p>`;
+  const gastKaart=DEMO?'':`<div class="card"><h2>${U('Gastspelers','Guest players')} <span class="sub">max 2</span></h2>`
+    +(guests.length?guests.map(p=>playerRow(p)).join(''):`<p class="empty">${U('Nog geen gastspelers.','No guest players yet.')}</p>`)
+    +(guests.length<2?`<button class="btn ghost full" id="addGuest" style="margin-top:12px">+ ${U('Gastspeler toevoegen','Add a guest player')}</button>`:'')
     +`</div>`;
   if(isWide()){
     // Liggende tablet: selectie over twee kolommen, gastspelers onder de rechter helft.
@@ -4767,11 +4845,11 @@ function renderSpelers(){
     // even lang uitkomen (16 spelers wordt zo 9 links en 7 rechts).
     const links=Math.min(regular.length,Math.ceil((regular.length+2)/2));
     html+=`<div class="twocol">
-      <div><div class="card"><h2>Selectie <span class="sub">${presentCount} aanwezig</span></h2>${regular.slice(0,links).map(p=>playerRow(p)).join('')}</div></div>
-      <div><div class="card"><h2>Selectie <span class="sub">vervolg</span></h2>${regular.slice(links).map(p=>playerRow(p)).join('')||'<p class="empty">—</p>'}</div>${keeperHint}${gastKaart}${drukKaart()}</div>
+      <div><div class="card"><h2>${U('Selectie','Squad')} <span class="sub">${presentCount} ${U('aanwezig','available')}</span></h2>${regular.slice(0,links).map(p=>playerRow(p)).join('')}</div></div>
+      <div><div class="card"><h2>${U('Selectie','Squad')} <span class="sub">${U('vervolg','continued')}</span></h2>${regular.slice(links).map(p=>playerRow(p)).join('')||'<p class="empty">—</p>'}</div>${keeperHint}${gastKaart}${drukKaart()}</div>
     </div>`;
   }else{
-    html+=`<div class="card"><h2>Selectie <span class="sub">${presentCount} aanwezig</span></h2>`;
+    html+=`<div class="card"><h2>${U('Selectie','Squad')} <span class="sub">${presentCount} ${U('aanwezig','available')}</span></h2>`;
     html+=regular.map(p=>playerRow(p)).join('');
     html+=`</div>`;
     html+=keeperHint;
@@ -4811,13 +4889,13 @@ function renderSpelers(){
   // want die functie hertekent bewust niet het hele scherm.
   html+=klapKaart('samenwerken',T('Samenwerken'),
     `<span id="cloudSub">${cloudKorteStatus()}</span>`,
-    `<p class="hint" style="margin:0 0 10px">E&#233;n gedeelde versie voor coach en manager, met live-sync. Je mede-coach hoeft alleen dezelfde teamcode in te vullen. Standaard staat dit uit; je huidige werkwijze verandert niet tot je verbindt.</p>
-    <div id="cloudStatus" class="cloudstat">Uit — alleen deze telefoon</div>
-    <button class="btn ghost full" id="cloudSetup" style="margin-top:10px">${ico("tandwiel")}Instellen&#8230;</button>
-    <button class="btn ghost full" id="cloudToggle" style="margin-top:8px">${ico("stekker")}Verbinden / verbreken</button>
-    <button class="btn ghost full" id="cloudShareView" style="margin-top:8px">${ico("oog")}Deel kijk-link voor spelers</button>
-    <button class="btn ghost full" id="cloudShareCoach" style="margin-top:8px">${ico("persoon")}Deel coach-link (mag wijzigen)</button>
-    <p class="hint" style="margin-top:10px">De kijk-link geeft spelers alleen leesrechten; ze zien altijd de laatste stand, maar kunnen niets wijzigen. De coach-link is voor je mede-coach.</p>`);
+    `<p class="hint" style="margin:0 0 10px">${U('E&#233;n gedeelde versie voor coach en manager, met live-sync. Je mede-coach hoeft alleen dezelfde teamcode in te vullen. Standaard staat dit uit; je huidige werkwijze verandert niet tot je verbindt.','One shared version for coach and manager, kept in sync live. Your co-coach only has to enter the same team code. This is off by default; nothing about the way you work now changes until you connect.')}</p>
+    <div id="cloudStatus" class="cloudstat">${T('Uit — alleen deze telefoon')}</div>
+    <button class="btn ghost full" id="cloudSetup" style="margin-top:10px">${ico("tandwiel")}${U('Instellen','Set up')}&#8230;</button>
+    <button class="btn ghost full" id="cloudToggle" style="margin-top:8px">${ico("stekker")}${U('Verbinden / verbreken','Connect / disconnect')}</button>
+    <button class="btn ghost full" id="cloudShareView" style="margin-top:8px">${ico("oog")}${U('Deel kijk-link voor spelers','Share a view link for players')}</button>
+    <button class="btn ghost full" id="cloudShareCoach" style="margin-top:8px">${ico("persoon")}${U('Deel coach-link (mag wijzigen)','Share a coach link (can edit)')}</button>
+    <p class="hint" style="margin-top:10px">${U('De kijk-link geeft spelers alleen leesrechten; ze zien altijd de laatste stand, maar kunnen niets wijzigen. De coach-link is voor je mede-coach.','The view link gives players read-only access; they always see the latest state but cannot change anything. The coach link is for your co-coach.')}</p>`);
   return html;
 }
 function dupNum(p){return p.num!==''&&p.num!=null&&state.players.filter(x=>x.num===p.num).length>1;}
@@ -4832,33 +4910,33 @@ function playerRow(p){
     <button class="chev" data-act="expand" data-id="${p.id}" aria-label="Naam, nummer en posities aanpassen"><svg viewBox="0 0 24 24"><polyline points="${open?'6 15 12 9 18 15':'6 9 12 15 18 9'}"/></svg></button>
   </div>`;
   if(open){
-    const opts=(sel)=>`<option value="">—</option>`+POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.name}</option>`).join('');
+    const opts=(sel)=>`<option value="">—</option>`+POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${PN(x.id)}</option>`).join('');
     // Eerste voorkeur kan óók 'Keeper' zijn (alleen hier, niet als alternatief).
-    const optsK=(sel)=>`<option value="">—</option><option value="keeper" ${sel==='keeper'?'selected':''}>Keeper</option>`+POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.name}</option>`).join('');
+    const optsK=(sel)=>`<option value="">—</option><option value="keeper" ${sel==='keeper'?'selected':''}>${U('Keeper','Goalkeeper')}</option>`+POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.name}</option>`).join('');
     const isK=p.prefs[0]==='keeper';
     row+=`<div class="editpane"><div class="idrow">
-      <label class="numlbl">Rugnummer<input class="${dupNum(p)?'dupe':''}" type="number" inputmode="numeric" data-act="num" data-id="${p.id}" value="${p.num??''}" placeholder="&ndash;"></label>
-      <label>Naam<input type="text" data-act="name" data-id="${p.id}" value="${esc(p.name)}" placeholder="Naam speler"></label>
+      <label class="numlbl">${U('Rugnummer','Shirt no.')}<input class="${dupNum(p)?'dupe':''}" type="number" inputmode="numeric" data-act="num" data-id="${p.id}" value="${p.num??''}" placeholder="&ndash;"></label>
+      <label>${U('Naam','Name')}<input type="text" data-act="name" data-id="${p.id}" value="${esc(p.name)}" placeholder="${U('Naam speler','Player name')}"></label>
     </div><div class="frow">
-      <label>Voorkeur<select class="sel" data-act="pref" data-i="0" data-id="${p.id}">${optsK(p.prefs[0])}</select></label>
-      <label>Alternatief 1<select class="sel ${isK?'lockedalt':''}" data-act="pref" data-i="1" data-id="${p.id}" ${isK?'disabled':''}>${opts(p.prefs[1])}</select></label>
-      <label>Alternatief 2<select class="sel ${isK?'lockedalt':''}" data-act="pref" data-i="2" data-id="${p.id}" ${isK?'disabled':''}>${opts(p.prefs[2])}</select></label>
+      <label>${U('Voorkeur','Preferred')}<select class="sel" data-act="pref" data-i="0" data-id="${p.id}">${optsK(p.prefs[0])}</select></label>
+      <label>${U('Alternatief 1','Alternative 1')}<select class="sel ${isK?'lockedalt':''}" data-act="pref" data-i="1" data-id="${p.id}" ${isK?'disabled':''}>${opts(p.prefs[1])}</select></label>
+      <label>${U('Alternatief 2','Alternative 2')}<select class="sel ${isK?'lockedalt':''}" data-act="pref" data-i="2" data-id="${p.id}" ${isK?'disabled':''}>${opts(p.prefs[2])}</select></label>
     </div>
     <div class="linerow">
       <div class="lnhead">
-        <span class="lnlbl">Kan spelen in linie</span>
+        <span class="lnlbl">${U('Kan spelen in linie','Can play in line')}</span>
         <div class="lnpick">${LINE_IDS.map(l=>{
           const aan=magInLinie(p,l);
-          const kort={voor:'Voor',midden:'Midden',achter:'Achter'}[l];
+          const kort=EN()?{voor:'Attack',midden:'Mid',achter:'Defence'}[l]:{voor:'Voor',midden:'Midden',achter:'Achter'}[l];
           return `<label class="${aan?'on':''}"><input type="checkbox" data-act="line" data-id="${p.id}" data-line="${l}" ${aan?'checked':''}><span>${kort}</span></label>`;
         }).join('')}</div>
       </div>
       <div class="captrow2">
-        <label class="sw wide"><input type="checkbox" data-act="captain" data-id="${p.id}" ${p.captain?'checked':''}><i data-on="aanvoerder" data-off="aanvoerder"></i></label>
+        <label class="sw wide"><input type="checkbox" data-act="captain" data-id="${p.id}" ${p.captain?'checked':''}><i data-on="${U('aanvoerder','captain')}" data-off="${U('aanvoerder','captain')}"></i></label>
         <span><b class="captbadge">C</b></span>
       </div>
     </div>
-    ${isK?`<p class="hint" style="margin-top:8px">${ico("keeper",16)}Deze speler is de keeper: staat de hele wedstrijd op doel en telt niet mee in de veldwissels.</p>`:''}</div>`;
+    ${isK?`<p class="hint" style="margin-top:8px">${ico("keeper",16)}${U('Deze speler is de keeper: staat de hele wedstrijd op doel en telt niet mee in de veldwissels.','This player is the goalkeeper: in goal for the whole match and not counted in the outfield substitutions.')}</p>`:''}</div>`;
   }
   return row+`</div>`;
 }
@@ -4867,12 +4945,12 @@ function playerRow(p){
 let newRule={type:'noq'};
 function renderRegels(){
   const popts=(sel)=>state.players.filter(p=>!p.guest||p.present).map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
-  const posopts=(sel)=>POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.name}</option>`).join('');
+  const posopts=(sel)=>POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${PN(x.id)}</option>`).join('');
   // Liggende tablet: vastgelegde regels links, nieuwe regel rechts
   let html=isWide()?`<div class="twocol"><div>`:'';
-  html+=`<div class="card"><h2>Coachregels <span class="sub">${state.rules.length}</span></h2>`;
+  html+=`<div class="card"><h2>${U('Coachregels','Coach rules')} <span class="sub">${state.rules.length}</span></h2>`;
   html+=state.rules.length?state.rules.map(r=>`<div class="rule"><span>${esc(ruleSentence(r))}</span><button class="del" data-delrule="${r.id}" aria-label="Regel verwijderen">&#10005;</button></div>`).join('')
-    :`<p class="empty">Geen regels — de opstelling volgt dan alleen de voorkeursposities.</p>`;
+    :`<p class="empty">${U('Geen regels — de opstelling volgt dan alleen de voorkeursposities.','No rules — the line-up then follows the preferred positions only.')}</p>`;
   html+=`</div>`;
   // Vervangkeeper-regel alleen tonen als er GEEN aanwezige keeper is
   // (vaste keeper uitgevinkt én geen aanwezige gastkeeper)
@@ -4881,59 +4959,59 @@ function renderRegels(){
   const t=newRule.type;
   if(isWide())html+=`</div><div>`;
   html+=`<div class="card"><h2>${T('Regel toevoegen')}</h2>
-    <label class="hint">Soort regel</label>
+    <label class="hint">${U('Soort regel','Kind of rule')}</label>
     <select class="sel" id="nrType" style="margin-bottom:10px">
-      <option value="noq" ${t==='noq'?'selected':''}>Speelt niet in een bepaald kwart</option>
-      <option value="subs" ${t==='subs'?'selected':''}>Aantal wissels in een kwart</option>
-      <option value="form" ${t==='form'?'selected':''}>Speelvorm per kwart</option>
-      <option value="start" ${t==='start'?'selected':''}>Begint in de basis of op de bank</option>
-      <option value="apart" ${t==='apart'?'selected':''}>Twee spelers liever niet samen</option>
-      <option value="minutes" ${t==='minutes'?'selected':''}>Speelt minimaal of maximaal aantal minuten</option>
-      <option value="endstrong" ${t==='endstrong'?'selected':''}>Speelt zeker het einde (sterkste slot)</option>
-      <option value="rotate" ${t==='rotate'?'selected':''}>Twee spelers wisselen elkaar af op één positie</option>
-      ${!keeperAanwezig?`<option value="gk" ${t==='gk'?'selected':''}>Keeper voor bepaalde kwarten (vervanger)</option>`:''}
-      <option value="q3likeq1" ${t==='q3likeq1'?'selected':''}>Start Q3 gelijk aan start Q1</option>
-      <option value="condpos" ${t==='condpos'?'selected':''}>Vaste positie als ander niet meespeelt</option>
-      <option value="pos" ${t==='pos'?'selected':''}>Speelt altijd op vaste positie</option>
-      <option value="nopos" ${t==='nopos'?'selected':''}>Speelt nooit op een bepaalde positie</option>
-      <option value="maxpos" ${t==='maxpos'?'selected':''}>Maximaal aantal posities per wedstrijd</option>
+      <option value="noq" ${t==='noq'?'selected':''}>${U('Speelt niet in een bepaald kwart','Does not play in a given quarter')}</option>
+      <option value="subs" ${t==='subs'?'selected':''}>${U('Aantal wissels in een kwart','Number of substitutions in a quarter')}</option>
+      <option value="form" ${t==='form'?'selected':''}>${U('Speelvorm per kwart','Formation per quarter')}</option>
+      <option value="start" ${t==='start'?'selected':''}>${U('Begint in de basis of op de bank','Starts, or starts on the bench')}</option>
+      <option value="apart" ${t==='apart'?'selected':''}>${U('Twee spelers liever niet samen','Two players preferably not together')}</option>
+      <option value="minutes" ${t==='minutes'?'selected':''}>${U('Speelt minimaal of maximaal aantal minuten','Plays a minimum or maximum number of minutes')}</option>
+      <option value="endstrong" ${t==='endstrong'?'selected':''}>${U('Speelt zeker het einde (sterkste slot)','Guaranteed to play the end (strongest finish)')}</option>
+      <option value="rotate" ${t==='rotate'?'selected':''}>${U('Twee spelers wisselen elkaar af op één positie','Two players rotate at one position')}</option>
+      ${!keeperAanwezig?`<option value="gk" ${t==='gk'?'selected':''}>${U('Keeper voor bepaalde kwarten (vervanger)','Goalkeeper for certain quarters (stand-in)')}</option>`:''}
+      <option value="q3likeq1" ${t==='q3likeq1'?'selected':''}>${U('Start Q3 gelijk aan start Q1','Q3 starts the same as Q1')}</option>
+      <option value="condpos" ${t==='condpos'?'selected':''}>${U('Vaste positie als ander niet meespeelt','Fixed position when someone else is not playing')}</option>
+      <option value="pos" ${t==='pos'?'selected':''}>${U('Speelt altijd op vaste positie','Always plays a fixed position')}</option>
+      <option value="nopos" ${t==='nopos'?'selected':''}>${U('Speelt nooit op een bepaalde positie','Never plays a given position')}</option>
+      <option value="maxpos" ${t==='maxpos'?'selected':''}>${U('Maximaal aantal posities per wedstrijd','Maximum number of positions per match')}</option>
     </select>
-    ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.</p>'
+    ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">'+U('De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.','The line-up you start Q3 with is identical to the one in Q1. The substitutions after that simply carry on.')+'</p>'
       :(t==='form'||t==='subs'||t==='maxpos')?''   // deze regels gelden voor het hele team, niet voor één speler
-      :`<div class="frow"><label class="hint">Speler</label><select class="sel" id="nrP1">${popts(newRule.p1)}</select></div>`}`;
-  if(t==='endstrong')html+=`<div class="frow"><label class="hint">Hoeveel van het einde?</label><select class="sel" id="nrEndAmt">
-      <option value="q4">Het hele laatste kwart (Q4)</option>
-      <option value="min10">De laatste ~10 minuten</option>
+      :`<div class="frow"><label class="hint">${U('Speler','Player')}</label><select class="sel" id="nrP1">${popts(newRule.p1)}</select></div>`}`;
+  if(t==='endstrong')html+=`<div class="frow"><label class="hint">${U('Hoeveel van het einde?','How much of the end?')}</label><select class="sel" id="nrEndAmt">
+      <option value="q4">${U('Het hele laatste kwart (Q4)','The whole final quarter (Q4)')}</option>
+      <option value="min10">${U('De laatste ~10 minuten','The last ~10 minutes')}</option>
     </select></div>`;
-  if(t==='gk')html+=`<div class="frow"><label class="hint">Keept in welke kwarten?</label>
+  if(t==='gk')html+=`<div class="frow"><label class="hint">${U('Keept in welke kwarten?','Keeps goal in which quarters?')}</label>
     <div class="qpick" style="display:flex;gap:6px">${[1,2,3,4].map(q=>`<label class="qp" style="flex:1"><input type="checkbox" class="nrGKq" value="${q}" ${(newRule.qs||[]).includes(q)?'checked':''}> Q${q}</label>`).join('')}</div></div>`;
-  if(t==='apart')html+=`<div class="frow"><label class="hint">Niet samen met</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
-  if(t==='pos'||t==='condpos')html+=`<div class="frow"><label class="hint">Positie</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
-  if(t==='nopos')html+=`<div class="frow"><label class="hint">Nooit op positie</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>
-    <p class="hint" style="margin:2px 0 6px">Harder dan een voorkeur: de planner zet hem hier niet neer, ook niet als hij daardoor krap komt te zitten. Wil je een hele linie afsluiten, doe dat dan met de vinkjes bij de speler op <b>Spelers</b> \u2014 dat scheelt drie regels.</p>`;
+  if(t==='apart')html+=`<div class="frow"><label class="hint">${U('Niet samen met','Not together with')}</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
+  if(t==='pos'||t==='condpos')html+=`<div class="frow"><label class="hint">${U('Positie','Position')}</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
+  if(t==='nopos')html+=`<div class="frow"><label class="hint">${U('Nooit op positie','Never at position')}</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>
+    <p class="hint" style="margin:2px 0 6px">${U(`Harder dan een voorkeur: de planner zet hem hier niet neer, ook niet als hij daardoor krap komt te zitten. Wil je een hele linie afsluiten, doe dat dan met de vinkjes bij de speler op <b>Spelers</b> \u2014 dat scheelt drie regels.`,`Stronger than a preference: the planner will not put him here, even if that leaves it tight. If you want to rule out a whole line, use the tick boxes on the player under <b>Players</b> \u2014 that saves you three rules.`)}</p>`;
   if(t==='maxpos'){
     const n=newRule.n||3;
-    html+=`<div class="frow"><label class="hint">Maximaal aantal posities</label><select class="sel" id="nrMaxPos">${[2,3,4].map(k=>`<option value="${k}" ${n===k?'selected':''}>${k} posities</option>`).join('')}</select></div>
-    <p class="hint" style="margin:2px 0 6px">Geldt voor iedereen. Keepen telt niet mee: wie een kwart keept, houdt daarna zijn volledige aantal. Twee posities is streng \u2014 bij drie wisselmomenten per kwart betekent het dat iemand vier blokken lang op dezelfde plek staat.</p>`;
+    html+=`<div class="frow"><label class="hint">${U('Maximaal aantal posities','Maximum number of positions')}</label><select class="sel" id="nrMaxPos">${[2,3,4].map(k=>`<option value="${k}" ${n===k?'selected':''}>${k} posities</option>`).join('')}</select></div>
+    <p class="hint" style="margin:2px 0 6px">${U(`Geldt voor iedereen. Keepen telt niet mee: wie een kwart keept, houdt daarna zijn volledige aantal. Twee posities is streng \u2014 bij drie wisselmomenten per kwart betekent het dat iemand vier blokken lang op dezelfde plek staat.`,`Applies to everyone. Keeping goal does not count: whoever keeps for a quarter still has his full allowance afterwards. Two positions is strict \u2014 with three substitution points per quarter it means someone stands in the same place for four blocks.`)}</p>`;
   }
-  if(t==='condpos')html+=`<div class="frow"><label class="hint">…als deze speler niet meespeelt</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
+  if(t==='condpos')html+=`<div class="frow"><label class="hint">${U('…als deze speler niet meespeelt','…when this player is not playing')}</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
   if(t==='subs'){
     const n=newRule.n||2, bl=q=>fmtMin(Math.round(17.5/(q+1)*10)/10);
-    html+=`<div class="frow"><label class="hint">Wissels in een kwart</label><select class="sel" id="nrSubs">${[1,2,3,4].map(k=>`<option value="${k}" ${n===k?'selected':''}>${k}&times; &mdash; blokken van ${bl(k)} min</option>`).join('')}</select></div>
+    html+=`<div class="frow"><label class="hint">${U('Wissels in een kwart','Substitutions in a quarter')}</label><select class="sel" id="nrSubs">${[1,2,3,4].map(k=>`<option value="${k}" ${n===k?'selected':''}>${k}&times; &mdash; blokken van ${bl(k)} min</option>`).join('')}</select></div>
     <p class="hint" style="margin:2px 0 6px">Geldt voor alle vier de kwarten. Zonder deze regel kiest de app zelf: 1 of 2 keer bij een ruime bank, 3 keer als er maar één of twee wisselspelers zijn.</p>`;
   }
-  if(t==='form')html+=`<div class="frow"><label class="hint">Speelvorm</label><select class="sel" id="nrForm">${Object.keys(FORMATIONS).map(f=>`<option value="${f}" ${newRule.form===f?'selected':''}>${f}</option>`).join('')}</select></div>
-    <div class="frow"><label class="hint">In welke kwarten?</label>
+  if(t==='form')html+=`<div class="frow"><label class="hint">${U('Speelvorm','Formation')}</label><select class="sel" id="nrForm">${Object.keys(FORMATIONS).map(f=>`<option value="${f}" ${newRule.form===f?'selected':''}>${f}</option>`).join('')}</select></div>
+    <div class="frow"><label class="hint">${U('In welke kwarten?','In which quarters?')}</label>
     <div class="qpick" style="display:flex;gap:6px">${[1,2,3,4].map(q=>`<label class="qp" style="flex:1"><input type="checkbox" class="nrFormq" value="${q}" ${(newRule.qs||[]).includes(q)?'checked':''}> Q${q}</label>`).join('')}</div></div>
-    <p class="hint" style="margin:2px 0 6px">Zonder deze regel speelt elk kwart ${DEFAULT_FORM}. Kwarten die je hier niet aanvinkt blijven ${DEFAULT_FORM}.</p>`;
-  if(t==='noq')html+=`<div class="frow"><label class="hint">Niet in welke kwarten?</label>
+    <p class="hint" style="margin:2px 0 6px">${U(`Zonder deze regel speelt elk kwart ${DEFAULT_FORM}. Kwarten die je hier niet aanvinkt blijven ${DEFAULT_FORM}.`,`Without this rule every quarter plays ${DEFAULT_FORM}. Quarters you do not tick here stay ${DEFAULT_FORM}.`)}</p>`;
+  if(t==='noq')html+=`<div class="frow"><label class="hint">${U('Niet in welke kwarten?','Not in which quarters?')}</label>
     <div class="qpick" style="display:flex;gap:6px">${[1,2,3,4].map(q=>`<label class="qp" style="flex:1"><input type="checkbox" class="nrNoQq" value="${q}" ${(newRule.qs||[]).includes(q)?'checked':''}> Q${q}</label>`).join('')}</div></div>`;
-  if(t==='minutes')html+=`<div class="frow"><label class="hint">Grens</label><select class="sel" id="nrMM"><option value="max">Maximaal (ontzien)</option><option value="min">Minimaal (garanderen)</option></select></div><div class="frow"><label class="hint">Aantal minuten</label><select class="sel" id="nrMin">${[10,15,20,25,30,35,40,45,50,55].map(m=>`<option value="${m}">${m} minuten</option>`).join('')}</select></div>`;
-  if(t==='start')html+=`<div class="frow"><label class="hint">Begint</label><select class="sel" id="nrStart"><option value="base">In de basis (start Q1)</option><option value="bench">Op de bank (start Q1)</option></select></div>`;
+  if(t==='minutes')html+=`<div class="frow"><label class="hint">${U('Grens','Limit')}</label><select class="sel" id="nrMM"><option value="max">${U('Maximaal (ontzien)','Maximum (take it easy on him)')}</option><option value="min">Minimaal (garanderen)</option></select></div><div class="frow"><label class="hint">Aantal minuten</label><select class="sel" id="nrMin">${[10,15,20,25,30,35,40,45,50,55].map(m=>`<option value="${m}">${m} minuten</option>`).join('')}</select></div>`;
+  if(t==='start')html+=`<div class="frow"><label class="hint">${U('Begint','Starts')}</label><select class="sel" id="nrStart"><option value="base">${U('In de basis (start Q1)','In the starting line-up (start of Q1)')}</option><option value="bench">Op de bank (start Q1)</option></select></div>`;
   
-  if(t==='rotate')html+=`<div class="frow"><label class="hint">Wisselt af met</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div><div class="frow"><label class="hint">Op positie</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
+  if(t==='rotate')html+=`<div class="frow"><label class="hint">${U('Wisselt af met','Rotates with')}</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div><div class="frow"><label class="hint">Op positie</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">${T('Regel toevoegen')}</button></div>`;
-  html+=`<p class="hint" style="padding:0 6px 10px">Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.</p>`;
+  html+=`<p class="hint" style="padding:0 6px 10px">${U('Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.','If rules and preferences get in each other\u2019s way, the planner gives ground on the preferred position — rules take priority.')}</p>`;
   if(isWide())html+=`</div></div>`;
   html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie '+VERSIE_LABEL+' &middot; '+VERSIE_DATUM+'</div>';
   return html;
@@ -5241,15 +5319,14 @@ function spelerActies(pid,q){
       // staat hij weer op zijn eigen plek. Het wisselschema blijft dus ongemoeid.
       p.kaart={soort:act,terug:totaalSec()+k.min*60};
       demoTel('kaart');
-      noteerGebeurtenis(q, p.name+' krijgt een '+k.naam+' en staat '+k.min
-        +' minuten buiten het veld; het team speelt zolang met een man minder.');
+      const kernK={t:'kaartuit', pid:p.id, soort:act};
+      noteerGebeurtenis(q, kernTekst(kernK), kernK);
       save(); render();
-      toast(p.name+' \u2014 '+k.naam+', '+k.min+' minuten eruit');
+      toast(p.name+' \u2014 '+kaartNaam(act)+', '+Tf('{0} minuten eruit',k.min));
       return;
     }
     if(act==='kaartterug'){
       snapshot(p.name+' terug na kaart');
-      const soort=p.kaart?KAARTEN[p.kaart.soort].naam:'kaart';
       delete p.kaart;
       // Hij stond nog gewoon in het schema, dus er valt niets te herplannen.
       // Stond het wisselmoment tijdens zijn straftijd, dan is hij inmiddels gewisseld
@@ -5258,14 +5335,15 @@ function spelerActies(pid,q){
       // hij in het huidige blok niet meer op zijn oude plek, of helemaal op de bank.
       // 'Volgt verder het wisselschema' liet de coach dat zelf uitzoeken.
       const inz=volgendeInzet(p.id);
-      const zin = inz&&inz.nu
-        ? p.name+' mag terug en gaat naar '+(inz.plek||'het veld')+'.'
-        : inz
-          ? p.name+' mag terug, maar staat volgens het schema nu op de bank; hij komt '+inzetZin(inz)+'.'
-          : p.name+' mag terug, maar staat volgens het schema de rest van de wedstrijd op de bank.';
-      noteerGebeurtenis(q, zin);
+      const kernT = inz&&inz.nu ? {t:'kaartterug-nu',   pid:p.id, pos:inz.pos}
+                  : inz        ? {t:'kaartterug-bank', pid:p.id, inz}
+                               : {t:'kaartterug-rest', pid:p.id};
+      const zin=kernTekst(kernT);
+      noteerGebeurtenis(q, zin, kernT);
       save(); render();
-      toast(inz&&inz.nu ? p.name+' terug op '+(inz.plek||'het veld') : p.name+' mag terug \u2014 staat op de bank');
+      toast(inz&&inz.nu
+        ? Tf('{0} terug op {1}', p.name, inz.plek||T('het veld'))
+        : Tf('{0} mag terug \u2014 staat op de bank', p.name));
       return;
     }
     if(act==='terug'){
@@ -5280,14 +5358,19 @@ function spelerActies(pid,q){
         // 'niet inzetbaar' — anders staat hij als beschikbaar in beeld terwijl er
         // niets voor hem geregeld is. Dat moet je weten, niet raden.
         p.uit=true; render();
-        toast('Herplannen lukt niet \u2014 '+p.name+' staat nog op niet inzetbaar');
+        toast(Tf('Herplannen lukt niet \u2014 {0} staat nog op niet inzetbaar', p.name));
         return;
       }
       // Nu pas kijken waar hij volgens het nieuwe schema terugkomt.
       const inz=volgendeInzet(p.id);
-      const zin=p.name+' is weer beschikbaar en staat '+inzetZin(inz)+'.';
+      const kernB={t:'beschikbaar', pid:p.id, inz};
+      const zin=kernTekst(kernB);
       planInfo=[zin];
-      gebeurtenissen().slice(-1).forEach(g=>{ if(g&&g.tekst&&/weer inzetbaar/.test(g.tekst))g.tekst=zin; });
+      // De herplanning noteerde zojuist 'is weer inzetbaar en zit op de bank'; nu we
+      // weten wáár hij terugkomt, vervangen we die kern door de preciezere.
+      gebeurtenissen().slice(-1).forEach(g=>{
+        if(g&&g.kern&&g.kern.t==='terug'){ g.kern=kernB; g.tekst=zin; }
+      });
       save(); render();
       toast(inz&&!inz.nu ? p.name+' komt terug '+inzetZin(inz).replace('bij de wissel ','') : zin);
       return;
@@ -5308,17 +5391,19 @@ function volgendeInzet(pid,vanafBlok){
     const q=Math.floor(b/perQ), m=b%perQ;
     const pos=Object.keys(sch.assignments[b]).find(k=>sch.assignments[b][k]===pid);
     return {blok:b, kwart:q+1, nu:b===start, minuut:Math.round(m*blokMin),
-            pos, plek:POSMAP[pos]?PNz(pos):null};
+            pos, get plek(){return POSMAP[pos]?PNz(pos):null;}};
   }
   return null;
 }
 // Korte zin: 'nu op rechtsachter', 'bij de wissel na 12 min in Q3 op de spits', of
 // 'de rest van de wedstrijd op de bank'.
 function inzetZin(inz){
-  if(!inz)return 'de rest van de wedstrijd op de bank';
-  if(inz.nu)return 'nu op '+(inz.plek||'het veld');
-  const wanneer=inz.minuut?'na '+fmtMin(inz.minuut)+' min in Q'+inz.kwart:'bij de start van Q'+inz.kwart;
-  return 'bij de wissel '+wanneer+' op '+(inz.plek||'het veld');
+  if(!inz)return T('de rest van de wedstrijd op de bank');
+  if(inz.nu)return Tf('nu op {0}', inz.plek||T('het veld'));
+  const wanneer=inz.minuut
+    ? Tf('na {0} min in Q{1}', fmtMin(inz.minuut), inz.kwart)
+    : Tf('bij de start van Q{0}', inz.kwart);
+  return Tf('bij de wissel {0} op {1}', wanneer, inz.plek||T('het veld'));
 }
 // Haal een speler uit het blok dat nu in beeld staat en zet er iemand van de bank
 // voor in de plaats. Nodig bij een terugkeer met een stilstaande klok: dat blok wordt
@@ -5356,32 +5441,68 @@ function herplanHeleWedstrijd(label){
 // Vergelijkt het oude en het nieuwe schema en vertelt in gewone taal wat er
 // veranderd is: eerst wat er nú op het veld gebeurt, daarna wat er verderop schuift.
 // Eén zin voor in het wisselschema: wie ging eruit, wie kwam ervoor in de plaats.
-function tekstVanGebeurtenis(g,oud,nieuw,vanaf,nood){
-  const naam=pKort(g.pid);
+// De kern van een gebeurtenis: wie, wat, welke positie — met de positie als id en
+// niet als woord. Dit is wat er in de stand bewaard wordt, zodat een Nederlandse
+// coach en een Engelse kijker dezelfde gebeurtenis ieder in hun eigen taal lezen.
+// Vóór deze wijziging stond de kant-en-klare Nederlandse zin in de opslag: die reisde
+// mee met de deel-link en bleef dus Nederlands, hoe de lezer zijn app ook had staan.
+function kernVanGebeurtenis(g,oud,nieuw,vanaf,nood){
   if(g.type==='kaart'){
-    const k=KAARTEN[g.soort]||{min:0,naam:'kaart'};
     const pos2=Object.keys(oud[vanaf]||{}).find(x=>(oud[vanaf]||{})[x]===g.pid);
-    const verv=pos2?(nieuw[vanaf]||{})[pos2]:null;
-    const plek2=pos2&&POSMAP[pos2]?PNz(pos2):'';
-    return naam+' krijgt een '+k.naam+' en staat '+k.min+' minuten buiten het veld'
-      +(verv?', vervangen door '+pKort(verv)+(plek2?' die op '+plek2+' gaat spelen':''):'')+'.';
+    return {t:'kaart', pid:g.pid, soort:g.soort, verv:pos2?(nieuw[vanaf]||{})[pos2]:null, pos:pos2||null};
   }
-  if(g.type==='terug')return naam+' is weer inzetbaar en zit op de bank.';
-  if(g.type==='weg')return naam+' is afgemeld voor de rest van de wedstrijd.';
-  // Is er een noodwissel gedaan, dan is dát het verhaal: één speler eruit, één erin.
-  // Wat er daarna bij het volgende wisselmoment gebeurt staat verderop in het schema.
-  if(nood){
-    const plek0=POSMAP[nood.pos]?PNz(nood.pos):'';
-    return naam+' raakt geblesseerd en gaat er meteen uit; '+pKort(nood.in)
-      +(plek0?' komt erin op '+plek0:' komt erin')+'.';
-  }
+  if(g.type==='terug')return {t:'terug', pid:g.pid};
+  if(g.type==='weg')  return {t:'weg',   pid:g.pid};
+  if(nood)            return {t:'nood',  pid:g.pid, in:nood.in, pos:nood.pos};
   const a=oud[vanaf]||{}, b=nieuw[vanaf]||{};
   const pos=Object.keys(a).find(k=>a[k]===g.pid);
   const vervanger=pos?b[pos]:null;
-  if(!vervanger)return naam+' raakt geblesseerd en gaat eruit.';
-  const plek=POSMAP[pos]?PNz(pos):'';
-  return naam+' raakt geblesseerd en wordt vervangen door '+pKort(vervanger)
-    +(plek?' die op '+plek+' gaat spelen':'')+'.';
+  return vervanger ? {t:'blesv', pid:g.pid, verv:vervanger, pos} : {t:'bles', pid:g.pid};
+}
+// Zet een kern om in een zin, in de taal van de lézer.
+function kernTekst(k){
+  if(!k||!k.t)return '';
+  const naam=pKort(k.pid);
+  const plek=k.pos&&POSMAP[k.pos]?PNz(k.pos):'';
+  switch(k.t){
+    case 'kaart':{
+      const kk=KAARTEN[k.soort]||{min:0};
+      let s=Tf('{0} krijgt een {1} en staat {2} minuten buiten het veld', naam, kaartNaam(k.soort), kk.min);
+      if(k.verv){
+        s+=Tf(', vervangen door {0}', pKort(k.verv));
+        if(plek)s+=Tf(' die op {0} gaat spelen', plek);
+      }
+      return s+'.';
+    }
+    case 'terug': return Tf('{0} is weer inzetbaar en zit op de bank.', naam);
+    case 'weg':   return Tf('{0} is afgemeld voor de rest van de wedstrijd.', naam);
+    case 'nood':  return plek
+      ? Tf('{0} raakt geblesseerd en gaat er meteen uit; {1} komt erin op {2}.', naam, pKort(k.in), plek)
+      : Tf('{0} raakt geblesseerd en gaat er meteen uit; {1} komt erin.', naam, pKort(k.in));
+    case 'bles':  return Tf('{0} raakt geblesseerd en gaat eruit.', naam);
+    case 'blesv': return plek
+      ? Tf('{0} raakt geblesseerd en wordt vervangen door {1} die op {2} gaat spelen.', naam, pKort(k.verv), plek)
+      : Tf('{0} raakt geblesseerd en wordt vervangen door {1}.', naam, pKort(k.verv));
+    case 'kaartterug-nu':   return Tf('{0} mag terug en gaat naar {1}.', naam, plek||T('het veld'));
+    case 'kaartterug-bank': return Tf('{0} mag terug, maar staat volgens het schema nu op de bank; hij komt {1}.', naam, inzetZin(k.inz));
+    case 'kaartterug-rest': return Tf('{0} mag terug, maar staat volgens het schema de rest van de wedstrijd op de bank.', naam);
+    case 'kaartuit':        return Tf('{0} krijgt een {1} en staat {2} minuten buiten het veld; het team speelt zolang met een man minder.', naam, kaartNaam(k.soort), (KAARTEN[k.soort]||{min:0}).min);
+    case 'beschikbaar':     return Tf('{0} is weer beschikbaar en staat {1}.', naam, inzetZin(k.inz));
+  }
+  return '';
+}
+function kaartNaam(soort){ return soort==='geel'?T('gele kaart'):T('groene kaart'); }
+// De zin die bij het noteren wordt meegegeven; oudere standen hebben alleen deze.
+function tekstVanGebeurtenis(g,oud,nieuw,vanaf,nood){
+  return kernTekst(kernVanGebeurtenis(g,oud,nieuw,vanaf,nood));
+}
+// Wat er op het scherm, op de print en in de deel-afbeelding komt te staan. Is er een
+// kern, dan wordt de zin nu opnieuw opgebouwd; anders valt hij terug op de bewaarde
+// tekst, zodat gebeurtenissen uit een oudere stand gewoon leesbaar blijven.
+function gebeurtenisTekst(g){
+  if(!g)return '';
+  if(g.kern){ const s=kernTekst(g.kern); if(s)return s; }
+  return g.tekst||'';
 }
 function beschrijfHerplan(oud,nieuw,vanaf,perQ,later){
   const posNaam=(asg,pid)=>{for(const k in asg)if(asg[k]===pid)return PNz(k);return null;};
@@ -5393,23 +5514,25 @@ function beschrijfHerplan(oud,nieuw,vanaf,perQ,later){
   const zinnen=[];
   if(erin.length||eruit.length){
     const delen=[];
-    if(erin.length) delen.push(erin.map(p=>pKort(p)+' erin op '+posNaam(b,p)).join(', '));
-    if(eruit.length)delen.push(eruit.map(p=>pKort(p)+' eruit').join(', '));
-    zinnen.push((later?'Bij de volgende wissel: ':'Nu meteen: ')+delen.join('; ')+'.');
+    if(erin.length) delen.push(erin.map(p=>Tf('{0} erin op {1}', pKort(p), posNaam(b,p))).join(', '));
+    if(eruit.length)delen.push(eruit.map(p=>Tf('{0} eruit', pKort(p))).join(', '));
+    zinnen.push((later?T('Bij de volgende wissel: '):T('Nu meteen: '))+delen.join('; ')+'.');
   }
   if(schuif.length)
-    zinnen.push('Doorschuiven: '+schuif.map(p=>pKort(p)+' naar '+posNaam(b,p)).join(', ')+'.');
-  if(!zinnen.length)zinnen.push(later?'Bij de volgende wissel verandert er niets.':'Op het veld verandert er nu niets.');
+    zinnen.push(T('Doorschuiven: ')+schuif.map(p=>Tf('{0} naar {1}', pKort(p), posNaam(b,p))).join(', ')+'.');
+  if(!zinnen.length)zinnen.push(later?T('Bij de volgende wissel verandert er niets.'):T('Op het veld verandert er nu niets.'));
   // wat er verderop nog verandert
   const anders=[];
   for(let i=vanaf+1;i<nieuw.length;i++)
     if(JSON.stringify(oud[i]||{})!==JSON.stringify(nieuw[i]||{}))anders.push(i);
   if(anders.length){
     const kw=[...new Set(anders.map(i=>Math.floor(i/perQ)+1))].map(n=>'Q'+n);
-    const lijst=kw.length>1?kw.slice(0,-1).join(', ')+' en '+kw[kw.length-1]:kw[0];
-    zinnen.push('Daarna zijn '+anders.length+' wisselmoment'+(anders.length>1?'en':'')+' opnieuw verdeeld, in '+lijst+'.');
+    const lijst=kw.length>1?kw.slice(0,-1).join(', ')+' '+T('en')+' '+kw[kw.length-1]:kw[0];
+    zinnen.push(anders.length>1
+      ? Tf('Daarna zijn {0} wisselmomenten opnieuw verdeeld, in {1}.', anders.length, lijst)
+      : Tf('Daarna is {0} wisselmoment opnieuw verdeeld, in {1}.', anders.length, lijst));
   }else{
-    zinnen.push('De rest van de wedstrijd blijft ongewijzigd.');
+    zinnen.push(T('De rest van de wedstrijd blijft ongewijzigd.'));
   }
   return zinnen.join(' ');
 }
@@ -5424,12 +5547,12 @@ function gebeurtenissen(){ if(!Array.isArray(state.gebeurtenissen))state.gebeurt
 // Weggedrukte gebeurtenissen blijven wél in de opslag staan, zodat schudden ze
 // terughaalt en een gedeelde stand niet ineens anders is dan bij de ander.
 function zichtbareGebeurtenissen(){ return gebeurtenissen().filter(g=>!g.weg); }
-function noteerGebeurtenis(q,tekst){
+function noteerGebeurtenis(q,tekst,kern){
   const sec=(klok.q===q+1)?klok.sec:0;
   // Een eigen kenmerk, want de volgorde in de lijst is geen betrouwbare sleutel
   // zodra er onderweg iets bij komt.
   gebeurtenissen().push({id:'g'+Date.now()+Math.random().toString(36).slice(2,6),
-    q,sec,min:Math.round(sec/60),tekst});
+    q,sec,min:Math.round(sec/60),tekst,kern});
 }
 // Wegdrukken. Gaat mee in de tien bewaarde stappen, dus een misklik draai je terug.
 function gebeurtenisWeg(id){
@@ -5531,7 +5654,10 @@ function herplanVanafNu(label,vanafVolgende,gebeurtenis,nood){
       : label+' \u2014 schema aangepast vanaf '+wanneer+'. ')
     +beschrijfHerplan(oudAssign,fresh.assignments,vanaf,perQ,!!vanafVolgende)];
   if(_subsWacht)planInfo.push(_subsWacht);
-  if(gebeurtenis)noteerGebeurtenis(q,tekstVanGebeurtenis(gebeurtenis,oudAssign,fresh.assignments,vanaf,nood));
+  if(gebeurtenis){
+    const kern=kernVanGebeurtenis(gebeurtenis,oudAssign,fresh.assignments,vanaf,nood);
+    noteerGebeurtenis(q,kernTekst(kern),kern);
+  }
   save();render();sendSwapTimesToTimer();
   toast(label);
   return true;
@@ -5759,6 +5885,54 @@ const UITLEG=[
    +'binnen een seconde bij de ander en de wedstrijdklok loopt mee. Wie een team aanmaakt is '
    +'eigenaar en laat anderen toe via \u2018Coach toelaten\u2019, een venster dat een kwartier openstaat.']
 ];
+const UITLEG_EN=[
+  ['u1','Getting your squad ready',
+   '<b>Players</b> tab: switch on who is there, fill in shirt numbers and pick up to three '
+   +'preferred positions per player. Whoever keeps goal gets \u2018Goalkeeper\u2019 as their first '
+   +'preference. Per player you can also set which lines he may play in \u2014 defence, midfield, '
+   +'attack \u2014 and that is a hard limit: the planner will not put him outside it, even if that '
+   +'leaves him short of options. Watch what that costs. If a line may hold as many players as '
+   +'there are places, or fewer, those players can never rest and playing time drifts apart. '
+   +'The app works that out and tells you. Guest players are added at the bottom.'],
+  ['u2','Coach rules',
+   '<b>Rules</b> tab: set down what applies to your team. How many substitution points per '
+   +'quarter, which formation, who is fixed in a position and who must never play there, how '
+   +'many different positions anyone plays at most, who would rather not play together, minimum '
+   +'or maximum minutes, who starts and who plays out the end. Rules come before preferences; '
+   +'if two of them clash the app says so \u2014 and two rules that rule each other out are not '
+   +'accepted at all.'],
+  ['u3','Generating the line-up',
+   '<b>Match</b> tab: tap \u2018Generate line-up\u2019 and there is a plan for all four quarters, with '
+   +'every substitution written out. The starting point is that everyone plays as close to the '
+   +'same amount as possible. If a rule cannot be met, the app says so with the name and the '
+   +'number rather than quietly ducking under it.'],
+  ['u4','Adjusting',
+   'Not happy with a detail? Tap two players and they swap places \u2014 including with someone on '
+   +'the bench. Shake your phone to undo the last action; ten steps are kept. If something '
+   +'changes before the match, flip the switch and choose \u2018Replan from this quarter\u2019: quarters '
+   +'already played stay as they are.'],
+  ['u5','During the match',
+   'Start the clock on the <b>Timer</b> tab. The line-up follows the clock: you see who is on '
+   +'the pitch right now. The \u22121 and +1 minute buttons line the clock up with the referee. '
+   +'The white dot at the top is the quarter you are looking at; a green dot beside it means the '
+   +'clock is running in that quarter. If you look ahead to another quarter, that tells you at a '
+   +'glance where the match really stands. '
+   +'Tap a player and you can substitute him on the spot, report an injury, rule him out for the '
+   +'rest, or record a green or yellow card. With a card the team plays a man down and his place '
+   +'stays open with a countdown.'],
+  ['u6','Sharing and printing',
+   'The share icon turns any quarter into an image for the team app. For your co-coach there is '
+   +'a link with the complete state, and for players a view link that only lets them read along. '
+   +'The print button puts the whole match on one A4.'],
+  ['u7','Working with a second coach',
+   'Coach and team manager can work live in the same line-up: changes show up at the other end '
+   +'within a second and the match clock runs along. Whoever creates a team is the owner and '
+   +'lets others in via \u2018Allow coach\u2019, a window that stays open for a quarter of an hour.']
+];
+// Twee vaste lijsten in plaats van een vertaling per zin: dit is doorlopend proza met
+// opmaak erin, en dan is een woordenboeksleutel van tien regels onleesbaar.
+function uitleg(){ return EN()?UITLEG_EN:UITLEG; }
+
 // Zet de klokrichting: bewaren, de timer laten omschakelen en opnieuw tekenen.
 // Alleen dit toestel — het is een kijkvoorkeur, geen teamafspraak, en staat daarom
 // bewust buiten state.rules en buiten inputHash.
@@ -6020,9 +6194,9 @@ function speeltijdHTML(){
 // klok zou staan. Zonder dat voorbeeld moet je '17–0' maar geloven en heen en weer
 // naar de timer om te zien wat je gekozen hebt.
 const KLOKSTANDEN=[
-  ['doorlopend','0\u201335','Doorlopende wedstrijdtijd. Q1 en Q3 lopen van 0:00 naar 17:30, Q2 en Q4 tellen verder naar 35:00.'],
-  ['oplopend',  '0\u201317','Elk kwart begint opnieuw op 0:00 en loopt op naar 17:30.'],
-  ['aflopend',  '17\u20130','Elk kwart telt af van 17:30 naar 0:00. Na nul loopt de klok negatief door, zodat je de blessuretijd ziet.']
+  ['doorlopend','0\u201335',()=>U('Doorlopende wedstrijdtijd. Q1 en Q3 lopen van 0:00 naar 17:30, Q2 en Q4 tellen verder naar 35:00.','Continuous match time. Q1 and Q3 run from 0:00 to 17:30, Q2 and Q4 count on to 35:00.')],
+  ['oplopend',  '0\u201317',()=>U('Elk kwart begint opnieuw op 0:00 en loopt op naar 17:30.','Every quarter starts again at 0:00 and counts up to 17:30.')],
+  ['aflopend',  '17\u20130',()=>U('Elk kwart telt af van 17:30 naar 0:00. Na nul loopt de klok negatief door, zodat je de blessuretijd ziet.','Every quarter counts down from 17:30 to 0:00. Past zero the clock goes negative, so you can see injury time.')]
 ];
 // Het voorbeeldmoment: vijf minuten gespeeld in Q2. Dat is het enige moment waarop
 // de drie standen ook echt drie verschillende getallen geven.
@@ -6065,16 +6239,15 @@ function klokRichtingKaart(){
   // De gekozen stand in de kop: dat is precies wat je wilt zien als de kaart dicht is,
   // en het scheelt hem opendoen om te controleren wat er ook alweer aan stond.
   const gekozen=(KLOKSTANDEN.find(k=>k[0]===nu)||['','',''])[1];
-  return klapKaart('klok',T('Hoe de klok loopt'),esc(gekozen||'alleen dit toestel'),
-    `<p class="hint" style="margin:0 0 10px">Geldt voor de timer, voor het klokje op de veldtekening en voor de
-      tijden bij de wisselmomenten. Jij en je mede-coach mogen hier verschillend in staan.</p>
+  return klapKaart('klok',T('Hoe de klok loopt'),esc(gekozen||U('alleen dit toestel','this device only')),
+    `<p class="hint" style="margin:0 0 10px">${U('Geldt voor de timer, voor het klokje op de veldtekening en voor de tijden bij de wisselmomenten. Jij en je mede-coach mogen hier verschillend in staan.','Applies to the timer, to the small clock on the pitch drawing and to the times at the substitution points. You and your co-coach may each set this differently.')}</p>
     <div class="keuzelijst">${KLOKSTANDEN.map(([id,badge,tekst])=>`
       <button class="keuze${nu===id?' aan':''}" data-klokstand="${id}">
         <span class="keuzebadge">${badge}</span>
-        <span class="keuzetekst">${tekst}</span>
+        <span class="keuzetekst">${typeof tekst==='function'?tekst():tekst}</span>
         <span class="keuzevb">${klokVoorbeeld(id)}</span>
       </button>`).join('')}</div>
-    <p class="hint" style="margin:10px 0 0">Rechts staat wat er op de klok zou staan als er vijf minuten in Q2 zijn gespeeld.</p>`);
+    <p class="hint" style="margin:10px 0 0">${U('Rechts staat wat er op de klok zou staan als er vijf minuten in Q2 zijn gespeeld.','On the right is what the clock would read after five minutes of Q2.')}</p>`);
 }
 
 // ── Kaart: selectie beheren ──
@@ -6197,13 +6370,13 @@ function selectieVerwijderen(){
 // door elkaar: back-up en schudden onderaan, tussen de uitleg. Diagnose staat
 // helemaal onderaan, want die heb je alleen nodig als er iets stuk is.
 function renderUitleg(){
-  let h=`<h2 class="sectiekop">Instellingen</h2>`;
+  let h=`<h2 class="sectiekop">${U('Instellingen','Settings')}</h2>`;
   h+=taalKaart();
   h+=klokRichtingKaart();
   h+=selectieKaart();
-  h+=`<h2 class="sectiekop">Uitleg</h2>`;
+  h+=`<h2 class="sectiekop">${U('Uitleg','How it works')}</h2>`;
   let acc=`<div class="acc">`;
-  UITLEG.forEach(([id,titel,tekst],i)=>{
+  uitleg().forEach(([id,titel,tekst],i)=>{
     const op=accOpen===id;
     acc+=`<div class="accitem${op?' open':''}">
       <button class="acchead" data-acc="${id}"><span>${i+1}. ${esc(titel)}</span><i>${op?'\u2212':'+'}</i></button>
@@ -6211,16 +6384,22 @@ function renderUitleg(){
     </div>`;
   });
   acc+=`</div>`;
-  h+=klapKaart('werkt',T('Zo werkt de app'),`in ${UITLEG.length} stappen`,acc);
+  h+=klapKaart('werkt',T('Zo werkt de app'),U(`in ${uitleg().length} stappen`,`in ${uitleg().length} steps`),acc);
   h+=klapKaart('installeren',T('App op je telefoon'),'iPhone &amp; Android',
-    `<p class="hint" style="margin:0 0 8px"><b>iPhone \u00b7 Safari:</b> tik onderin op het deelicoon
+    U(`<p class="hint" style="margin:0 0 8px"><b>iPhone \u00b7 Safari:</b> tik onderin op het deelicoon
       (vierkantje met pijl omhoog), kies \u2018Zet op beginscherm\u2019 en daarna \u2018Voeg toe\u2019.</p>
     <p class="hint" style="margin:0 0 8px"><b>Android \u00b7 Chrome:</b> tik rechtsboven op de drie puntjes
       en kies \u2018App installeren\u2019.</p>
     <p class="hint" style="margin:0">Daarna opent de app schermvullend, zonder adresbalk, en werkt hij
-      ook zonder internet \u2014 handig op een sportpark met slecht bereik.</p>`);
-  h+=klapKaart('weten',T('Goed om te weten'),'privacy &amp; grenzen',
-    `<p class="hint" style="margin:0 0 8px">De namen van je spelers staan alleen op dit toestel. Er is geen
+      ook zonder internet \u2014 handig op een sportpark met slecht bereik.</p>`,
+    `<p class="hint" style="margin:0 0 8px"><b>iPhone \u00b7 Safari:</b> tap the share icon at the bottom
+      (the square with the arrow), choose \u2018Add to Home Screen\u2019 and then \u2018Add\u2019.</p>
+    <p class="hint" style="margin:0 0 8px"><b>Android \u00b7 Chrome:</b> tap the three dots at the top right
+      and choose \u2018Install app\u2019.</p>
+    <p class="hint" style="margin:0">After that the app opens full screen, without an address bar, and
+      works without internet too \u2014 handy at a club with poor reception.</p>`));
+  h+=klapKaart('weten',T('Goed om te weten'),U('privacy &amp; grenzen','privacy &amp; limits'),
+    U(`<p class="hint" style="margin:0 0 8px">De namen van je spelers staan alleen op dit toestel. Er is geen
       account en geen inlog. Zonder samenwerken gaat er geen enkel spelersgegeven naar internet.</p>
     <p class="hint" style="margin:0 0 8px">Wel telt de app \u00e9\u00e9n keer per dag mee welk soort toestel,
       welke iOS-versie, welke schermmaat en welke versie van de app er draait, plus hoe vaak er een
@@ -6229,7 +6408,16 @@ function renderUitleg(){
       de categorie, want een foutmelding kan een spelersnaam bevatten. Zo zie ik op welke toestellen
       de app draait en waar hij stukgaat.</p>
     <p class="hint" style="margin:0">De app gaat uit van een elftal met vier kwarten van 17,5 minuut.
-      Achttal, zestal en zaalhockey worden niet ondersteund.</p>`);
+      Achttal, zestal en zaalhockey worden niet ondersteund.</p>`,
+    `<p class="hint" style="margin:0 0 8px">Your players\u2019 names stay on this device only. There is no
+      account and no login. Without collaboration switched on, no player data goes to the internet at all.</p>
+    <p class="hint" style="margin:0 0 8px">The app does count, once a day, which kind of device, which iOS
+      version, which screen size and which version of the app is running, plus how often an error occurs and
+      of what kind. Added up in groups, not per device, so it cannot be traced back to anyone. No names, no
+      team code and no error text are included \u2014 only the category, because an error message can contain a
+      player\u2019s name. That way I can see which devices the app runs on and where it breaks.</p>
+    <p class="hint" style="margin:0">The app assumes eleven-a-side with four quarters of 17.5 minutes.
+      Eight-a-side, six-a-side and indoor hockey are not supported.</p>`));
   // Back-up, schudden en diagnose staan onder een eigen kop, ná de uitleg. Ze
   // stonden tussen de instellingen, waardoor je erlangs moest scrollen om bij
   // 'zo werkt de app' te komen — precies de tekst waarvoor je hier komt.
@@ -6238,27 +6426,28 @@ function renderUitleg(){
   // buitenaf niet te sturen — het manifest en het adres schoonhouden hielpen allebei
   // niet. Daarom deze uitweg, die er niet van afhangt: plak de link opnieuw.
   if(!CLOUD.on || !CLOUD.team){
-    h+=`<div class="card"><h2>Kijk-link gebruiken</h2>
-      <p class="hint" style="margin-bottom:10px">Heb je een link van je coach gekregen en zie je hier
-        niet de opstelling van je team? Plak de link hieronder. Dat hoeft maar \u00e9\u00e9n keer.</p>
+    h+=`<div class="card"><h2>${U('Kijk-link gebruiken','Using a view link')}</h2>
+      <p class="hint" style="margin-bottom:10px">${U('Heb je een link van je coach gekregen en zie je hier niet de opstelling van je team? Plak de link hieronder. Dat hoeft maar \u00e9\u00e9n keer.','Got a link from your coach but you are not seeing your team\u2019s line-up here? Paste the link below. You only need to do this once.')}</p>
       <input id="kijkPlak" type="text" inputmode="url" autocapitalize="none" spellcheck="false"
         placeholder="https://\u2026?team=\u2026&amp;rol=kijker" style="width:100%">
-      <button class="btn full" id="kijkKoppel" style="margin-top:8px">Koppelen</button></div>`;
+      <button class="btn full" id="kijkKoppel" style="margin-top:8px">${U('Koppelen','Connect')}</button></div>`;
   }
-  h+=`<h2 class="sectiekop">Onderhoud</h2>`;
+  h+=`<h2 class="sectiekop">${U('Onderhoud','Maintenance')}</h2>`;
   // Delen met co-coach stond op Spelers, naast Samenwerken. Sinds samenwerken de
   // gewone manier is om met z'n twee\u00ebn in dezelfde opstelling te werken, is een link
   // heen en weer sturen geen dagelijkse handeling meer maar een uitwijk \u2014 net als de
   // back-up eronder. Vandaar deze plek: allebei 'een kopie ergens anders heen'.
-  h+=klapKaart('delen',T('Delen met co-coach'),'link of bestand',
-    `<button class="btn ghost full" id="shareState">${ico("delen")}Deel actuele stand</button>
-    <button class="btn ghost full" id="importShare" style="margin-top:8px">${ico("ontvangen")}Gedeelde link overnemen&#8230;</button>
-    <p class="hint" style="margin-top:10px">Stuur de link in de coachgroep. De ontvanger tikt op de link, of kopieert hem en kiest hier &quot;Gedeelde link overnemen&quot;. Aanwezigheid, regels en het schema gaan allemaal mee.</p>
-    <p class="hint" style="margin-top:10px">Werk je met <b>Samenwerken</b> (op het tabblad Spelers), dan heb je dit meestal niet nodig: daar zien jij en je mede-coach dezelfde opstelling zonder iets te sturen.</p>`);
+  h+=klapKaart('delen',T('Delen met co-coach'),U('link of bestand','link or file'),
+    `<button class="btn ghost full" id="shareState">${ico("delen")}${U('Deel actuele stand','Share current state')}</button>
+    <button class="btn ghost full" id="importShare" style="margin-top:8px">${ico("ontvangen")}${U('Gedeelde link overnemen','Take over a shared link')}&#8230;</button>
+    ${U(`<p class="hint" style="margin-top:10px">Stuur de link in de coachgroep. De ontvanger tikt op de link, of kopieert hem en kiest hier &quot;Gedeelde link overnemen&quot;. Aanwezigheid, regels en het schema gaan allemaal mee.</p>
+    <p class="hint" style="margin-top:10px">Werk je met <b>Samenwerken</b> (op het tabblad Spelers), dan heb je dit meestal niet nodig: daar zien jij en je mede-coach dezelfde opstelling zonder iets te sturen.</p>`,
+    `<p class="hint" style="margin-top:10px">Send the link in the coaches\u2019 group. The person receiving it taps the link, or copies it and chooses &quot;Take over a shared link&quot; here. Availability, rules and the plan all come along.</p>
+    <p class="hint" style="margin-top:10px">If you use <b>Working together</b> (on the Players tab) you usually will not need this: there you and your co-coach see the same line-up without sending anything.</p>`)}`);
   h+=klapKaart('backup',T('Back-up'),'',
-    `<button class="btn ghost full" id="backupExport">${ico("opslaan")}Opslaan als back-upbestand</button>
-    <button class="btn ghost full" id="backupImport" style="margin-top:8px">${ico("map")}Herstel uit back-up&#8230;</button>
-    <p class="hint" style="margin-top:10px">Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.</p>`);
+    `<button class="btn ghost full" id="backupExport">${ico("opslaan")}${U('Opslaan als back-upbestand','Save as a backup file')}</button>
+    <button class="btn ghost full" id="backupImport" style="margin-top:8px">${ico("map")}${U('Herstel uit back-up','Restore from a backup')}&#8230;</button>
+    <p class="hint" style="margin-top:10px">${U('Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.','Your players, rules and plan are stored on this device only. Make a backup now and then, so you lose nothing if you clear your browser data or switch phones.')}</p>`);
   // Schudden vraagt op iOS eenmalig toestemming. Wordt die geweigerd of gemist, dan
   // komt die vraag nooit meer vanzelf terug — vandaar deze knop.
   h+=klapKaart('schudden',T('Schudden om ongedaan te maken'),'undo',
@@ -6528,7 +6717,7 @@ function renderQuarter(q){
       // de rest van de wedstrijd in beeld te blijven staan.
       tekst+=`<div class="wmoment gebeurtenis"><div class="wtime">${esc(wisselKop(q,r.minuut))}`
         +(r.g.id?`<button class="gebx" data-gebweg="${esc(r.g.id)}" aria-label="Melding wegdrukken">&#10005;</button>`:'')
-        +`</div><p class="wgeb">${ico('blessure',16)}${esc(r.g.tekst)}</p></div>`;
+        +`</div><p class="wgeb">${ico('blessure',16)}${esc(gebeurtenisTekst(r.g))}</p></div>`;
       continue;
     }
     const mo=r.mo;
@@ -7139,7 +7328,7 @@ function renderPrint(){
       .sort((a,b)=>a.minuut-b.minuut || (a.mo?-1:1));
     for(const r of pRegels){
       w+= r.g
-        ? `<div class="pw"><b>Na ${r.minuut} min:</b><br>${esc(r.g.tekst)}</div>`
+        ? `<div class="pw"><b>${U('Na','After')} ${r.minuut} min:</b><br>${esc(gebeurtenisTekst(r.g))}</div>`
         : `<div class="pw"><b>Na ${r.minuut} min:</b><br>${chainsEmpty(r.mo.wissels)?'geen wissels':printChainText(r.mo.wissels)}</div>`;
     }
     const pk=q>0?keeperOfQ(sch,q-1):null, ck=keeperOfQ(sch,q);
@@ -7233,8 +7422,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=234;
-const VERSIE_LABEL='26.9.75';
+const APP_VERSION=236;
+const VERSIE_LABEL='26.9.77';
 const VERSIE_DATUM='12 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
@@ -7739,7 +7928,7 @@ async function shareQuarterImage(q){
   for(const r of dRegels){
     const naMin=r.minuut;
     const kop=wisselKop(q,naMin)+':';
-    const lines = r.g ? wrapText('• '+r.g.tekst,58)
+    const lines = r.g ? wrapText('• '+gebeurtenisTekst(r.g),58)
       : (chainsEmpty(r.mo.wissels)?['geen wissels']:plainChainText(r.mo.wissels).flatMap(t=>wrapText('• '+t,58)));
     blocks.push({head:kop,lines});
   }
