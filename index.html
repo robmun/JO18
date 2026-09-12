@@ -6992,11 +6992,44 @@ const VERSIE_LABEL='26.9.74';
 const VERSIE_DATUM='8 september 2026';
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
-try{
-  const _seen=Number(localStorage.getItem(SLEUTEL('wisselplanner_lastver'))||0);
-  if(_seen&&_seen<APP_VERSION)setTimeout(()=>toast('Bijgewerkt naar versie '+VERSIE_LABEL),900);
-  localStorage.setItem(SLEUTEL('wisselplanner_lastver'),String(APP_VERSION));
-}catch(e){}
+//
+// Dit stond eerder in vier regels: lees het laatst gezien nummer, zet zo nodig een
+// melding klaar op 900 ms, en schrijf het nieuwe nummer meteen weg. Die derde stap
+// was het probleem. Het nummer werd opgeslagen op het moment dat de melding werd
+// ingepland, niet op het moment dat je hem zag — en dus verviel de kans
+// onherroepelijk als de melding niet aankwam.
+//
+// En die kwam vaak niet aan. Precies de start ná een update is een koude start: op
+// het beginscherm van iOS staat dan een startscherm dat er makkelijk een seconde of
+// langer over doet, en daar verdween de melding achter. Hij was al weer weg voordat
+// de app in beeld kwam. Dat is ook waarom hij 'soms' leek te werken: vanuit een
+// tabblad in Safari, waar geen startscherm is, ging het wel goed.
+//
+// Nu wordt er pas geteld als de melding echt op het scherm heeft gestaan. Komt hij
+// er niet aan, dan staat hij er de volgende keer gewoon weer klaar.
+(function(){
+  let gezien=0;
+  try{ gezien=Number(localStorage.getItem(SLEUTEL('wisselplanner_lastver'))||0); }
+  catch(e){ return; }                       // opslag geblokkeerd: hier valt niets te melden
+  const vastleggen=()=>{ try{ localStorage.setItem(SLEUTEL('wisselplanner_lastver'),String(APP_VERSION)); }catch(e){} };
+  // Eerste keer op dit toestel, of al bij: niets te melden, alleen het nummer vastleggen.
+  if(!gezien || gezien>=APP_VERSION){ vastleggen(); return; }
+  let klaar=false;
+  const melden=()=>{
+    if(klaar)return;
+    klaar=true;
+    toast('Bijgewerkt naar versie '+VERSIE_LABEL);
+    vastleggen();                           // pas nu is de melding echt geweest
+  };
+  // Anderhalve seconde nadat de app zichtbaar is — ruim voorbij het startscherm van
+  // iOS, en ná de eerste tekening, zodat er geen andere melding overheen komt.
+  const straks=()=>setTimeout(melden,1500);
+  if(document.visibilityState==='visible')straks();
+  else{
+    const wek=()=>{ if(document.visibilityState==='visible'){ document.removeEventListener('visibilitychange',wek); straks(); } };
+    document.addEventListener('visibilitychange',wek);
+  }
+})();
 // Elke minuut werd index.html opgehaald om er één versienummer uit te lezen — een
 // kwart megabyte per keer, en door de unieke ?upd= elke keer een nieuwe cache-kopie.
 // Over een wedstrijd liep dat op tot tientallen megabytes. Nu staat het nummer in
