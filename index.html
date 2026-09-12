@@ -1348,6 +1348,7 @@ const WB={
     'That leaves no line at all for {0} \u2014 mark him unavailable under Players',
   'Dat botst met \u2018{0}\u2019':'That conflicts with \u2018{0}\u2019',
   'Speelt nooit in een bepaalde linie':'Never plays in a given line',
+  '{0} speelt altijd op {1} of {2}':'{0} always plays {1} or {2}',
   // ── Updatemelding ──
   'Bijgewerkt naar versie':'Updated to version',
   // ── Kaarten op Meer ──
@@ -1707,6 +1708,14 @@ function magInLinie(p,linie){return linesOf(p).includes(linie);}
 // 'spits' slaat een verbod dat nergens over gaat. Bestaat de plek wél, dan blijft
 // het verbod letterlijk: 'nooit midden midden' hoort niet stilletjes ook links en
 // rechts midden af te sluiten.
+// De posities van een 'vaste positie'-regel. Nieuwe regels bewaren een lijst in
+// r.posities; oudere regels (en gedeelde links van voor deze versie) hebben één
+// enkel veld r.pos. Beide blijven werken, en r.pos blijft meegeschreven zodat een
+// mede-coach met een oudere app de regel nog kan lezen.
+function regelPosities(r){
+  if(Array.isArray(r.posities)&&r.posities.length)return r.posities.filter(x=>POSMAP[x]);
+  return r.pos&&POSMAP[r.pos]?[r.pos]:[];
+}
 function verbodenPosities(pid,rules,POS){
   const rs=rules||(typeof state!=='undefined'?state.rules:[])||[];
   const uit=new Set();
@@ -1754,7 +1763,28 @@ function maxPosRule(rules){
 // Ter vergelijking: de voorkeuren en bonussen samen komen niet boven de 4200 uit.
 const STRAF_NOPOS = 1e8;   // coach zegt: hier nooit
 const STRAF_LOCK  = 1e6;   // coach zegt: hier altijd
-const STRAF_LINIE = 1e4;   // speler mag niet in deze linie
+const STRAF_LINIE = 1e7;   // speler mag niet in deze linie (vinkjes op Spelers)
+// De vinkjes stonden lang op 1e4, onder een vaste positie. Dat leverde twee problemen op.
+//
+// Ten eerste spraken de twee fasen van de planner elkaar tegen. De selectie behandelt
+// de vinkjes al als absoluut: linieVan() filtert er hard op, en dekkingBlijftMogelijk()
+// rekent daarmee. Alleen de plaatsing zag ze als strafpunt dat opzij kon. Een speler
+// werd dus gekozen alsof hij nooit voorin zou komen, en vervolgens kon hij daar toch
+// belanden.
+//
+// Ten tweede: in de praktijk bedoelt een coach ze letterlijk. Wie ze als zachte hint
+// wilde gebruiken, deed dat niet — die zette er coachregels naast om ze alsnog hard
+// te maken, en dan staat de regellijst vol met wat al op de spelerskaart stond.
+//
+// Ze zitten nu boven de vaste positie (1e6) en net onder 'nooit op deze positie' (1e8).
+// Die volgorde is bewust: de vinkjes zeggen wat een speler in het algemeen kan, een
+// coachregel gaat over déze wedstrijd, en een afspraak voor vandaag hoort zwaarder te
+// wegen dan een profiel van vorig seizoen.
+//
+// Wat dit níet oplost: moeten tien veldspelers tien plekken vullen en mag er niemand
+// voorin, dan móét er iemand. Alle kandidaten tellen dan dezelfde straf, die valt tegen
+// elkaar weg, en de voorkeuren beslissen alsnog. Zwaarder straffen verandert dan wie
+// het wordt, niet dát het gebeurt.
 const STRAF_MAXPOS= 1e3;   // dit zou zijn (N+1)-ste positie worden
 const BONUS_BEKEND= 250;   // plek waar hij al stond, zolang er een maximum geldt
 
@@ -2214,16 +2244,25 @@ function assignAll(blockSets,perQ,rules,byId,vast){
     const POS=positionsOfQ(Math.floor(b/perQ),rules);   // speelvorm van dit kwart
     const locks={};
     for(const r of rules){
-      if(r.type==='pos'    && on.has(r.p1)) locks[r.p1]=r.pos;
-      if(r.type==='condpos'&& on.has(r.p1) && !on.has(r.p2)) locks[r.p1]=r.pos;
-      if(r.type==='rotate' && on.has(r.p1)) locks[r.p1]=r.pos;
-      if(r.type==='rotate' && on.has(r.p2)) locks[r.p2]=r.pos;
+      // locks[pid] is een lijst plekken: 'speelt altijd op één van deze'. Bij pos
+      // mogen dat er tot drie zijn, bij condpos en rotate blijft het er één — daar
+      // gaat het om precies die ene gedeelde plek.
+      if(r.type==='pos'    && on.has(r.p1)) locks[r.p1]=regelPosities(r);
+      if(r.type==='condpos'&& on.has(r.p1) && !on.has(r.p2)) locks[r.p1]=[r.pos];
+      if(r.type==='rotate' && on.has(r.p1)) locks[r.p1]=[r.pos];
+      if(r.type==='rotate' && on.has(r.p2)) locks[r.p2]=[r.pos];
     }
     // Vaste positie die in deze speelvorm niet bestaat: pak de dichtstbijzijnde verwante plek.
     for(const pid in locks){
-      if(POS.some(p=>p.id===locks[pid]))continue;
-      const alt=POS.find(p=>(p.eq||[]).includes(locks[pid]));
-      if(alt)locks[pid]=alt.id; else delete locks[pid];
+      // Elke plek uit de lijst omzetten naar deze speelvorm; wat nergens op past
+      // valt weg. Blijft er niets over, dan is er geen vaste plek meer.
+      const om=[];
+      for(const id of locks[pid]){
+        if(POS.some(p=>p.id===id)){ om.push(id); continue; }
+        const alt=POS.find(p=>(p.eq||[]).includes(id));
+        if(alt&&!om.includes(alt.id))om.push(alt.id);
+      }
+      if(om.length)locks[pid]=om; else delete locks[pid];
     }
     const short=ids.length<10;
     // Verboden posities voor de spelers die nu op het veld staan, uitgerekend voor
@@ -2234,7 +2273,7 @@ function assignAll(blockSets,perQ,rules,byId,vast){
       const p=byId[pid];let s=0;
       // bij minder dan 10 spelers: laat een gat liefst voorin vallen
       s+=pos.line==='achter'?(short?60:6):(pos.line==='midden'?(short?30:3):0);
-      if(locks[pid]) s+=(pos.id===locks[pid])?STRAF_LOCK:-STRAF_LOCK;
+      if(locks[pid]) s+=locks[pid].includes(pos.id)?STRAF_LOCK:-STRAF_LOCK;
       if(verboden[pid]&&verboden[pid].has(pos.id)) s-=STRAF_NOPOS;
       if(!magInLinie(p,pos.line)) s-=STRAF_LINIE;   // speler mag niet in deze linie
       // Zou dit een nieuwe positie worden terwijl hij er al genoeg heeft gehad?
@@ -2377,7 +2416,7 @@ function herstelMaxPos(out,perQ,rules,byId,maxPos,vast,q3like){
 const MAX_KETEN=3;      // streefwaarde: invaller, vertrekker en hooguit één doorschuiver
 function kortKetens(prev,asg,POS,byId,locks,verboden){
   const legaal=(pid,posId)=>{
-    if(locks[pid]&&locks[pid]!==posId)return false;
+    if(locks[pid]&&!locks[pid].includes(posId))return false;
     if(verboden&&verboden[pid]&&verboden[pid].has(posId))return false;
     const pos=POS.find(p=>p.id===posId);
     return !!pos && magInLinie(byId[pid],pos.line);
@@ -3563,8 +3602,15 @@ function valideerStand(s){
         if(!r.p1)return weg(U('geen speler','no player'));
         if(!LINE_IDS.includes(r.line))return weg(U('onbekende linie','unknown line'));
         return true;
+      case 'pos': {     // vaste positie, maximaal drie
+        if(!r.p1)return weg(U('geen speler','no player'));
+        const ps=regelPosities(r);
+        if(!ps.length)return weg(U('onbekende positie','unknown position'));
+        if(ps.length>3)return weg(U('te veel vaste posities','too many fixed positions'));
+        r.posities=ps; r.pos=ps[0];
+        return true;
+      }
       case 'nopos':      // nooit op deze positie
-      case 'pos':        // vaste positie
       case 'condpos':    // positie als een andere speler er niet staat
       case 'rotate': {   // wisselen van positie met een ander
         if(!r.p1)return weg(U('geen speler','no player'));
@@ -4324,7 +4370,15 @@ function ruleSentence(r){
     case 'half':   return Tf('{0} speelt alleen de {1} helft', n(r.p1), r.half===1?T('eerste'):T('tweede'));
     case 'apart':  return Tf('{0} en {1} liever niet samen op het veld', n(r.p1), n(r.p2));
     case 'line':   return Tf('{0} speelt altijd in de {1}', n(r.p1), LINES[r.line]);
-    case 'pos':    return Tf('{0} speelt altijd {1}', n(r.p1), PNz(r.pos));
+    case 'pos':    {
+      const ps=regelPosities(r);
+      if(ps.length<=1)return Tf('{0} speelt altijd {1}', n(r.p1), PNz(ps[0]||r.pos));
+      // Meer dan één plek: 'altijd op één van deze'. Met 'altijd links achter of
+      // voorstopper' zou je kunnen lezen dat hij op beide tegelijk staat.
+      const lijst=ps.map(x=>PNz(x));
+      const laatste=lijst.pop();
+      return Tf('{0} speelt altijd op {1} of {2}', n(r.p1), lijst.join(', '), laatste);
+    }
     case 'condpos':return Tf('{0} speelt {1} als {2} niet meespeelt', n(r.p1), PNz(r.pos), n(r.p2));
     case 'noq':    return Tf('{0} speelt niet in {1}', n(r.p1), qs(noqQs(r)));
     case 'minutes':return r.mm==='max'
@@ -5100,7 +5154,7 @@ function playerRow(p){
     </div>
     <div class="linerow">
       <div class="lnhead">
-        <span class="lnlbl">${U('Kan spelen in linie','Can play in line')}</span>
+        <span class="lnlbl">${U('Mag spelen in linie','May play in line')}</span>
         <div class="lnpick">${LINE_IDS.map(l=>{
           const aan=magInLinie(p,l);
           const kort=EN()?{voor:'Attack',midden:'Mid',achter:'Defence'}[l]:{voor:'Voor',midden:'Midden',achter:'Achter'}[l];
@@ -5163,10 +5217,18 @@ function renderRegels(){
   if(t==='gk')html+=`<div class="frow"><label class="hint">${U('Keept in welke kwarten?','Keeps goal in which quarters?')}</label>
     <div class="qpick" style="display:flex;gap:6px">${[1,2,3,4].map(q=>`<label class="qp" style="flex:1"><input type="checkbox" class="nrGKq" value="${q}" ${(newRule.qs||[]).includes(q)?'checked':''}> Q${q}</label>`).join('')}</div></div>`;
   if(t==='apart')html+=`<div class="frow"><label class="hint">${U('Niet samen met','Not together with')}</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
-  if(t==='pos'||t==='condpos')html+=`<div class="frow"><label class="hint">${U('Positie','Position')}</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
+  if(t==='pos'){
+    const gek=Array.isArray(newRule.posities)?newRule.posities:(newRule.pos?[newRule.pos]:[]);
+    const leeg=`<option value="">\u2014</option>`;
+    html+=`<div class="frow"><label class="hint">${U('Positie','Position')}</label><select class="sel" id="nrPos">${posopts(gek[0])}</select></div>
+      <div class="frow"><label class="hint">${U('Of ook','Or also')}</label><select class="sel" id="nrPos2">${leeg}${posopts(gek[1])}</select></div>
+      <div class="frow"><label class="hint">${U('Of ook','Or also')}</label><select class="sel" id="nrPos3">${leeg}${posopts(gek[2])}</select></div>
+      <p class="hint" style="margin:2px 0 6px">${U('Laat de onderste twee leeg voor \u00e9\u00e9n vaste plek. Vul je er meer in, dan staat hij altijd op \u00e9\u00e9n daarvan \u2014 welke, bepaalt de planner. Meer plekken geeft hem meer ruimte om de minuten eerlijk te verdelen.','Leave the bottom two empty for a single fixed spot. Fill in more and he will always be at one of them \u2014 which one is up to the planner. More spots give it more room to share the minutes out fairly.')}</p>`;
+  }
+  if(t==='condpos')html+=`<div class="frow"><label class="hint">${U('Positie','Position')}</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
   if(t==='nolinie')html+=`<div class="frow"><label class="hint">${U('Nooit in linie','Never in line')}</label><select class="sel" id="nrLinie">${
       LINE_IDS.map(l=>`<option value="${l}" ${newRule.line===l?'selected':''}>${LINES[l]}</option>`).join('')}</select></div>
-    <p class="hint" style="margin:2px 0 6px">${U('Harder dan de vinkjes bij de speler op <b>Spelers</b>. Die zeggen wat iemand k&#225;n; de planner mag er overheen als hij anders geen elftal rond krijgt. Deze regel mag hij niet overtreden \u2014 hij zoekt zijn compromis dan ergens anders. Gebruik hem voor de plekken waar het echt niet kan.','Stronger than the tick boxes on the player under <b>Players</b>. Those say what someone <i>can</i> do; the planner may override them if it cannot field eleven otherwise. This rule it may not break \u2014 it will find its compromise somewhere else. Use it for the places where it really will not work.')}</p>`;
+    <p class="hint" style="margin:2px 0 6px">${U('Meestal heb je deze regel niet nodig: de vinkjes bij de speler op <b>Spelers</b> zijn even bindend. Gebruik hem als het alleen om <b>deze wedstrijd</b> gaat \u2014 een speler die het normaal w&#233;l kan, maar vandaag niet. Dan blijft zijn profiel ongemoeid en haal je na afloop alleen de regel weg.','You usually will not need this rule: the tick boxes on the player under <b>Players</b> are just as binding. Use it when it is only about <b>this match</b> \u2014 someone who normally can, but not today. That leaves his profile untouched; afterwards you just remove the rule.')}</p>`;
   if(t==='nopos')html+=`<div class="frow"><label class="hint">${U('Nooit op positie','Never at position')}</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>
     <p class="hint" style="margin:2px 0 6px">${U(`Harder dan een voorkeur: de planner zet hem hier niet neer, ook niet als hij daardoor krap komt te zitten. Wil je een hele linie afsluiten, doe dat dan met de vinkjes bij de speler op <b>Spelers</b> \u2014 dat scheelt drie regels.`,`Stronger than a preference: the planner will not put him here, even if that leaves it tight. If you want to rule out a whole line, use the tick boxes on the player under <b>Players</b> \u2014 that saves you three rules.`)}</p>`;
   if(t==='maxpos'){
@@ -5213,7 +5275,9 @@ function formConflicts(){
   const nm=id=>{const p=byId(id);return p?p.name:'?';};
   // vaste positie die in een gekozen speelvorm niet bestaat
   rs.filter(r=>(r.type==='pos'||r.type==='condpos'||r.type==='rotate')&&r.pos).forEach(r=>{
-    const mist=[0,1,2,3].filter(q=>!heeft(q,r.pos));
+    // Bij meer vaste plekken pas melden als ze in dat kwart geen van alle bestaan.
+    const plekken=r.type==='pos'?regelPosities(r):[r.pos];
+    const mist=[0,1,2,3].filter(q=>!plekken.some(x=>heeft(q,x)));
     if(mist.length&&mist.length<4){
       out.push(`${nm(r.p1)} heeft ${PNz(r.pos)} als vaste plek, maar die bestaat niet in de speelvorm van ${mist.map(q=>'Q'+(q+1)).join(', ')} — daar krijgt hij de meest verwante plek.`);
     }
@@ -7355,7 +7419,14 @@ function bind(v){
     }
     else {r={id:'r'+Date.now(),type:_ty,p1:g('#nrP1')};}
     if(r.type==='apart'||r.type==='condpos')r.p2=g('#nrP2');
-    if(r.type==='pos'||r.type==='condpos'||r.type==='nopos')r.pos=g('#nrPos');
+    if(r.type==='condpos'||r.type==='nopos')r.pos=g('#nrPos');
+    if(r.type==='pos'){
+      const ps=[g('#nrPos'),g('#nrPos2'),g('#nrPos3')].filter(x=>x&&POSMAP[x]);
+      r.posities=[...new Set(ps)];
+      // r.pos blijft meegeschreven: een mede-coach met een oudere app leest dat veld
+      // nog, en ziet dan tenminste de eerste plek in plaats van een lege regel.
+      r.pos=r.posities[0]||'';
+    }
     if(r.type==='nolinie')r.line=g('#nrLinie');
     if(r.type==='maxpos')r.n=Number(g('#nrMaxPos'));
     if(r.type==='subs'){
@@ -7400,9 +7471,16 @@ function bind(v){
         && POSMAP[x.pos] && POSMAP[x.pos].line===r.line && (x.p1===r.p1||x.p2===r.p1));
       if(bots){toast(Tf('Dat botst met \u2018{0}\u2019', ruleSentence(bots)));return;}
     }
-    if(['pos','condpos','rotate'].includes(r.type)&&POSMAP[r.pos]){
-      const botsL=state.rules.find(x=>x.type==='nolinie'&&x.line===POSMAP[r.pos].line&&(x.p1===r.p1||x.p1===r.p2));
-      if(botsL){toast(Tf('Dat botst met \u2018{0}\u2019', ruleSentence(botsL)));return;}
+    if(['pos','condpos','rotate'].includes(r.type)){
+      // Bij een vaste positie met meer plekken botst het pas als álle plekken in een
+      // verboden linie liggen — houdt hij er één over, dan kan de planner daarheen.
+      const plekken=r.type==='pos'?regelPosities(r):(POSMAP[r.pos]?[r.pos]:[]);
+      const lijnen=[...new Set(plekken.map(x=>POSMAP[x].line))];
+      const verboden=state.rules.filter(x=>x.type==='nolinie'&&(x.p1===r.p1||x.p1===r.p2)).map(x=>x.line);
+      if(plekken.length&&lijnen.every(l=>verboden.includes(l))){
+        const botsL=state.rules.find(x=>x.type==='nolinie'&&verboden.includes(x.line)&&(x.p1===r.p1||x.p1===r.p2));
+        if(botsL){toast(Tf('Dat botst met \u2018{0}\u2019', ruleSentence(botsL)));return;}
+      }
     }
     if(r.type==='nopos'){
       if(state.rules.some(x=>x.type==='nopos'&&x.p1===r.p1&&x.pos===r.pos)){toast(T('Deze regel bestaat al'));return;}
@@ -7650,8 +7728,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=244;
-const VERSIE_LABEL='26.9.85';
+const APP_VERSION=246;
+const VERSIE_LABEL='26.9.87';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='12 september 2026', VERSIE_DATUM_EN='12 September 2026';
