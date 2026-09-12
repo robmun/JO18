@@ -1342,6 +1342,12 @@ const WB={
   'Iemand anders was net iets sneller \u2014 jouw wijziging is nog niet opgeslagen':
     'Someone else was just ahead of you \u2014 your change has not been saved yet',
   'Opslaan in cloud mislukt: {0}':'Saving to the cloud failed: {0}',
+  'Zet eerst meer spelers op aanwezig; met {0} spelers zegt dit plaatje nog niets.':
+    'Mark more players available first; with {0} players this picture says nothing yet.',
+  'Dan blijft er geen enkele linie over voor {0} \u2014 meld hem af op Spelers':
+    'That leaves no line at all for {0} \u2014 mark him unavailable under Players',
+  'Dat botst met \u2018{0}\u2019':'That conflicts with \u2018{0}\u2019',
+  'Speelt nooit in een bepaalde linie':'Never plays in a given line',
   // ── Updatemelding ──
   'Bijgewerkt naar versie':'Updated to version',
   // ── Kaarten op Meer ──
@@ -1705,6 +1711,25 @@ function verbodenPosities(pid,rules,POS){
   const rs=rules||(typeof state!=='undefined'?state.rules:[])||[];
   const uit=new Set();
   for(const r of rs){
+    // Een hele linie uitsluiten ('nolinie') komt hier binnen als alle plekken van die
+    // linie. Daarmee weegt hij net zo zwaar als 'nooit op deze positie' — STRAF_NOPOS,
+    // tienduizend keer harder dan de linie-vinkjes bij de speler.
+    //
+    // Dat verschil was precies het probleem. De vinkjes op Spelers zeggen wát een
+    // speler kan; ze zijn een voorkeur met gewicht STRAF_LINIE, en de planner mag er
+    // overheen als hij anders geen dekkende elf krijgt. Hidde stond daardoor op de
+    // spits terwijl alleen 'Achter' aangevinkt stond: de planner kwam klem te zitten
+    // en koos de goedkoopste overtreding. Dit is het instrument om te zeggen 'nee,
+    // echt niet' — dan zoekt hij zijn compromis ergens anders.
+    //
+    // Via deze functie werkt het meteen overal: linieVan() laat een linie vallen
+    // zodra al haar plekken verboden zijn, en dekkingBlijftMogelijk() rekent er
+    // vooraf mee, zodat de planner zich er niet eerst in vastdraait.
+    if(r.type==='nolinie'&&r.p1===pid&&LINE_IDS.includes(r.line)){
+      if(POS)for(const p of POS){ if(p.line===r.line)uit.add(p.id); }
+      else for(const p of POSITIONS){ if(p.line===r.line)uit.add(p.id); }
+      continue;
+    }
     if(r.type!=='nopos'||r.p1!==pid||!POSMAP[r.pos])continue;
     uit.add(r.pos);
     if(POS&&!POS.some(p=>p.id===r.pos)){
@@ -2806,7 +2831,38 @@ function cleanupGkRules(){
 // veld bij een codefout, en stond hij hier dan wierp juist die foutafhandeling zelf
 // een nieuwe fout — de app viel dan helemaal om, precies in de situatie waarin hij
 // de selectie moest beschermen.
+// ── Stempel van de stand ──
+// Loopt op bij elke wijziging. De analyses hieronder rekenen alleen opnieuw als dit
+// getal is veranderd; bij een hertekening die niets aan de stand verandert — een
+// tabwissel, een kaart open- of dichtklappen, een blokwissel op de klok — komt de
+// uitkomst uit de cache.
+//
+// Bewust een teller en geen vergelijking van de stand zelf: de stand uitschrijven om
+// te zien of hij veranderd is kost bijna net zo veel als de analyse die je ermee wilt
+// overslaan. Elke plek die de stand aanraakt roept save() aan — anders overleeft de
+// wijziging het afsluiten toch niet — dus daar hoort de teller.
+let _standStempel=0;
+function standGewijzigd(){ _standStempel++; }
+// De uitkomsten van de vier schema-analyses plus schemaKlopt(). Sleutel is het
+// stempel én de taal, want de meldingen zijn vertaalde zinnen: schakel je om naar
+// Engels zonder de stand aan te raken, dan moeten ze opnieuw worden opgebouwd.
+let _analyseCache=null;
+function schemaAnalyse(){
+  const sleutel=_standStempel+'|'+taal();
+  if(_analyseCache&&_analyseCache.sleutel===sleutel)return _analyseCache;
+  const sch=state.schedule;
+  _analyseCache={
+    sleutel,
+    fout:      sch?schemaKlopt(sch):null,
+    botsingen: linieBotsingen(),
+    bezetting: bezettingsProblemen(),
+    gebroken:  gebrokenAfspraken(sch),
+    speeltijd: linieSpeeltijd(sch)
+  };
+  return _analyseCache;
+}
 function save(){
+  standGewijzigd();
   // Kon de opgeslagen stand niet worden gelezen door een fout in de app, dan draait
   // de app op de standaardselectie. Die dan wegschrijven zou het echte team van de
   // coach overschrijven — en juist dat wilden we voorkomen. Niets doen dus, tot de
@@ -3106,6 +3162,7 @@ function cloudListen(){
       const _nieuwSchema=!state||state.genHash!==incoming.genHash;
       CLOUD.applying=true;
       state=incoming;
+      standGewijzigd();      // hele stand vervangen: alles opnieuw uitrekenen
       if(_nieuwSchema)_wegWaarschuwing=new Set();
       try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e){}
       CLOUD.applying=false;
@@ -3502,6 +3559,10 @@ function valideerStand(s){
         if(!(r.n>=2&&r.n<=4))return weg(U('aantal posities onbruikbaar','number of positions unusable'));
         return true;
       }
+      case 'nolinie':    // nooit in deze linie (harde afspraak, anders dan de vinkjes)
+        if(!r.p1)return weg(U('geen speler','no player'));
+        if(!LINE_IDS.includes(r.line))return weg(U('onbekende linie','unknown line'));
+        return true;
       case 'nopos':      // nooit op deze positie
       case 'pos':        // vaste positie
       case 'condpos':    // positie als een andere speler er niet staat
@@ -3937,7 +3998,7 @@ function schemaKlopt(sch,st){
 }
 let schemaFout=null;
 function controleerSchema(){
-  schemaFout = state.schedule ? schemaKlopt(state.schedule) : null;
+  schemaFout = schemaAnalyse().fout;
   return schemaFout;
 }
 // ── Kaarten die dichtgeklapt beginnen ──
@@ -4235,10 +4296,11 @@ function warnBoxesHTML(){
   // algemene beperking — maar dat gebeurde volkomen stil. Je kon iemand achterin
   // aanvinken, hem daarnaast op de spits vastzetten, en zaterdag verbaasd zijn dat
   // hij voorin stond. Nu staat het er gewoon bij.
-  for(const c of linieBotsingen())          w+=waarschuwing(c);
-  for(const c of bezettingsProblemen())     w+=waarschuwing(c);
-  for(const c of gebrokenAfspraken(state.schedule)) w+=waarschuwing(c);
-  for(const c of linieSpeeltijd(state.schedule))    w+=waarschuwing(c,'info');
+  const _an=schemaAnalyse();
+  for(const c of _an.botsingen) w+=waarschuwing(c);
+  for(const c of _an.bezetting) w+=waarschuwing(c);
+  for(const c of _an.gebroken)  w+=waarschuwing(c);
+  for(const c of _an.speeltijd) w+=waarschuwing(c,'info');
   if(DEMO && demoDicht()){
     const eigen=(_beheer&&typeof _beheer.boodschap==='string'&&_beheer.boodschap.trim())||'';
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${
@@ -4276,6 +4338,7 @@ function ruleSentence(r){
                      : Tf('{0} speelt zeker het hele laatste kwart', n(r.p1));
     case 'noline': return Tf('{0} speelt nooit in de {1}', n(r.p1), LINES[r.line]);
     case 'nopos':  return Tf('{0} speelt nooit {1}', n(r.p1), PNz(r.pos));
+    case 'nolinie':return Tf('{0} speelt nooit in de {1}', n(r.p1), LINES[r.line]);
     case 'maxpos': return Tf('Iedereen staat op maximaal {0} verschillende posities', r.n);
     case 'rotate': return Tf('{0} en {1} wisselen elkaar af op {2}', n(r.p1), n(r.p2), PNz(r.pos));
     case 'q3likeq1': return T('Start Q3 gelijk aan start Q1');
@@ -4830,12 +4893,33 @@ function keeperDruk(){
 // Nederlandse komma, \u00e9\u00e9n decimaal. '1.4' onder een bolletje leest als een fout.
 function heatGetal(x){ const s=(Math.round(x*10)/10).toFixed(1); return EN()?s:s.replace('.',','); }
 
+let _drukCache=null;
 function drukKaart(){
   const aanwezig=state.players.filter(p=>p.present&&!p.uit).length;
-  if(aanwezig<7)return klapKaart('druk',T('Opstelling heatmap'),'te weinig spelers',
-    `<p class="hint" style="margin:0">Zet eerst meer spelers op aanwezig; met ${aanwezig} speler${aanwezig===1?'':'s'} zegt dit plaatje nog niets.</p>`);
+  if(aanwezig<7)return klapKaart('druk',T('Opstelling heatmap'),U('te weinig spelers','not enough players'),
+    `<p class="hint" style="margin:0">${Tf('Zet eerst meer spelers op aanwezig; met {0} spelers zegt dit plaatje nog niets.',aanwezig)}</p>`);
+  // Alleen uitrekenen als de kaart openstaat.
+  //
+  // Dit is de duurste losse berekening in de app: voor elke positie wordt uitgerekend
+  // hoeveel spelers er overblijven, met alle drie de voorkeuren en aflopende gewichten.
+  // Hij werd bij élke hertekening van het spelerstabblad gedaan, dus ook wanneer de
+  // kaart dichtgeklapt was en je er niets van zag — bij het aan- of afmelden van een
+  // speler, bij het typen van een naam, bij elke binnenkomende wijziging van je
+  // mede-coach.
+  //
+  // Dichtgeklapt komt er nu een lege huls. De toggle-afhandeling in bind() ziet aan
+  // data-lui dat de inhoud nog moet komen en tekent dan één keer opnieuw.
+  if(!_klapOpen.has('druk'))
+    return klapKaart('druk',T('Opstelling heatmap'),U('tik om te openen','tap to open'),
+      `<div data-lui="druk" class="hint">${U('Bezig\u2026','One moment\u2026')}</div>`);
+  // Staat de kaart open, dan hoeft de berekening nog steeds maar één keer per
+  // wijziging van de stand. Een hertekening die niets verandert — een andere kaart
+  // openklappen, een binnenkomende hartslag — hergebruikt de uitkomst.
   let D,kp;
-  try{ D=bezettingsDruk(); kp=keeperDruk(); }
+  try{
+    if(_drukCache && _drukCache.stempel===_standStempel){ D=_drukCache.D; kp=_drukCache.kp; }
+    else { D=bezettingsDruk(); kp=keeperDruk(); _drukCache={stempel:_standStempel,D,kp}; }
+  }
   catch(e){ onthoudFout('opstelling heatmap',e); return ''; }
   const {rijen,volgorde,krap}=D;
 
@@ -5066,6 +5150,7 @@ function renderRegels(){
       <option value="condpos" ${t==='condpos'?'selected':''}>${U('Vaste positie als ander niet meespeelt','Fixed position when someone else is not playing')}</option>
       <option value="pos" ${t==='pos'?'selected':''}>${U('Speelt altijd op vaste positie','Always plays a fixed position')}</option>
       <option value="nopos" ${t==='nopos'?'selected':''}>${U('Speelt nooit op een bepaalde positie','Never plays a given position')}</option>
+      <option value="nolinie" ${t==='nolinie'?'selected':''}>${U('Speelt nooit in een bepaalde linie','Never plays in a given line')}</option>
       <option value="maxpos" ${t==='maxpos'?'selected':''}>${U('Maximaal aantal posities per wedstrijd','Maximum number of positions per match')}</option>
     </select>
     ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">'+U('De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.','The line-up you start Q3 with is identical to the one in Q1. The substitutions after that simply carry on.')+'</p>'
@@ -5079,6 +5164,9 @@ function renderRegels(){
     <div class="qpick" style="display:flex;gap:6px">${[1,2,3,4].map(q=>`<label class="qp" style="flex:1"><input type="checkbox" class="nrGKq" value="${q}" ${(newRule.qs||[]).includes(q)?'checked':''}> Q${q}</label>`).join('')}</div></div>`;
   if(t==='apart')html+=`<div class="frow"><label class="hint">${U('Niet samen met','Not together with')}</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
   if(t==='pos'||t==='condpos')html+=`<div class="frow"><label class="hint">${U('Positie','Position')}</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
+  if(t==='nolinie')html+=`<div class="frow"><label class="hint">${U('Nooit in linie','Never in line')}</label><select class="sel" id="nrLinie">${
+      LINE_IDS.map(l=>`<option value="${l}" ${newRule.line===l?'selected':''}>${LINES[l]}</option>`).join('')}</select></div>
+    <p class="hint" style="margin:2px 0 6px">${U('Harder dan de vinkjes bij de speler op <b>Spelers</b>. Die zeggen wat iemand k&#225;n; de planner mag er overheen als hij anders geen elftal rond krijgt. Deze regel mag hij niet overtreden \u2014 hij zoekt zijn compromis dan ergens anders. Gebruik hem voor de plekken waar het echt niet kan.','Stronger than the tick boxes on the player under <b>Players</b>. Those say what someone <i>can</i> do; the planner may override them if it cannot field eleven otherwise. This rule it may not break \u2014 it will find its compromise somewhere else. Use it for the places where it really will not work.')}</p>`;
   if(t==='nopos')html+=`<div class="frow"><label class="hint">${U('Nooit op positie','Never at position')}</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>
     <p class="hint" style="margin:2px 0 6px">${U(`Harder dan een voorkeur: de planner zet hem hier niet neer, ook niet als hij daardoor krap komt te zitten. Wil je een hele linie afsluiten, doe dat dan met de vinkjes bij de speler op <b>Spelers</b> \u2014 dat scheelt drie regels.`,`Stronger than a preference: the planner will not put him here, even if that leaves it tight. If you want to rule out a whole line, use the tick boxes on the player under <b>Players</b> \u2014 that saves you three rules.`)}</p>`;
   if(t==='maxpos'){
@@ -5250,7 +5338,7 @@ function vasteKeeperId(){
 }
 // Regels die over één speler gaan en dus zinloos zijn voor wie de hele wedstrijd op
 // doel staat. 'gk' staat er apart in: die is niet zinloos maar dubbelop.
-const VELDREGELS=['noq','half','minutes','start','endstrong','pos','condpos','rotate','apart','nopos'];
+const VELDREGELS=['noq','half','minutes','start','endstrong','pos','condpos','rotate','apart','nopos','nolinie'];
 // Bepaalt wie er op doel staat: vaste keeper, aanwezige gastkeeper, of per kwart via 'gk'-regels.
 // Zet state.keeperId en geeft true terug als alles klopt; anders false met een melding.
 function resolveKeeperOrWarn(){
@@ -6316,6 +6404,7 @@ function klokVoorbeeld(m){
 // een bericht om meteen om te schakelen in plaats van pas na herladen.
 function zetTaal(t){
   if(t!=='nl'&&t!=='en')return;
+  standGewijzigd();
   try{ localStorage.setItem((DEMO?'demo_':'')+'ghc-taal',t); }catch(e){}
   try{
     const th=document.getElementById('timerHost');
@@ -6997,7 +7086,13 @@ function bind(v){
   // elke tik opnieuw opgebouwd worden en sprong iOS terug naar boven.
   v.querySelectorAll('details[data-klap]').forEach(d=>{
     d.addEventListener('toggle',()=>{
-      if(d.open)_klapOpen.add(d.dataset.klap); else _klapOpen.delete(d.dataset.klap);
+      if(d.open){
+        _klapOpen.add(d.dataset.klap);
+        // Stond er alleen een huls in? Dan is dit het moment om hem echt te vullen.
+        if(d.querySelector('[data-lui]'))render();
+      }else{
+        _klapOpen.delete(d.dataset.klap);
+      }
     });
   });
   // Accordeon op het uitlegtabblad: één open tegelijk, zoals dichtklappen ook werkt.
@@ -7261,6 +7356,7 @@ function bind(v){
     else {r={id:'r'+Date.now(),type:_ty,p1:g('#nrP1')};}
     if(r.type==='apart'||r.type==='condpos')r.p2=g('#nrP2');
     if(r.type==='pos'||r.type==='condpos'||r.type==='nopos')r.pos=g('#nrPos');
+    if(r.type==='nolinie')r.line=g('#nrLinie');
     if(r.type==='maxpos')r.n=Number(g('#nrMaxPos'));
     if(r.type==='subs'){
       r.n=Number(g('#nrSubs'))||2;
@@ -7287,6 +7383,27 @@ function bind(v){
     if(r.type==='q3likeq1'&&state.rules.some(x=>x.type==='q3likeq1')){toast(T('Deze regel bestaat al'));return;}
     if(r.type==='maxpos'&&state.rules.some(x=>x.type==='maxpos')){toast(T('Er staat al een maximum \u2014 verwijder dat eerst'));return;}
     // Twee afspraken die elkaar uitsluiten hoort de app niet zelf op te lossen.
+    if(r.type==='nolinie'){
+      if(!LINE_IDS.includes(r.line)){toast(T('Minstens een linie is nodig'));return;}
+      if(state.rules.some(x=>x.type==='nolinie'&&x.p1===r.p1&&x.line===r.line)){toast(T('Deze regel bestaat al'));return;}
+      // Alle drie de linies uitsluiten is hetzelfde als hem afmelden, maar dan zonder
+      // dat iemand dat ziet: hij blijft in de selectie staan en de planner kan hem
+      // nergens kwijt. Liever hier weigeren dan zaterdag een onverklaarbare nul.
+      const al=state.rules.filter(x=>x.type==='nolinie'&&x.p1===r.p1).map(x=>x.line);
+      if(new Set([...al,r.line]).size>=LINE_IDS.length){
+        toast(Tf('Dan blijft er geen enkele linie over voor {0} \u2014 meld hem af op Spelers', pName(r.p1)));
+        return;
+      }
+      // Botst met een vaste positie in diezelfde linie? Dan spreken twee harde
+      // afspraken elkaar tegen en zou de uitkomst van de volgorde in de lijst afhangen.
+      const bots=state.rules.find(x=>['pos','condpos','rotate'].includes(x.type)
+        && POSMAP[x.pos] && POSMAP[x.pos].line===r.line && (x.p1===r.p1||x.p2===r.p1));
+      if(bots){toast(Tf('Dat botst met \u2018{0}\u2019', ruleSentence(bots)));return;}
+    }
+    if(['pos','condpos','rotate'].includes(r.type)&&POSMAP[r.pos]){
+      const botsL=state.rules.find(x=>x.type==='nolinie'&&x.line===POSMAP[r.pos].line&&(x.p1===r.p1||x.p1===r.p2));
+      if(botsL){toast(Tf('Dat botst met \u2018{0}\u2019', ruleSentence(botsL)));return;}
+    }
     if(r.type==='nopos'){
       if(state.rules.some(x=>x.type==='nopos'&&x.p1===r.p1&&x.pos===r.pos)){toast(T('Deze regel bestaat al'));return;}
       const bots=state.rules.find(x=>['pos','condpos','rotate'].includes(x.type)&&x.pos===r.pos&&(x.p1===r.p1||x.p2===r.p1));
@@ -7533,8 +7650,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=242;
-const VERSIE_LABEL='26.9.83';
+const APP_VERSION=244;
+const VERSIE_LABEL='26.9.85';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='12 september 2026', VERSIE_DATUM_EN='12 September 2026';
@@ -7860,6 +7977,15 @@ function zelftest(){
     st.players[1].lines=['achter']; st.players[2].lines=['voor'];
     ztControleer(st,buildSchedule(st),'linies',fout);
   });
+  test('Regel: nooit in een bepaalde linie',()=>{
+    const POS=positionsOf(DEFAULT_FORM);
+    const rs=[{id:'r1',type:'nolinie',p1:'a',line:'voor'}];
+    const verboden=verbodenPosities('a',rs,POS);
+    const voor=POS.filter(p=>p.line==='voor');
+    for(const p of voor) if(!verboden.has(p.id))fout('nolinie: '+p.id+' hoort verboden te zijn');
+    for(const p of POS) if(p.line!=='voor'&&verboden.has(p.id))fout('nolinie: '+p.id+' hoort juist toegestaan te blijven');
+    if(verbodenPosities('b',rs,POS).size)fout('nolinie: de regel raakt ook een andere speler');
+  });
   test('Migratie van oude gegevens',()=>{
     const oud={players:[{id:'a',name:'A',prefs:['lv','',''],present:true},
                         {id:'b',name:'B',prefs:['mm','',''],present:true}],
@@ -7876,6 +8002,12 @@ function zelftest(){
     // tweede keer draaien mag niets meer veranderen
     const nn=migrateState(JSON.parse(JSON.stringify(n)));
     if(JSON.stringify(nn)!==JSON.stringify(n))fout('migratie: tweede keer draaien verandert de gegevens alsnog');
+    // De nieuwe regel heet bewust 'nolinie' en niet 'noline': de migratie hierboven
+    // veegt de oude linie-regels weg, en met dezelfde naam zou een nieuwe regel bij
+    // het eerstvolgende laden verdwijnen. Dit is de test die dat bewaakt.
+    const metNieuw=migrateState({v:STATE_V,players:[{id:'a',name:'A',prefs:['lv','',''],present:true}],
+      rules:[{id:'r9',type:'nolinie',p1:'a',line:'voor'}]});
+    if(!metNieuw.rules.some(r=>r.type==='nolinie'))fout('migratie: de regel nolinie is weggegooid');
   });
   test('Herplannen laat het verleden staan',()=>{
     const st=ztTeam(15); const sch=buildSchedule(st); st.schedule=sch;
