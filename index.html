@@ -1288,6 +1288,21 @@ const WB={
   'Klok wordt bediend door {0}':'The clock is being controlled by {0}',
   'De teamcode is maar {0} teken lang.':'The team code is only {0} character long.',
   'De teamcode is maar {0} tekens lang.':'The team code is only {0} characters long.',
+  // ── Controle van binnenkomende gegevens ──
+  'te veel spelers ({0})':'too many players ({0})',
+  'dubbel spelerkenmerk {0}':'duplicate player id {0}',
+  'regel \'{0}\': {1}':'rule \'{0}\': {1}',
+  'wisselschema: {0}':'substitution plan: {0}',
+  // ── Delen en overnemen ──
+  'actuele stand ({0} aanwezig). Open de link om over te nemen.':'current state ({0} available). Open the link to take it over.',
+  '{0} spelers aanwezig, {1} regel':'{0} players available, {1} rule',
+  '{0} spelers aanwezig, {1} regels':'{0} players available, {1} rules',
+  // ── Diagnose en demo ──
+  '{0} fout':'{0} error', '{0} fouten':'{0} errors',
+  'Deze demo werkt nog {0} dag.':'This demo works for {0} more day.',
+  'Deze demo werkt nog {0} dagen.':'This demo works for {0} more days.',
+  '{0} staat twee keer tegelijk op het veld in Q{1}':'{0} is on the pitch twice at once in Q{1}',
+  '{0} mag weer meedoen \u2014 tik hem aan':'{0} can play again \u2014 tap him',
   // ── Updatemelding ──
   'Bijgewerkt naar versie':'Updated to version',
   // ── Kaarten op Meer ──
@@ -3337,13 +3352,13 @@ async function ghcInflate(u8){
 // onbruikbaar is, geven we op.
 function valideerStand(s){
   const klachten=[];
-  if(!s||!Array.isArray(s.players)||!s.players.length)return {ok:false,klachten:['geen spelerslijst']};
+  if(!s||!Array.isArray(s.players)||!s.players.length)return {ok:false,klachten:[U('geen spelerslijst','no player list')]};
   if(!Array.isArray(s.rules))s.rules=[];
   // Bovengrenzen: een stand die hier niet in past komt niet van een echte selectie.
-  if(s.players.length>MAX_SPELERS)return {ok:false,klachten:['te veel spelers ('+s.players.length+')']};
-  if(s.rules.length>MAX_REGELS){klachten.push('te veel regels — de rest is weggelaten');s.rules=s.rules.slice(0,MAX_REGELS);}
+  if(s.players.length>MAX_SPELERS)return {ok:false,klachten:[Tf('te veel spelers ({0})',s.players.length)]};
+  if(s.rules.length>MAX_REGELS){klachten.push(U('te veel regels — de rest is weggelaten','too many rules — the rest has been dropped'));s.rules=s.rules.slice(0,MAX_REGELS);}
   if(Array.isArray(s.gebeurtenissen)&&s.gebeurtenissen.length>MAX_GEBEURTENISSEN){
-    klachten.push('te veel gebeurtenissen — de oudste zijn weggelaten');
+    klachten.push(U('te veel gebeurtenissen — de oudste zijn weggelaten','too many events — the oldest have been dropped'));
     s.gebeurtenissen=s.gebeurtenissen.slice(-MAX_GEBEURTENISSEN);
   }
 
@@ -3354,32 +3369,32 @@ function valideerStand(s){
     // liggend streepje en koppelteken toestaan, zodat een gemanipuleerde deel-link
     // daar niets in kan smokkelen.
     if(!p||typeof p.id!=='string'||!/^[A-Za-z0-9_-]{1,40}$/.test(p.id)){
-      klachten.push('speler met een onbruikbaar kenmerk');return false;}
-    if(gezien.has(p.id)){klachten.push('dubbel spelerkenmerk '+p.id);return false;}
+      klachten.push(U('speler met een onbruikbaar kenmerk','player with an unusable id'));return false;}
+    if(gezien.has(p.id)){klachten.push(Tf('dubbel spelerkenmerk {0}',p.id));return false;}
     gezien.add(p.id);
     if(typeof p.name!=='string')p.name=String(p.name||'');
     p.present=!!p.present;
     // Voorkeuren: altijd drie plekken, alleen bekende posities (of 'keeper' vooraan).
-    if(!Array.isArray(p.prefs))  { klachten.push(p.name+': voorkeuren onbruikbaar'); p.prefs=['','','']; }
+    if(!Array.isArray(p.prefs))  { klachten.push(p.name+': '+U('voorkeuren onbruikbaar','preferences unusable')); p.prefs=['','','']; }
     p.prefs=[0,1,2].map(i=>{
       const v=p.prefs[i];
       if(v==='keeper'&&i===0)return v;
       return posIds.includes(v)?v:'';
     });
     if(p.lines!=null){
-      if(!Array.isArray(p.lines)){klachten.push(p.name+': linies onbruikbaar');delete p.lines;}
+      if(!Array.isArray(p.lines)){klachten.push(p.name+': '+U('linies onbruikbaar','lines unusable'));delete p.lines;}
       else{
         const geldig=p.lines.filter(x=>LINE_IDS.includes(x));
-        if(geldig.length!==p.lines.length)klachten.push(p.name+': onbekende linie');
+        if(geldig.length!==p.lines.length)klachten.push(p.name+': '+U('onbekende linie','unknown line'));
         p.lines=geldig;
       }
     }
     if(p.kaart && !(p.kaart&&KAARTEN[p.kaart.soort]&&typeof p.kaart.terug==='number')){
-      klachten.push(p.name+': kaartgegevens onbruikbaar'); delete p.kaart;
+      klachten.push(p.name+': '+U('kaartgegevens onbruikbaar','card data unusable')); delete p.kaart;
     }
     return true;
   });
-  if(!s.players.length)return {ok:false,klachten:['spelerslijst leeg na controle']};
+  if(!s.players.length)return {ok:false,klachten:[U('spelerslijst leeg na controle','player list empty after checking')]};
 
   // Regels: per soort controleren wat hij nodig heeft. Een regel met een onbekend
   // type of een onbruikbare waarde wordt weggegooid — hij zou toch niets doen, maar
@@ -3388,39 +3403,39 @@ function valideerStand(s){
   const ids=new Set(s.players.map(p=>p.id));
   const kwarten=v=>Array.isArray(v)?[...new Set(v.map(Number).filter(q=>q>=1&&q<=4))]:[];
   s.rules=s.rules.filter(r=>{
-    if(!r||typeof r.type!=='string'){klachten.push('regel zonder soort');return false;}
+    if(!r||typeof r.type!=='string'){klachten.push(U('regel zonder soort','rule without a kind'));return false;}
     if(r.id!=null && !/^[A-Za-z0-9_-]{1,40}$/.test(String(r.id))){
-      klachten.push('regel met een onbruikbaar kenmerk');return false;}
-    const weg=reden=>{klachten.push('regel \''+r.type+'\': '+reden);return false;};
+      klachten.push(U('regel met een onbruikbaar kenmerk','rule with an unusable id'));return false;}
+    const weg=reden=>{klachten.push(Tf('regel \'{0}\': {1}',r.type,reden));return false;};
     // Spelers waar de regel naar wijst moeten bestaan.
-    if(r.p1!=null && !ids.has(r.p1))return weg('onbekende speler');
-    if(r.p2!=null && !ids.has(r.p2))return weg('onbekende speler');
+    if(r.p1!=null && !ids.has(r.p1))return weg(U('onbekende speler','unknown player'));
+    if(r.p2!=null && !ids.has(r.p2))return weg(U('onbekende speler','unknown player'));
     switch(r.type){
       case 'noq':        // niet spelen in bepaalde kwarten
       case 'gk': {       // vervangkeeper in bepaalde kwarten
-        if(!r.p1)return weg('geen speler');
+        if(!r.p1)return weg(U('geen speler','no player'));
         r.qs=kwarten(r.qs);
-        if(!r.qs.length)return weg('geen geldig kwart');
+        if(!r.qs.length)return weg(U('geen geldig kwart','no valid quarter'));
         return true;
       }
       case 'form': {     // speelvorm per kwart
-        if(!FORMATIONS[r.form])return weg('onbekende speelvorm');
+        if(!FORMATIONS[r.form])return weg(U('onbekende speelvorm','unknown formation'));
         r.qs=kwarten(r.qs);
-        if(!r.qs.length)return weg('geen geldig kwart');
+        if(!r.qs.length)return weg(U('geen geldig kwart','no valid quarter'));
         return true;
       }
       case 'maxpos': {   // maximaal aantal posities per wedstrijd
         r.n=Number(r.n);
-        if(!(r.n>=2&&r.n<=4))return weg('aantal posities onbruikbaar');
+        if(!(r.n>=2&&r.n<=4))return weg(U('aantal posities onbruikbaar','number of positions unusable'));
         return true;
       }
       case 'nopos':      // nooit op deze positie
       case 'pos':        // vaste positie
       case 'condpos':    // positie als een andere speler er niet staat
       case 'rotate': {   // wisselen van positie met een ander
-        if(!r.p1)return weg('geen speler');
-        if(!POSMAP[r.pos])return weg('onbekende positie');
-        if((r.type==='condpos'||r.type==='rotate') && !r.p2)return weg('tweede speler ontbreekt');
+        if(!r.p1)return weg(U('geen speler','no player'));
+        if(!POSMAP[r.pos])return weg(U('onbekende positie','unknown position'));
+        if((r.type==='condpos'||r.type==='rotate') && !r.p2)return weg(U('tweede speler ontbreekt','second player missing'));
         return true;
       }
       case 'apart': {    // twee spelers liever niet samen
@@ -3428,19 +3443,19 @@ function valideerStand(s){
         return true;
       }
       case 'minutes': {  // minimum of maximum aantal minuten
-        if(!r.p1)return weg('geen speler');
-        if(r.mm!=='min'&&r.mm!=='max')return weg('geen minimum of maximum');
+        if(!r.p1)return weg(U('geen speler','no player'));
+        if(r.mm!=='min'&&r.mm!=='max')return weg(U('geen minimum of maximum','neither a minimum nor a maximum'));
         r.min=Number(r.min);
         if(!isFinite(r.min)||r.min<0||r.min>70)return weg('aantal minuten onbruikbaar');
         return true;
       }
       case 'start': {    // begint in de basis of op de bank
-        if(!r.p1)return weg('geen speler');
+        if(!r.p1)return weg(U('geen speler','no player'));
         if(r.start!=='base'&&r.start!=='bench')return weg('onbekende startkeuze');
         return true;
       }
       case 'endstrong': {// speelt zeker het einde
-        if(!r.p1)return weg('geen speler');
+        if(!r.p1)return weg(U('geen speler','no player'));
         if(r.amt!=='min10'&&r.amt!=='q4')r.amt='q4';
         return true;
       }
@@ -3459,7 +3474,7 @@ function valideerStand(s){
     }
   });
 
-  if(s.keeperId && !ids.has(s.keeperId)){ klachten.push('keeper bestaat niet meer'); s.keeperId=null; }
+  if(s.keeperId && !ids.has(s.keeperId)){ klachten.push(U('keeper bestaat niet meer','the goalkeeper no longer exists')); s.keeperId=null; }
   if(!Array.isArray(s.gebeurtenissen))s.gebeurtenissen=[];
 
   // Schema in twee stappen.
@@ -3479,12 +3494,12 @@ function valideerStand(s){
       && s.schedule.assignments.length===perQ*4
       && s.schedule.assignments.every(a=>a&&typeof a==='object');
     if(!(perQ>=2&&perQ<=5) || !blokkenGoed){
-      klachten.push('wisselschema onbruikbaar van bouw — opnieuw genereren');
+      klachten.push(U('wisselschema onbruikbaar van bouw — opnieuw genereren','substitution plan is structurally unusable — generate it again'));
       s.schedule=null; s.genHash=null;
     }else{
       let inhoud=null;
-      try{ inhoud=schemaKlopt(s.schedule,s); }catch(e){ inhoud='schema kon niet worden gecontroleerd'; }
-      if(inhoud)klachten.push('wisselschema: '+inhoud);
+      try{ inhoud=schemaKlopt(s.schedule,s); }catch(e){ inhoud=U('schema kon niet worden gecontroleerd','the plan could not be checked'); }
+      if(inhoud)klachten.push(Tf('wisselschema: {0}',inhoud));
     }
   }
   return {ok:true,klachten};
@@ -3526,7 +3541,7 @@ async function shareState(){
     const comp=await ghcDeflate(raw);
     const url=location.origin+location.pathname+'#'+(comp?'s':'r')+'='+b64uEnc(comp||raw);
     const present=state.players.filter(p=>p.present).length;
-    const text='opstelling & wissels \u2014 actuele stand ('+present+' aanwezig). Open de link om over te nemen.';
+    const text=kopApp()+' — '+Tf('actuele stand ({0} aanwezig). Open de link om over te nemen.',present);
     if(navigator.share){
       try{await navigator.share({title:'opstelling & wissels',text:text,url:url});return;}
       catch(e){if(e&&e.name==='AbortError')return;}
@@ -3555,11 +3570,14 @@ async function importShared(txt){
     // wilt, dus het staat er met zoveel woorden bij.
     const loopt = klok.q!=null && (klok.loopt || klok.sec>0);
     confirmDialog({
-      title:'Gedeelde stand overnemen?',
-      bodyHtml:esc(present+' spelers aanwezig, '+nRules+' regel'+(nRules===1?'':'s')
-        +(inc.schedule?', inclusief wisselschema':'')+'. De huidige stand op dit toestel wordt vervangen.')
-        +(loopt?'<br><br><b>Let op: er loopt een wedstrijd.</b> Ook de opstelling die nu op het veld staat wordt vervangen.':''),
-      okLabel:'Overnemen',cancelLabel:'Annuleren',
+      title:U('Gedeelde stand overnemen?','Take over the shared state?'),
+      bodyHtml:esc(
+        (nRules===1?Tf('{0} spelers aanwezig, {1} regel',present,nRules)
+                   :Tf('{0} spelers aanwezig, {1} regels',present,nRules))
+        +(inc.schedule?U(', inclusief wisselschema',', including the substitution plan'):'')
+        +U('. De huidige stand op dit toestel wordt vervangen.','. The current state on this device will be replaced.'))
+        +(loopt?'<br><br>'+U('<b>Let op: er loopt een wedstrijd.</b> Ook de opstelling die nu op het veld staat wordt vervangen.','<b>Careful: a match is running.</b> The line-up currently on the pitch will be replaced too.'):''),
+      okLabel:U('Overnemen','Take over'),cancelLabel:T('Annuleren'),
       onOk:()=>{
         const nieuw={v:Number(inc.v||0),players:inc.players,keeperId:inc.keeperId||'mauk',
           rules:Array.isArray(inc.rules)?inc.rules:[],schedule:inc.schedule||null,
@@ -3579,7 +3597,7 @@ async function importSharePrompt(){
   try{if(navigator.clipboard&&navigator.clipboard.readText)txt=await navigator.clipboard.readText();}catch(e){}
   if(/#[sr]=/.test(txt||'')){importShared(txt);return;}
   // Anders: betrouwbare invoer via dialoog (plakken werkt daar altijd)
-  inputDialog({title:'Gedeelde link overnemen',body:'Plak hier de link uit de coachgroep (houd het tekstvak ingedrukt → Plakken).',placeholder:'https://…#s=…',okLabel:'Overnemen',onOk:v=>{
+  inputDialog({title:U('Gedeelde link overnemen','Take over a shared link'),body:U('Plak hier de link uit de coachgroep (houd het tekstvak ingedrukt → Plakken).','Paste the link from the coaches’ group here (press and hold the text box → Paste).'),placeholder:'https://…#s=…',okLabel:U('Overnemen','Take over'),onOk:v=>{
     v=(v||'').trim();
     if(!v){toast(T('Geen link geplakt'));return;}
     if(!/#[sr]=/.test(v)){toast(T('Dit lijkt geen geldige deel-link'));return;}
@@ -3603,7 +3621,7 @@ async function backupExport(){
     const comp=await ghcDeflate(raw);
     const code=(comp?'s=':'r=')+b64uEnc(comp||raw);
     // bestand: eerste regel uitleg, tweede regel de code
-    const fileText='opstelling & wissels back-up — open de app, kies "Herstel uit back-up" en plak of kies dit bestand.\n#'+code+'\n';
+    const fileText=U('opstelling & wissels back-up — open de app, kies "Herstel uit back-up" en plak of kies dit bestand.','line-ups & subs backup — open the app, choose "Restore from a backup" and paste or pick this file.')+'\n#'+code+'\n';
     const blob=new Blob([fileText],{type:'text/plain'});
     const d=new Date();
     const stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -3708,7 +3726,7 @@ function confirmDialog(opts){
   const h=document.getElementById('modalHost');
   h.innerHTML=`<div class="modal-back" id="mback">
     <div class="modal" role="dialog" aria-modal="true">
-      <h3>${esc(opts.title||'Weet je het zeker?')}</h3>
+      <h3>${esc(opts.title||U('Weet je het zeker?','Are you sure?'))}</h3>
       ${opts.bodyHtml?`<p>${opts.bodyHtml}</p>`:(opts.body?`<p>${esc(opts.body)}</p>`:'')}
       <div class="row">
         ${opts.cancelLabel===''?'':`<button class="btn ghost" id="mcancel">${esc(opts.cancelLabel||'Annuleren')}</button>`}
@@ -3838,7 +3856,7 @@ function schemaKlopt(sch,st){
     if(new Set(ids).size!==ids.length){
       const dubbel=ids.find((x,i)=>ids.indexOf(x)!==i);
       const p=st.players.find(y=>y.id===dubbel);
-      return (p?p.name:'een speler')+' staat twee keer tegelijk op het veld in Q'+(q+1);
+      return Tf('{0} staat twee keer tegelijk op het veld in Q{1}', p?p.name:U('een speler','a player'), q+1);
     }
     for(const id of ids) if(!bekend.has(id))return 'onbekende speler in Q'+(q+1);
   }
@@ -3894,15 +3912,17 @@ function diagnoseKaart(){
   if(DEMO)return '';   // technische diagnose leidt af in een demonstratie
   const probleem=diagnoseProbleem();
   const kop = probleem
-    ? (_fouten.length?_fouten.length+' fout'+(_fouten.length>1?'en':''):'let op')
-    : 'alles in orde';
+    ? (_fouten.length
+        ? (_fouten.length>1?Tf('{0} fouten',_fouten.length):Tf('{0} fout',_fouten.length))
+        : U('let op','attention'))
+    : U('alles in orde','all good');
   // Deze kaart had zijn eigen uitklapmarkering van v\u00f3\u00f3r er een gedeelde bestond, en
   // was daardoor de enige zonder pijltje \u2014 je zag niet dat er iets onder zat.
   return klapKaart('diagnose',T('Diagnose'),kop,
-    `<p class="hint" style="margin:8px 0 8px">Gaat er iets mis? Kopieer dit en stuur het naar de beheerder van de app.</p>
+    `<p class="hint" style="margin:8px 0 8px">${U('Gaat er iets mis? Kopieer dit en stuur het naar de beheerder van de app.','Something going wrong? Copy this and send it to whoever maintains the app.')}</p>
     <pre style="white-space:pre-wrap;word-break:break-word;font-size:var(--fs-xs);color:var(--dim);margin:0 0 10px;font-family:inherit">${esc(diagnoseTekst())}</pre>
-    <button class="btn ghost full" id="diagKopieer">${ico("klembord")}Kopieer voor de beheerder</button>
-    ${_fouten.length?'<button class="btn ghost full" id="diagWis" style="margin-top:8px">Lijst wissen</button>':''}`,
+    <button class="btn ghost full" id="diagKopieer">${ico("klembord")}${U('Kopieer voor de beheerder','Copy for the maintainer')}</button>
+    ${_fouten.length?'<button class="btn ghost full" id="diagWis" style="margin-top:8px">'+U('Lijst wissen','Clear the list')+'</button>':''}`,
     probleem);
 }
 function globaleBanners(){
@@ -3910,12 +3930,12 @@ function globaleBanners(){
   if(DEMO){
     const over=demoDagenOver();
     if(over<=0){
-      h+=`<div class="banner err">${ico('waarschuwing')}<span><b>De demonstratieperiode is voorbij.</b>
-        Je kunt alles nog bekijken maar niets meer wijzigen. Wil je de app gebruiken voor je eigen team?
-        Mail naar robertmunnichs@gmail.com.</span></div>`;
+      h+=`<div class="banner err">${ico('waarschuwing')}<span>${U('<b>De demonstratieperiode is voorbij.</b> Je kunt alles nog bekijken maar niets meer wijzigen. Wil je de app gebruiken voor je eigen team? Mail naar robertmunnichs@gmail.com.','<b>The trial period is over.</b> You can still look at everything but no longer change anything. Would you like to use the app for your own team? Email robertmunnichs@gmail.com.')}</span></div>`;
     }else if(over<=3){
-      h+=`<div class="banner">${ico('info')}<span>Deze demo werkt nog ${over} dag${over===1?'':'en'}.
-        Daarna kun je alles nog bekijken maar niets meer wijzigen.</span></div>`;
+      h+=`<div class="banner">${ico('info')}<span>${
+        (over===1?Tf('Deze demo werkt nog {0} dag.',over):Tf('Deze demo werkt nog {0} dagen.',over))
+        +' '+U('Daarna kun je alles nog bekijken maar niets meer wijzigen.','After that you can still look at everything but no longer change anything.')
+      }</span></div>`;
     }
   }
   if(schemaFout){
@@ -3935,7 +3955,7 @@ function globaleBanners(){
       onderaan het spelerstabblad door — dan is je team terug te halen.</span></div>`;
   }
   if(opslagFout&&opslagFout!=='codefout'){
-    h+=`<div class="banner err">${ico("waarschuwing")}<span>Opslaan op dit toestel lukt niet (${opslagFout==='vol'?'geheugen vol':'geblokkeerd door de browser'}). Je wijzigingen zijn er nu wél, maar zijn na het sluiten van de app weg. Maak een back-up via Spelers &rarr; Back-up.</span></div>`;
+    h+=`<div class="banner err">${ico("waarschuwing")}<span>Opslaan op dit toestel lukt niet (${opslagFout==='vol'?U('geheugen vol','storage full'):U('geblokkeerd door de browser','blocked by the browser')}). Je wijzigingen zijn er nu wél, maar zijn na het sluiten van de app weg. Maak een back-up via Spelers &rarr; Back-up.</span></div>`;
   }
   return h;
 }
@@ -4148,7 +4168,7 @@ function warnBoxesHTML(){
   if(DEMO && demoDicht()){
     const eigen=(_beheer&&typeof _beheer.boodschap==='string'&&_beheer.boodschap.trim())||'';
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${
-      esc(eigen||'De demonstratie is gesloten. Wijzigen kan niet meer; kijken kan gewoon. Vragen? robertmunnichs@gmail.com')}</div></div>`;
+      esc(eigen||U('De demonstratie is gesloten. Wijzigen kan niet meer; kijken kan gewoon. Vragen? robertmunnichs@gmail.com','The demonstration is closed. Changes are no longer possible; looking around still is. Questions? robertmunnichs@gmail.com'))}</div></div>`;
   }
   if(versieJsonMist)
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">version.json loopt achter op de app (versie ${VERSIE_LABEL}). Zolang dat zo is krijgen andere toestellen geen melding dat er een nieuwe versie klaarstaat. Upload version.json opnieuw naar GitHub.</div></div>`;
@@ -4392,7 +4412,7 @@ function kaartenBijwerken(){
     }
     if(rest===0 && !_kaartGemeld[p.id]){
       _kaartGemeld[p.id]=true;
-      toast(p.name+' mag weer meedoen — tik hem aan');
+      toast(Tf('{0} mag weer meedoen — tik hem aan', p.name));
       if('vibrate' in navigator)navigator.vibrate([60,50,60]);
     }
     if(rest>0)_kaartGemeld[p.id]=false;
@@ -4729,7 +4749,7 @@ function keeperDruk(){
     else gat=true;
   }
   if(gat)return {kleur:'rood',tag:'niemand',
-    uitleg:'Er is deze wedstrijd geen keeper. Geef \u00e9\u00e9n speler \u2018Keeper\u2019 als eerste voorkeur op <b>Spelers</b>, of maak op <b>Regels</b> een vervangkeeper aan.'};
+    uitleg:U('Er is deze wedstrijd geen keeper. Geef \u00e9\u00e9n speler \u2018Keeper\u2019 als eerste voorkeur op <b>Spelers</b>, of maak op <b>Regels</b> een vervangkeeper aan.','There is no goalkeeper for this match. Give one player \u2018Goalkeeper\u2019 as their first preference under <b>Players</b>, or create a stand-in keeper under <b>Rules</b>.')};
   return {kleur:'keeperbal',tag:esc([...namen].join(' / ')),uitleg:''};
 }
 
@@ -4749,7 +4769,7 @@ function drukKaart(){
   for(const r of rijen){
     const titel=r.pos.name+' \u2014 nummer '+r.rang+' van '+rijen.length+' in moeilijkheid \u00b7 '
       +heatGetal(r.aanbod)+' spelers beschikbaar \u00b7 '
-      +(r.namen.length?'voorkeur: '+r.namen.join(', '):'niemand met deze voorkeur');
+      +(r.namen.length?U('voorkeur: ','preferred by: ')+r.namen.join(', '):U('niemand met deze voorkeur','nobody prefers this position'));
     veld+=`<div class="chip" style="left:${r.pos.x}%;top:${r.pos.y}%" title="${esc(titel)}">
       <div class="ball ${r.kleur}"><span class="bk${PK(r.pos.id).length>=4?' long':''}">${PK(r.pos.id)}</span></div>
       <div class="tag">${heatGetal(r.aanbod)}</div></div>`;
@@ -4792,7 +4812,7 @@ function drukKaart(){
     // waar niemand wil staan is \u00e9\u00e9n kwestie, geen vier zinnen die je overslaat.
     const opsom=n=>n.length===1?n[0]:n.slice(0,-1).join(', ')+' en '+n[n.length-1];
     const redenVan=r=>{
-      if(!r.mag)return 'niemand mag hier staan volgens de linie-vinkjes en de regels.';
+      if(!r.mag)return U('niemand mag hier staan volgens de linie-vinkjes en de regels.','nobody is allowed here according to the line tick boxes and the rules.');
       if(!r.namen.length)return `niemand heeft dit als voorkeurspositie \u2014 er mogen er wel ${r.mag} staan, maar wie hier komt vroeg er niet om.`;
       // Alle drie de voorkeuren uitschrijven, niet alleen de eerste: anders leest de
       // zin alsof een tweede of derde voorkeur niet zou meetellen \u2014 en dat doet hij wel.
@@ -4876,7 +4896,7 @@ function renderSpelers(){
       <p class="hint" style="margin-top:12px">Ontwikkeld door Robert Munnichs &middot;
       <a href="mailto:robertmunnichs@gmail.com" style="color:inherit">robertmunnichs@gmail.com</a></p></div>`;
     if(isWide())html+=`</div></div>`;
-    html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; demo &middot; versie '+VERSIE_LABEL+'</div>';
+    html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">'+esc(kopApp())+' &middot; demo &middot; '+U('versie','version')+' '+VERSIE_LABEL+'</div>';
     return html;
   }
   // 'Delen met co-coach' stond hier, naast Samenwerken. Nu samenwerken de gewone weg
@@ -5013,7 +5033,7 @@ function renderRegels(){
   html+=`<button class="btn full" id="addRule" style="margin-top:4px">${T('Regel toevoegen')}</button></div>`;
   html+=`<p class="hint" style="padding:0 6px 10px">${U('Komen regels en voorkeuren in de knel, dan doet de planner een concessie op de voorkeurspositie — regels gaan voor.','If rules and preferences get in each other\u2019s way, the planner gives ground on the preferred position — rules take priority.')}</p>`;
   if(isWide())html+=`</div></div>`;
-  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">opstelling &amp; wissels &middot; versie '+VERSIE_LABEL+' &middot; '+VERSIE_DATUM+'</div>';
+  html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">'+esc(kopApp())+' &middot; '+U('versie','version')+' '+VERSIE_LABEL+' &middot; '+versieDatum()+'</div>';
   return html;
 }
 
@@ -6465,8 +6485,12 @@ function renderUitleg(){
 // In de kijkstand hoort het in de titel te staan en niet alleen in een balk die
 // wegvalt: een speler die de app een uur later opent moet nog steeds kunnen zien dat
 // hij niets kan wijzigen.
-const KOP_APP='opstelling & wissels';
-function appKop(){ return isKijker()?(KOP_APP+' (READ ONLY)'):KOP_APP; }
+// De naam van de app zelf vertaalt wel mee: hij staat in de titelbalk, op de print
+// en in het back-upbestand, en 'opstelling & wissels' zegt een Engelstalige coach niets.
+// De clubnaam en het wapen blijven onveranderd — die horen bij HC Gooische, niet bij de taal.
+const KOP_APP_NL='opstelling & wissels', KOP_APP_EN='line-ups & subs';
+function kopApp(){ return EN()?KOP_APP_EN:KOP_APP_NL; }
+function appKop(){ return isKijker()?(kopApp()+' (READ ONLY)'):kopApp(); }
 function zetAppbarKop(tekst){
   const h1=document.querySelector('.appbar h1');
   if(!h1)return;
@@ -7422,9 +7446,12 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=236;
-const VERSIE_LABEL='26.9.77';
-const VERSIE_DATUM='12 september 2026';
+const APP_VERSION=237;
+const VERSIE_LABEL='26.9.78';
+// Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
+// maandnaam niet met een opzoektabel te doen is.
+const VERSIE_DATUM_NL='12 september 2026', VERSIE_DATUM_EN='12 September 2026';
+function versieDatum(){ return EN()?VERSIE_DATUM_EN:VERSIE_DATUM_NL; }
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 //
