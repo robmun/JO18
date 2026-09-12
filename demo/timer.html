@@ -800,12 +800,41 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     }
 
     const _savedState = _loadState();
-    const lastMinuteBeeped = _savedState
-      ? _savedState.lastMinuteBeeped
-      : { 1: false, 2: false, 3: false, 4: false };
 
-    let currentQuarter = _savedState ? _savedState.currentQuarter : 1;
-    let quarterTimes   = _savedState ? _savedState.quarterTimes   : { 1: 0, 2: 0, 3: 0, 4: 0 };
+    // Elk veld apart nakijken in plaats van 'is er een bewaarde stand?'.
+    //
+    // _loadState() doet alleen JSON.parse en geeft terug wat er staat. Bestaat er een
+    // stand uit een oudere versie waarin een van deze velden nog niet bestond, dan was
+    // de waarde undefined — en de eerstvolgende lastMinuteBeeped[currentQuarter] of
+    // quarterTimes[q] gooit dan een TypeError midden in de tikkende lus. De timer valt
+    // stil, tijdens een wedstrijd, en er is geen weg terug behalve herladen.
+    //
+    // De kans is klein, maar de prijs is hoog en de controle kost niets. Alle drie de
+    // velden krijgen hem, niet alleen lastMinuteBeeped: ze breken alle drie even hard.
+    function _kwartObject(v, standaard) {
+      if (!v || typeof v !== 'object' || Array.isArray(v)) return standaard();
+      const uit = standaard();
+      for (const q of [1, 2, 3, 4]) if (v[q] != null) uit[q] = v[q];
+      return uit;
+    }
+    const lastMinuteBeeped = _kwartObject(
+      _savedState && _savedState.lastMinuteBeeped,
+      () => ({ 1: false, 2: false, 3: false, 4: false }));
+
+    let currentQuarter = (function () {
+      const q = Number(_savedState && _savedState.currentQuarter);
+      return (q === 1 || q === 2 || q === 3 || q === 4) ? q : 1;
+    })();
+    let quarterTimes = _kwartObject(
+      _savedState && _savedState.quarterTimes,
+      () => ({ 1: 0, 2: 0, 3: 0, 4: 0 }));
+    // Een tijd die geen bruikbaar getal is telt als nul: beter een kwart dat op nul
+    // begint dan een klok die NaN gaat rekenen en daarna nergens meer op terugkomt.
+    for (const q of [1, 2, 3, 4]) {
+      const s = Number(quarterTimes[q]);
+      quarterTimes[q] = (isFinite(s) && s >= 0) ? s : 0;
+    }
+    for (const q of [1, 2, 3, 4]) lastMinuteBeeped[q] = !!lastMinuteBeeped[q];
     let running = false;
     let lastTs = null;
     let rafId = null;
@@ -820,9 +849,16 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     var _herstelLiep = false;
     (function herstelStand(){
       if (!_savedState || !_savedState.running || !_savedState.runStartedAt) return;
-      var basis = _savedState.runBaseElapsed || 0;
-      var extra = (Date.now() - _savedState.runStartedAt) / 1000;
-      if (extra < 0) extra = 0;
+      // Ook hier getallen afdwingen. Is runStartedAt geen bruikbaar getal, dan levert
+      // Date.now() - x een NaN op, glipt die door de bovengrens heen (NaN > n is
+      // altijd onwaar) en komt er NaN in de klok te staan — waar hij nooit meer uit
+      // komt, want elke som met NaN blijft NaN.
+      var basis = Number(_savedState.runBaseElapsed);
+      if (!isFinite(basis) || basis < 0) basis = 0;
+      var start = Number(_savedState.runStartedAt);
+      if (!isFinite(start) || start <= 0) return;
+      var extra = (Date.now() - start) / 1000;
+      if (!isFinite(extra) || extra < 0) extra = 0;
       var totaal = basis + extra;
       if (totaal > QLEN + MAX_HERSTEL) {
         quarterTimes[currentQuarter] = Math.min(basis, QLEN + MAX_HERSTEL);
@@ -830,7 +866,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       }
       quarterTimes[currentQuarter] = totaal;
       runBaseElapsed = basis;
-      runStartedAt = _savedState.runStartedAt;
+      runStartedAt = start;
       _herstelLiep = true;            // verderop weer aanzetten, als alles klaarstaat
     })();
 
@@ -1213,7 +1249,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 241;
+    var TIMER_VERSION = 242;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
