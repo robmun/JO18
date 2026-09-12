@@ -1303,6 +1303,18 @@ const WB={
   'Deze demo werkt nog {0} dagen.':'This demo works for {0} more days.',
   '{0} staat twee keer tegelijk op het veld in Q{1}':'{0} is on the pitch twice at once in Q{1}',
   '{0} mag weer meedoen \u2014 tik hem aan':'{0} can play again \u2014 tap him',
+  // ── Wisselmomenten ──
+  'na {0} min':'after {0} min',
+  'Na {0} min':'After {0} min',
+  ', dus bij {0} min op de klok':', so at {0} min on the clock',
+  ' in Q{0}, dus bij {1} min':' in Q{0}, so at {1} min',
+  // ── Waarschuwingen boven het veld ──
+  '{0} staat toch op {1}, terwijl daar een regel tegen is. Er was geen andere plek voor hem \u2014 kijk of de regel kan vervallen.':
+    '{0} is playing {1} even though a rule says otherwise. There was nowhere else to put him \u2014 see whether the rule can go.',
+  '{0} staat in {1} in de {2}, terwijl hij daar volgens Spelers niet mag staan.':
+    '{0} plays in {2} in {1}, while Players says he is not allowed there.',
+  '{0} staat op {1} verschillende posities, terwijl het maximum {2} is.':
+    '{0} plays {1} different positions, while the maximum is {2}.',
   // ── Updatemelding ──
   'Bijgewerkt naar versie':'Updated to version',
   // ── Kaarten op Meer ──
@@ -2441,17 +2453,17 @@ function kwartMomenten(q,sch){
 // een keer uit elkaar omdat ze het ieder zelf uitrekenden.
 // q is nulgebaseerd: q===1 is Q2.
 function wisselKop(q,minuut){
-  const na='Na '+fmtMin(minuut)+' min';
+  const na=Tf('Na {0} min',fmtMin(minuut));
   switch(tijdweergave()){
     case 'aflopend':
       // Aflopend telt elk kwart terug van 17,5 naar 0, dus 17,5 − 6 = 11,5.
-      return na+', dus bij '+fmtMin(17.5-minuut)+' min op de klok';
+      return na+Tf(', dus bij {0} min op de klok',fmtMin(17.5-minuut));
     case 'oplopend':
       // Elk kwart begint op nul: de klok wijst gewoon hetzelfde getal aan.
       return na;
     default:
       // Doorlopend: Q2 en Q4 tellen verder vanaf 17:30.
-      return (q===1||q===3) ? na+' in Q'+(q+1)+', dus bij '+fmtMin(minuut+17.5)+' min' : na;
+      return (q===1||q===3) ? na+Tf(' in Q{0}, dus bij {1} min',q+1,fmtMin(minuut+17.5)) : na;
   }
 }
 // Wissels als ketens: 'X erin voor Y — positie; daarmee schuift Z van A naar B'
@@ -4073,14 +4085,15 @@ function gebrokenAfspraken(sch){
   }
   const uit=[];
   for(const pid in verbod)
-    uit.push(`${pName(pid)} staat toch op ${[...verbod[pid]].map(x=>PNz(x)).join(' en ')}, `
-      +`terwijl daar een regel tegen is. Er was geen andere plek voor hem \u2014 kijk of de regel kan vervallen.`);
+    uit.push(Tf('{0} staat toch op {1}, terwijl daar een regel tegen is. Er was geen andere plek voor hem \u2014 kijk of de regel kan vervallen.',
+      pName(pid), [...verbod[pid]].map(x=>PNz(x)).join(' '+T('en')+' ')));
   for(const pid in linie)
-    uit.push(`${pName(pid)} staat in ${[...linie[pid].q].map(q=>'Q'+q).join(' + ')} in de `
-      +`${[...linie[pid].l].map(l=>LINES[l]).join(' en de ')}, terwijl hij daar volgens Spelers niet mag staan.`);
+    uit.push(Tf('{0} staat in {1} in de {2}, terwijl hij daar volgens Spelers niet mag staan.',
+      pName(pid), [...linie[pid].q].map(q=>'Q'+q).join(' + '),
+      [...linie[pid].l].map(l=>LINES[l]).join(EN()?' and ':' en de ')));
   if(maxPos)for(const pid in posities){
     if(posities[pid].size>maxPos)
-      uit.push(`${pName(pid)} staat op ${posities[pid].size} verschillende posities, terwijl het maximum ${maxPos} is.`);
+      uit.push(Tf('{0} staat op {1} verschillende posities, terwijl het maximum {2} is.', pName(pid), posities[pid].size, maxPos));
   }
   return uit;
 }
@@ -4328,7 +4341,7 @@ function groteKlokHTML(bankAantal){
         stroke-dashoffset="${(KLOK_OMTREK*(1-deel)).toFixed(1)}"
         transform="rotate(-90 100 100)"/>
       <text x="100" y="108" class="gk-tijd" id="gkTijd">${k.tijd}</text>
-      <text x="100" y="137" class="gk-sub" id="gkSub">${k.kwart}${k.loopt?'':' \u00b7 pauze'}</text>
+      <text x="100" y="137" class="gk-sub" id="gkSub">${k.kwart}${k.loopt?'':' \u00b7 '+U('pauze','paused')}</text>
     </svg>
   </div>`;
 }
@@ -4362,7 +4375,7 @@ function veldKlokHTML(){
   const k=klokTekst(); if(!k)return '';
   return `<div class="veldklok${k.loopt?'':' pauze'}" id="veldklok" role="button" tabindex="0" title="Naar de timer">
     <div class="vk-tijd" id="vkTijd">${k.tijd}</div>
-    <div class="vk-sub" id="vkSub">${k.kwart}${k.loopt?'':' &middot; pauze'}</div>
+    <div class="vk-sub" id="vkSub">${k.kwart}${k.loopt?'':' &middot; '+U('pauze','paused')}</div>
   </div>`;
 }
 // Klopt de getoonde opstelling nog met de klok? Zo niet: opnieuw tekenen.
@@ -4395,7 +4408,7 @@ function zwevendeKlokBijwerken(){
   zw.style.top=(onder+8)+'px';
   const k=klokTekst(); if(!k)return;
   const t=document.getElementById('zwTijd'); if(t)t.textContent=k.tijd;
-  const sub=document.getElementById('zwSub'); if(sub)sub.textContent=k.kwart+(k.loopt?'':' · pauze');
+  const sub=document.getElementById('zwSub'); if(sub)sub.textContent=k.kwart+(k.loopt?'':' · '+U('pauze','paused'));
   zw.classList.toggle('pauze',!k.loopt);
 }
 // Telt de kaarten af terwijl de klok loopt en geeft één keer een seintje zodra
@@ -4425,7 +4438,7 @@ function veldKlokBijwerken(){
   if(gt){
     gt.textContent=k.tijd;
     const gs=document.getElementById('gkSub');
-    if(gs)gs.textContent=k.kwart+(k.loopt?'':' \u00b7 pauze');
+    if(gs)gs.textContent=k.kwart+(k.loopt?'':' \u00b7 '+U('pauze','paused'));
     const gtot=document.getElementById('gkTot');
     if(gtot)gtot.textContent=gespeeldTotaal()+' gespeeld';
     const boog=document.getElementById('gkBoog');
@@ -4577,7 +4590,7 @@ function renderTabbar(){
     if(t.id==='spelers')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 19c.7-3.2 3.4-5 6.5-5s5.8 1.8 6.5 5"/><circle cx="17.5" cy="9.5" r="2.6"/><path d="M16 14.2c2.9.2 5 1.8 5.5 4.3"/></svg>${t.label}</button>`;
     if(t.id==='regels')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 4h14v17l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 9h6M9 13h6"/></svg>${t.label}</button>`;
     if(t.id==='wedstrijd')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18M12 4v16"/><circle cx="12" cy="12" r="2.5"/></svg><span>${T('Wedstrijd')}</span></button>`;
-    if(t.id==='uitleg')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a2.5 2.5 0 0 1 2 1 2.5 2.5 0 0 1 2-1h4.5A1.5 1.5 0 0 1 20 5.5V18a1 1 0 0 1-1 1h-5a2 2 0 0 0-2 1 2 2 0 0 0-2-1H5a1 1 0 0 1-1-1z"/><path d="M12 5v15"/></svg><span>Meer</span></button>`;
+    if(t.id==='uitleg')return `<button class="tab${act}" data-tab="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a2.5 2.5 0 0 1 2 1 2.5 2.5 0 0 1 2-1h4.5A1.5 1.5 0 0 1 20 5.5V18a1 1 0 0 1-1 1h-5a2 2 0 0 0-2 1 2 2 0 0 0-2-1H5a1 1 0 0 1-1-1z"/><path d="M12 5v15"/></svg><span>${T('Meer')}</span></button>`;
     return '';
   }).join('');
   el.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
@@ -4779,23 +4792,19 @@ function drukKaart(){
       <div class="tag">${kp.tag}</div></div></div>`;
 
   const legenda=`<div class="heatleg">
-    <span><i class="donkerrood"></i>moeilijkst</span>
-    <span><i class="rood"></i>lastig</span>
-    <span><i class="geel"></i>gemiddeld</span>
-    <span><i class="groen"></i>ruimste keus</span></div>`;
+    <span><i class="donkerrood"></i>${U('moeilijkst','hardest')}</span>
+    <span><i class="rood"></i>${U('lastig','tricky')}</span>
+    <span><i class="geel"></i>${U('gemiddeld','average')}</span>
+    <span><i class="groen"></i>${U('ruimste keus','widest choice')}</span></div>`;
 
-  const getaluitleg=`<p class="hint" style="margin:9px 0 0">Het getal is hoeveel spelers er voor die plek overblijven
-    nadat iedereen verdeeld is over alle plekken waar hij mag en wil staan. Wie de enige kandidaat is voor drie
-    posities, telt bij elk daarvan maar voor een derde mee \u2014 hij kan er tenslotte op \u00e9\u00e9n tegelijk staan.
-    Alle drie de voorkeuren tellen mee, met aflopend gewicht: een tweede voorkeur telt bijna twee derde van een
-    eerste, een derde ongeveer de helft, en een plek waar iemand alleen m\u00e1g staan telt licht mee.</p>`;
+  const getaluitleg=`<p class="hint" style="margin:9px 0 0">${U('Het getal is hoeveel spelers er voor die plek overblijven nadat iedereen verdeeld is over alle plekken waar hij mag en wil staan. Wie de enige kandidaat is voor drie posities, telt bij elk daarvan maar voor een derde mee \u2014 hij kan er tenslotte op \u00e9\u00e9n tegelijk staan. Alle drie de voorkeuren tellen mee, met aflopend gewicht: een tweede voorkeur telt bijna twee derde van een eerste, een derde ongeveer de helft, en een plek waar iemand alleen m\u00e1g staan telt licht mee.','The number is how many players are left over for that position once everyone has been spread across all the places he may and wants to play. Someone who is the only candidate for three positions counts as only a third at each of them \u2014 after all, he can stand in one place at a time. All three preferences count, with decreasing weight: a second preference counts almost two thirds of a first, a third about half, and a place where someone is merely allowed counts lightly.')}</p>`;
 
   // De rangorde is relatief, en dat moet er met zoveel woorden bij staan. Anders leest
   // donkerrood als een storing terwijl er ook bij een prima selectie altijd \u00e9\u00e9n plek
   // als laatste eindigt.
   const relatief=D.vlak
-    ? `<p class="hint" style="margin:9px 0 0">Alle plekken komen binnen een paar procent op hetzelfde uit: er is geen plek die er als moeilijkste uitspringt. Daarom staat alles op geel.</p>`
-    : `<p class="hint" style="margin:9px 0 0">De kleuren zijn <b>relatief ten opzichte van elkaar</b>, niet een oordeel. Er is altijd een moeilijkste plek, ook bij een selectie die prima in orde is. Donkerrood zegt: h\u00eder heeft de planner de minste ruimte, dus h\u00eder doet hij zijn eerste concessie.</p>`;
+    ? `<p class="hint" style="margin:9px 0 0">${U('Alle plekken komen binnen een paar procent op hetzelfde uit: er is geen plek die er als moeilijkste uitspringt. Daarom staat alles op geel.','All the positions come out within a couple of percent of each other: no single place stands out as the hardest. That is why everything is yellow.')}</p>`
+    : `<p class="hint" style="margin:9px 0 0">${U('De kleuren zijn <b>relatief ten opzichte van elkaar</b>, niet een oordeel. Er is altijd een moeilijkste plek, ook bij een selectie die prima in orde is. Donkerrood zegt: h\u00eder heeft de planner de minste ruimte, dus h\u00eder doet hij zijn eerste concessie.','The colours are <b>relative to each other</b>, not a verdict. There is always a hardest place, even with a squad that is perfectly fine. Dark red says: this is where the planner has the least room, so this is where it gives ground first.')}</p>`;
 
   let uitleg=`<div class="heatuitleg">`;
   // Eerst de linies waar het aantal spelers de plekken niet ontloopt: dat is een
@@ -4842,7 +4851,7 @@ function drukKaart(){
   voet+=`<p class="hint" style="margin:10px 0 0">Je verandert dit plaatje op <b>Spelers</b> \u2014 voorkeursposities en de linie-vinkjes \u2014 en op <b>Regels</b>. Het aantal wissels per kwart verandert de volgorde niet: meer wissels maken elke plek even veel drukker.</p>`;
 
   return klapKaart('druk',T('Opstelling heatmap'),
-    D.vlak?'overal gelijk':'moeilijkst: '+esc(volgorde[0].pos.name.toLowerCase()),
+    D.vlak?U('overal gelijk','level everywhere'):U('moeilijkst: ','hardest: ')+esc(PNz(volgorde[0].pos.id)),
     veld+legenda+getaluitleg+relatief+uitleg+voet);
 }
 
@@ -4923,7 +4932,7 @@ function playerRow(p){
   const open=expandedPlayer===p.id;
   const nummer=(p.num??'')===''?'&ndash;':esc(String(p.num));
   let row=`<div class="pcard${open?' open':''}"><div class="prow ${p.present?'':'dim-row'}">
-    <label class="sw"><input type="checkbox" data-act="present" data-id="${p.id}" ${p.present?'checked':''}><i data-on="aanwezig" data-off="afwezig"></i></label>
+    <label class="sw"><input type="checkbox" data-act="present" data-id="${p.id}" ${p.present?'checked':''}><i data-on="${U('aanwezig','available')}" data-off="${U('afwezig','out')}"></i></label>
     <div class="num${(p.num??'')===''?' leeg':''}${dupNum(p)?' dupe':''}" aria-label="Rugnummer ${nummer}">${nummer}</div>
     <div class="pname"><b>${esc(p.name)||'<span style=\'color:var(--dim)\'>Naamloos</span>'}${p.captain?'<span class="captbadge" title="Aanvoerder">C</span>':''}</b><span>${prefSummary(p)}</span></div>
     ${p.guest?`<button class="chev" data-act="delguest" data-id="${p.id}" aria-label="Verwijderen" style="color:#ffb39e">&#10005;</button>`:''}
@@ -6509,8 +6518,8 @@ function renderQuarterPills(){
   const q=huidigQ();
   const bol=i=>`<button class="qpill${q===i?' active':''}${(klok.q===i+1&&klok.loopt)?' loopt':''}" data-q="${i}">Q${i+1}</button>`;
   return `<div class="qbar">
-    <div class="qgroep"><div class="qduo">${bol(0)}${bol(1)}</div><span class="qlbl">eerste<br>helft</span></div>
-    <div class="qgroep"><div class="qduo">${bol(2)}${bol(3)}</div><span class="qlbl">tweede<br>helft</span></div>
+    <div class="qgroep"><div class="qduo">${bol(0)}${bol(1)}</div><span class="qlbl">${U('eerste<br>helft','first<br>half')}</span></div>
+    <div class="qgroep"><div class="qduo">${bol(2)}${bol(3)}</div><span class="qlbl">${U('tweede<br>helft','second<br>half')}</span></div>
   </div>`;
 }
 // Vult de plek in de titelbalk, of maakt hem leeg. Leeg betekent onzichtbaar: de
@@ -6570,8 +6579,8 @@ function renderQuarter(q){
     html+= wedstrijdBezig()
       // Tijdens de wedstrijd nooit het hele schema opnieuw: wat gespeeld is blijft staan
       // en het lopende blok ook, anders verdwijnen spelers halverwege van het veld.
-      ? `<div class="banner">${ico("waarschuwing")}Spelers of regels zijn gewijzigd. Verwerken kan vanaf het volgende wisselmoment.<button class="btn small" id="verwerkNuBtn">${T('Verwerken')}</button></div>`
-      : `<div class="banner">${ico("waarschuwing")}Spelers of regels zijn gewijzigd.<button class="btn small" data-regen>${T('Opnieuw genereren')}</button></div>`;
+      ? `<div class="banner">${ico("waarschuwing")}${U('Spelers of regels zijn gewijzigd. Verwerken kan vanaf het volgende wisselmoment.','Players or rules have changed. They can be applied from the next substitution point.')}<button class="btn small" id="verwerkNuBtn">${T('Verwerken')}</button></div>`
+      : `<div class="banner">${ico("waarschuwing")}${U('Spelers of regels zijn gewijzigd.','Players or rules have changed.')}<button class="btn small" data-regen>${T('Opnieuw genereren')}</button></div>`;
   }
   html+=warnBoxesHTML();
   const sch=state.schedule, perQ=sch.perQ, blockLen=17.5/perQ;
@@ -6597,7 +6606,7 @@ function renderQuarter(q){
   // wedstrijd leest: hij verandert zelden, staat al bij de regels, en het veld
   // eronder laat hem gewoon zien. Wat je in de balk zoekt is waar je bent en hoe
   // laat het in het kwart is.
-  const kopKort = `Q${q+1} wedstrijd \u00b7 ${toonBlok===0?'start':`na ${Math.round(toonBlok*blockLen)} min`}`;
+  const kopKort = `Q${q+1} ${U('wedstrijd','match')} \u00b7 ${toonBlok===0?U('start','start'):Tf('na {0} min',Math.round(toonBlok*blockLen))}`;
   // De kop staat op het wedstrijdtabblad in de titelbalk bovenaan, niet meer boven
   // het veld: dat scheelt een regel en het veld heeft alle ruimte nodig. 'eerste' of
   // 'tweede helft' is weggelaten, want dat staat al bij de kwartbolletjes.
@@ -6696,7 +6705,7 @@ function renderQuarter(q){
   if(keeper)veld+=`<div class="chip kpc" style="left:50%;top:93%"><div class="ball keeperball${keeper.id===capt?' capt':''}">${KEEPER_HELM}${keeper.id===capt?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(pKort(keeper.id))}</div></div>`;
   veld+=`</div>`                                      // einde fieldwrap
     +(isWide()?groteKlokHTML(benchIds.length)+`</div>`:'')   // klok over het veld, einde veldrij
-    +`${isKijker()?'':`<p class="hint" style="margin-top:10px">Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor ${toonBlok===0?'de start van dit kwart':'dit moment in het kwart'}.</p>`}</div>`;
+    +`${isKijker()?'':`<p class="hint" style="margin-top:10px">${U('Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor ','Tap two players to swap them — including with the bench. Applies to ')}${toonBlok===0?U('de start van dit kwart','the start of this quarter'):U('dit moment in het kwart','this point in the quarter')}.</p>`}</div>`;
   // Alles wat naast het veld komt te staan in de brede stand
   let tekst='';
   // Wissel bij start van kwart (t.o.v. vorige kwart)
@@ -6710,7 +6719,7 @@ function renderQuarter(q){
     tekst+=`<div class="card startq"><h2>Bij start van Q${q+1}</h2>${kLine}${chainsEmpty(d)?(kLine?'':'<p class="empty">Geen wissels — zelfde elf als eind Q'+q+'.</p>'):wisselLines(d)}</div>`;
   }
   // Wisselmomenten binnen het kwart
-  tekst+=`<div class="card"><h2>Wissels in Q${q+1} <span class="sub">${perQ-1}&times; per kwart</span></h2>`;
+  tekst+=`<div class="card"><h2>${U('Wissels in Q','Substitutions in Q')}${q+1} <span class="sub">${perQ-1}&times; ${U('per kwart','per quarter')}</span></h2>`;
   // Geplande wisselmomenten en wat er tussendoor gebeurde, op volgorde van de klok.
   // Welk wisselmoment komt er als eerste aan? Dat is het enige dat je in de dug-out
   // echt moet lezen; de rest mag klein. Kijk je naar een kwart dat al geweest is,
@@ -6747,8 +6756,8 @@ function renderQuarter(q){
     const mo=r.mo;
     const kop=wisselKop(q,mo.minuut);
     tekst+=`<div class="wmoment${mo.minuut===volgendeMinuut?' nu':''}"><div class="wtime">${kop}</div>`;
-    tekst+=chainsEmpty(mo.wissels)?'<p class="empty">Geen wissels op dit moment.</p>':wisselLines(mo.wissels);
-    tekst+=`<div class="wbench"><b>Wissels daarna:</b> ${mo.bankNa.map(pKort).map(esc).join(', ')||'—'}</div></div>`;
+    tekst+=chainsEmpty(mo.wissels)?'<p class="empty">'+U('Geen wissels op dit moment.','No substitutions at this point.')+'</p>':wisselLines(mo.wissels);
+    tekst+=`<div class="wbench"><b>${U('Wissels daarna:','On the bench after that:')}</b> ${mo.bankNa.map(pKort).map(esc).join(', ')||'—'}</div></div>`;
   }
   tekst+=`</div>`;
   if(!isKijker()){
@@ -7446,8 +7455,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=237;
-const VERSIE_LABEL='26.9.78';
+const APP_VERSION=238;
+const VERSIE_LABEL='26.9.79';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='12 september 2026', VERSIE_DATUM_EN='12 September 2026';
