@@ -1025,6 +1025,19 @@ body.sun .warnbox.info .wx{border-color:#12408f;color:#0b2a5c}
 .clab{display:block;font-size:var(--fs-xs);color:var(--dim);font-weight:700;margin:10px 0 3px}
 .cin{width:100%;background:rgba(255,255,255,.10);border:1px solid var(--stroke);border-radius:var(--r-sm);color:var(--txt);font-size:var(--fs-base);padding:9px 10px;font-family:inherit}
 textarea.cin{resize:vertical}
+/* Het veld om een kijk-link in te plakken. Stond er zonder enkele klasse in en kreeg
+   dus het standaardveld van de browser: een smalle witte strook die op iOS en Android
+   ook nog eens anders uitpakt. Hij is nu net zo hoog als een knop, zodat hij met een
+   duim te raken is en de lange link er leesbaar in past.
+   16px en niet var(--fs-base): onder de 16 zoomt Safari bij het aantikken van een
+   invoerveld in op de pagina, en dan staat de halve kaart buiten beeld precies op het
+   moment dat je wilt plakken. */
+.plakin{width:100%;box-sizing:border-box;font-family:inherit;font-size:16px;
+  padding:14px 13px;min-height:52px;border-radius:var(--r-sm);
+  background:#fff;color:#0b1626;border:1px solid rgba(15,32,64,.25);
+  -webkit-appearance:none;appearance:none}
+.plakin::placeholder{color:rgba(11,22,38,.45)}
+.plakin:focus{outline:none;border-color:#5b8def;box-shadow:0 0 0 3px rgba(91,141,239,.28)}
 /* Kijkstand: bewerk-knoppen dempen (server-regel dwingt het echt af) */
 body.viewer #genBtn, body.viewer #replanBtn, body.viewer #addGuest, body.viewer #addRule,
 body.viewer #shareState, body.viewer #importShare, body.viewer #backupImport,
@@ -6461,8 +6474,9 @@ function renderUitleg(){
   if(!CLOUD.on || !CLOUD.team){
     h+=`<div class="card"><h2>${U('Kijk-link gebruiken','Using a view link')}</h2>
       <p class="hint" style="margin-bottom:10px">${U('Heb je een link van je coach gekregen en zie je hier niet de opstelling van je team? Plak de link hieronder. Dat hoeft maar \u00e9\u00e9n keer.','Got a link from your coach but you are not seeing your team\u2019s line-up here? Paste the link below. You only need to do this once.')}</p>
-      <input id="kijkPlak" type="text" inputmode="url" autocapitalize="none" spellcheck="false"
-        placeholder="https://\u2026?team=\u2026&amp;rol=kijker" style="width:100%">
+      <input id="kijkPlak" class="plakin" type="text" inputmode="url" autocapitalize="none"
+        autocorrect="off" spellcheck="false"
+        placeholder="https://\u2026?team=\u2026&amp;rol=kijker">
       <button class="btn full" id="kijkKoppel" style="margin-top:8px">${U('Koppelen','Connect')}</button></div>`;
   }
   h+=`<h2 class="sectiekop">${U('Onderhoud','Maintenance')}</h2>`;
@@ -6566,8 +6580,9 @@ function renderQuarter(q){
         <p class="hint" style="margin-bottom:10px">Dan hoor je hier de opstelling van je team te zien,
           niet deze voorbeeldspelers. Plak de link uit het bericht van je coach; dat hoeft maar
           \u00e9\u00e9n keer.</p>
-        <input id="kijkPlak2" type="text" inputmode="url" autocapitalize="none" spellcheck="false"
-          placeholder="https://\u2026?team=\u2026&amp;rol=kijker" style="width:100%">
+        <input id="kijkPlak2" class="plakin" type="text" inputmode="url" autocapitalize="none"
+          autocorrect="off" spellcheck="false"
+          placeholder="https://\u2026?team=\u2026&amp;rol=kijker">
         <button class="btn full" id="kijkKoppel2" style="margin-top:8px">Koppelen</button>
         <p class="hint" style="margin:10px 0 0">Ben je coach en ga je je eigen team invullen?
           Dan kun je dit overslaan.</p></div>`;
@@ -7459,8 +7474,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=239;
-const VERSIE_LABEL='26.9.80';
+const APP_VERSION=240;
+const VERSIE_LABEL='26.9.81';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='12 september 2026', VERSIE_DATUM_EN='12 September 2026';
