@@ -3302,6 +3302,18 @@ function beschrijfWijziging(vorigJSON,nu){
       if(q.name!==p.name)return 'Naam gewijzigd: '+q.name+' \u2192 '+p.name;
       if(String(q.num)!==String(p.num))return 'Rugnummer '+p.name+': '+p.num;
       if(JSON.stringify(q.prefs||[])!==JSON.stringify(p.prefs||[]))return 'Voorkeuren van '+p.name+' aangepast';
+      // De linievinkjes stonden niet in dit rijtje. Ze veranderen wél mee — de stand
+      // wordt gewoon gesynchroniseerd — maar de mede-coach las er 'Gegevens bijgewerkt'
+      // over, en dat is juist bij deze wijziging misleidend: waar iemand mag staan
+      // bepaalt rechtstreeks hoe de opstelling eruitziet.
+      // Via linesOf(), want 'niets aangevinkt' betekent 'alle drie'. Rechtstreeks op
+      // p.lines vergelijken zou een verschil melden tussen twee spelers die precies
+      // hetzelfde mogen.
+      const oudeL=linesOf(q).slice().sort().join(), nieuweL=linesOf(p).slice().sort().join();
+      if(oudeL!==nieuweL){
+        const l=LINE_IDS.filter(x=>linesOf(p).includes(x));
+        return 'Linies van '+p.name+': '+(l.length===LINE_IDS.length?'alle linies':l.join(' + '));
+      }
     }
     return JSON.stringify(o)===JSON.stringify(n)?'':'Gegevens bijgewerkt';
   }catch(e){return '';}
@@ -8023,8 +8035,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=252;
-const VERSIE_LABEL='26.9.93';
+const APP_VERSION=253;
+const VERSIE_LABEL='26.9.94';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='14 september 2026', VERSIE_DATUM_EN='14 September 2026';
