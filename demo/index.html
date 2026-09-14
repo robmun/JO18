@@ -443,9 +443,17 @@ body.sun .selrij.aan{background:#fdeae6;border-color:rgba(179,36,26,.5)}
   position:fixed;left:0;right:0;bottom:0;z-index:50;
   display:flex;justify-content:space-around;align-items:stretch;
   padding:4px 8px calc(4px + env(safe-area-inset-bottom));
-  background:rgba(12,26,50,.62);
-  backdrop-filter:blur(28px) saturate(180%);
-  -webkit-backdrop-filter:blur(28px) saturate(180%);
+  /* Dekkend, en bewust zonder backdrop-filter.
+     De balk stond op rgba(...,.62) met blur(28px) saturate(180%) over het schuifgebied.
+     Op alle tabbladen is de achtergrond daar donkerblauw en zag je er niets van, maar
+     op Wedstrijd ligt het groene veld eronder: de balk trok dan een groene waas, en
+     iOS ververst een backdrop-filter op een vastgezet element niet betrouwbaar zolang
+     het uitrollen van een schuifbeweging loopt. Het beeld dat erin bleef staan was het
+     vorige stukje gras — vandaar dat hij 'bleef hangen'. Dekkend maakt het probleem
+     onmogelijk in plaats van onwaarschijnlijk, en scheelt bovendien een laag die de
+     telefoon elke frame opnieuw moest samenstellen precies terwijl er gescrold wordt.
+     De zonstand deed dit trouwens al (zie body.sun hieronder) — nu doen ze hetzelfde. */
+  background:#0c1a32;
   border-top:1px solid rgba(255,255,255,.10);
 }
 .tab{
@@ -581,7 +589,7 @@ body.sun .dim-row .pname b{text-decoration-color:#b3781a}
 body.sun .rule .del{background:#fdeae6;color:#a01a10;border:1px solid rgba(179,36,26,.45)}
 body.sun .chip .tag .k{color:#b3241a}
 /* De tabbalk is het belangrijkst: hoog contrast, geen glas */
-body.sun .tabbar{background:#10203c;border-top:1px solid #10203c;backdrop-filter:none;-webkit-backdrop-filter:none}
+body.sun .tabbar{background:#10203c;border-top:1px solid #10203c}
 body.sun .tab{color:rgba(255,255,255,.72)}
 body.sun .tab.active{color:#fff}
 body.sun .tab .q{border-color:rgba(255,255,255,.55);color:#fff}
@@ -7988,8 +7996,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=250;
-const VERSIE_LABEL='26.9.91';
+const APP_VERSION=251;
+const VERSIE_LABEL='26.9.92';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='14 september 2026', VERSIE_DATUM_EN='14 September 2026';
