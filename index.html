@@ -2440,16 +2440,43 @@ function assignAll(blockSets,perQ,rules,byId,vast){
       if(used.size===ids.length)break;
     }
     const posIds=Object.keys(asg);
+    const posVan={}; POS.forEach(x=>{posVan[x.id]=x;});
     let improved=true,guard=0;
     while(improved&&guard++<80){
       improved=false;
       for(let i=0;i<posIds.length;i++)for(let j=i+1;j<posIds.length;j++){
         const a=posIds[i],c=posIds[j],pa=asg[a],pc=asg[c];
-        const PA=POS.find(p=>p.id===a),PC=POS.find(p=>p.id===c);
+        const PA=posVan[a],PC=posVan[c];
         const cur=score(pa,PA)+score(pc,PC);
         const alt=score(pa,PC)+score(pc,PA);
         if(alt>cur+1e-9){asg[a]=pc;asg[c]=pa;improved=true;}
       }
+      if(improved)continue;
+      // ── Ook met z'n drieën ruilen ──
+      // Hierboven wordt elk paar geprobeerd, en dat is niet altijd genoeg. Er zijn
+      // opstellingen waarin geen enkele één-op-één ruil verbetering geeft, terwijl er
+      // wél een foutloze verdeling bestaat: dan moeten er drie tegelijk doorschuiven.
+      // Dat is geen theoretisch geval — op 14 september stond Joris daardoor in Q1
+      // en Q3 linksvoor, een achterspeler twee linies te ver naar voren, terwijl er
+      // met dezelfde tien spelers een opstelling was waarin iedereen binnen zijn
+      // linies bleef. De verdeling zat vast in een hoek waar ruilen per twee niet
+      // uit komt.
+      //
+      // Drie plekken zijn op twee manieren te draaien; allebei proberen. Tien plekken
+      // geeft 120 drietallen, dus dit is goedkoop, en het draait pas als ruilen per
+      // twee is uitgeput.
+      for(let i=0;i<posIds.length&&!improved;i++)
+        for(let j=i+1;j<posIds.length&&!improved;j++)
+          for(let k=j+1;k<posIds.length&&!improved;k++){
+            const a=posIds[i],c=posIds[j],e=posIds[k];
+            const pa=asg[a],pc=asg[c],pe=asg[e];
+            const PA=posVan[a],PC=posVan[c],PE=posVan[e];
+            const cur=score(pa,PA)+score(pc,PC)+score(pe,PE);
+            const heen=score(pe,PA)+score(pa,PC)+score(pc,PE);   // a→c→e→a
+            const terug=score(pc,PA)+score(pe,PC)+score(pa,PE);  // a→e→c→a
+            if(heen>cur+1e-9&&heen>=terug){asg[a]=pe;asg[c]=pa;asg[e]=pc;improved=true;}
+            else if(terug>cur+1e-9){asg[a]=pc;asg[c]=pe;asg[e]=pa;improved=true;}
+          }
     }
     // Te lange doorschuifketens korter maken. Zie kortKetens hieronder; de start van
     // Q3 slaan we over als die gelijk moet blijven aan Q1, want dan zou de reparatie
@@ -7996,8 +8023,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=251;
-const VERSIE_LABEL='26.9.92';
+const APP_VERSION=252;
+const VERSIE_LABEL='26.9.93';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='14 september 2026', VERSIE_DATUM_EN='14 September 2026';
@@ -8306,6 +8333,47 @@ function zelftest(){
     ztControleer(st,sch,'noq',fout);
     if(sch)for(let b=0;b<sch.perQ*4;b++){const q=Math.floor(b/sch.perQ)+1;
       if([2,4].includes(q)&&Object.values(sch.assignments[b]).includes('p1'))fout('noq: p1 speelt in Q'+q);}
+  });
+  test('Linies houden ook als er met z\'n drie\u00ebn geruild moet worden',()=>{
+    // De belofte zelf toetsen, niet de reparatie: k\u00e1n een blok foutloos verdeeld
+    // worden binnen de linies, dan moet het ook gebeuren. Ruilen per twee liep daar
+    // op vast \u2014 zie de drieruil in assignAll.
+    const zaad=s=>()=>((s=(s*1103515245+12345)&0x7fffffff)/0x7fffffff);
+    const posn=['lv','sp','rv','lm','mm','rm','la','lman','vs','ra'];
+    for(let seed=1;seed<=40;seed++){
+      const rnd=zaad(seed*7919);
+      const sp=[{id:'k',name:'Keep',num:1,prefs:['keeper','',''],present:true,guest:false}];
+      for(let i=0;i<15;i++){
+        const l=LINE_IDS.filter(()=>rnd()<0.55);
+        const p={id:'p'+i,name:'S'+i,num:i+2,present:true,guest:false,
+          prefs:[posn[Math.floor(rnd()*10)],posn[Math.floor(rnd()*10)],posn[Math.floor(rnd()*10)]]};
+        if(l.length&&l.length<LINE_IDS.length)p.lines=l;
+        sp.push(p);
+      }
+      const st={v:STATE_V,players:sp,keeperId:'k',rules:[],schedule:null,genHash:null};
+      const sch=buildSchedule(st);
+      if(!sch){fout('drieruil: geen schema bij zaad '+seed);continue;}
+      const byId=Object.fromEntries(sp.map(p=>[p.id,p]));
+      for(let b=0;b<sch.perQ*4;b++){
+        const a=sch.assignments[b], POS=positionsOfQ(Math.floor(b/sch.perQ),st.rules);
+        const opVeld=Object.values(a).map(x=>byId[x]);
+        // Stelling van Hall: bestaat er met deze tien \u00fcberhaupt een foutloze verdeling?
+        let kan=true;
+        for(let m=1;m<8&&kan;m++){
+          const deel=LINE_IDS.filter((_,i)=>m&(1<<i));
+          const plekken=POS.filter(x=>deel.includes(x.line)).length;
+          const mensen=opVeld.filter(p=>linesOf(p).some(l=>deel.includes(l))).length;
+          if(mensen<plekken)kan=false;
+        }
+        if(!kan)continue;   // dan is een concessie onvermijdelijk en zegt dit niets
+        for(const pos in a){
+          const p=byId[a[pos]];
+          if(!linesOf(p).includes(POSMAP[pos].line))
+            fout('drieruil: zaad '+seed+' blok '+b+': '+p.name+' staat in de '+POSMAP[pos].line
+                 +' terwijl het te vermijden was');
+        }
+      }
+    }
   });
   test('Regel: positie bemand door een groepje',()=>{
     const st=ztTeam(15,{rules:[{id:'pd',type:'posdoor',pos:'mm',spelers:['p0','p1']}]});
