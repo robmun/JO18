@@ -1202,6 +1202,13 @@ const WB={
   'Iedereen staat op maximaal {0} verschillende posities':'Nobody plays more than {0} different positions',
   '{0} en {1} wisselen elkaar af op {2}':'{0} and {1} rotate at {2}',
   '{0} wordt altijd gespeeld door {1} of {2}':'{0} is always played by {1} or {2}',
+  // Wat er op de cloudkaart staat als een mede-coach iets heeft gewijzigd.
+  '{0} spelers aan/afgemeld':'{0} players checked in or out',
+  'Opstelling Q{0} aangepast':'Line-up Q{0} changed',
+  'Naam gewijzigd: {0} → {1}':'Name changed: {0} → {1}',
+  'Rugnummer {0}: {1}':'Shirt number {0}: {1}',
+  'Voorkeuren van {0} aangepast':'Preferences for {0} changed',
+  'Linies van {0}: {1}':'Lines for {0}: {1}',
   'Start Q3 gelijk aan start Q1':'Q3 starts the same as Q1',
   '{0} keept {1}':'{0} keeps goal in {1}',
   '{0} wisselmoment in elk kwart':'{0} substitution point per quarter',
@@ -1544,6 +1551,12 @@ const LINES_EN={voor:'attack',midden:'midfield',achter:'defence'};
 // LINES blijft bestaan als lees-eigenschap, zodat bestaande aanroepen LINES[r.line]
 // ongewijzigd blijven werken en toch de taal volgen.
 const LINES=new Proxy({},{get:(_,k)=>(EN()?LINES_EN:LINES_NL)[k]});
+// De korte vorm, zoals op de vinkjes bij de speler staat. Stond als losse tabel
+// midden in het spelerstabblad; nu op één plek, zodat de melding op de cloudkaart
+// precies dezelfde woorden gebruikt als de vinkjes waar hij over gaat.
+const LINES_KORT_NL={voor:'Voor',midden:'Midden',achter:'Achter'};
+const LINES_KORT_EN={voor:'Attack',midden:'Mid',achter:'Defence'};
+function linieKort(l){return (EN()?LINES_KORT_EN:LINES_KORT_NL)[l]||l;}
 // Wanneer is deze demo voor het eerst geopend? Vanaf dat moment loopt de termijn.
 function demoStart(){
   try{
@@ -3263,45 +3276,46 @@ function beschrijfWijziging(vorigJSON,nu){
     const op=id=>(o.players||[]).find(x=>x.id===id);
     // aanwezigheid
     const aanw=[];
-    (n.players||[]).forEach(p=>{const q=op(p.id); if(q&&!!q.present!==!!p.present)aanw.push(p.name+(p.present?' erbij':' afwezig'));});
-    if(aanw.length)return (aanw.length>2?aanw.length+' spelers aan/afgemeld':'Aanwezigheid: '+aanw.join(', '));
+    (n.players||[]).forEach(p=>{const q=op(p.id); if(q&&!!q.present!==!!p.present)aanw.push(p.name+(p.present?U(' erbij',' in'):U(' afwezig',' out')));});
+    if(aanw.length)return (aanw.length>2?Tf('{0} spelers aan/afgemeld',aanw.length):U('Aanwezigheid: ','Attendance: ')+aanw.join(', '));
     // spelers erbij of weg
     const oid=new Set((o.players||[]).map(p=>p.id)), nid=new Set((n.players||[]).map(p=>p.id));
     const bij=(n.players||[]).filter(p=>!oid.has(p.id)), weg=(o.players||[]).filter(p=>!nid.has(p.id));
-    if(bij.length)return 'Speler toegevoegd: '+bij.map(p=>p.name||'naamloos').join(', ');
-    if(weg.length)return 'Speler verwijderd: '+weg.map(p=>p.name||'naamloos').join(', ');
+    if(bij.length)return U('Speler toegevoegd: ','Player added: ')+bij.map(p=>p.name||U('naamloos','unnamed')).join(', ');
+    if(weg.length)return U('Speler verwijderd: ','Player removed: ')+weg.map(p=>p.name||U('naamloos','unnamed')).join(', ');
     // regels
     const orid=new Set((o.rules||[]).map(r=>r.id)), nrid=new Set((n.rules||[]).map(r=>r.id));
     const rBij=(n.rules||[]).filter(r=>!orid.has(r.id)), rWeg=(o.rules||[]).filter(r=>!nrid.has(r.id));
-    if(rBij.length)return 'Regel erbij: '+ruleSentence(rBij[0]);
-    if(rWeg.length)return 'Regel weg: '+ruleSentence(rWeg[0]);
-    if(JSON.stringify(o.rules||[])!==JSON.stringify(n.rules||[]))return 'Coachregel aangepast';
+    // ruleSentence() volgt de taal al, dus de regel zelf komt er vertaald uit.
+    if(rBij.length)return U('Regel erbij: ','Rule added: ')+ruleSentence(rBij[0]);
+    if(rWeg.length)return U('Regel weg: ','Rule removed: ')+ruleSentence(rWeg[0]);
+    if(JSON.stringify(o.rules||[])!==JSON.stringify(n.rules||[]))return U('Coachregel aangepast','Coach rule changed');
     // aanvoerder
     const oc=(o.players||[]).find(p=>p.captain), nc=(n.players||[]).find(p=>p.captain);
-    if((oc?oc.id:null)!==(nc?nc.id:null))return nc?('Aanvoerder: '+nc.name):'Aanvoerder verwijderd';
+    if((oc?oc.id:null)!==(nc?nc.id:null))return nc?(U('Aanvoerder: ','Captain: ')+nc.name):U('Aanvoerder verwijderd','Captain removed');
     // schema
     const oS=o.schedule, nS=n.schedule;
-    if(!oS&&nS)return 'Opstelling gegenereerd';
-    if(oS&&!nS)return 'Schema gewist';
+    if(!oS&&nS)return U('Opstelling gegenereerd','Line-up generated');
+    if(oS&&!nS)return U('Schema gewist','Schedule cleared');
     if(oS&&nS){
-      if(oS.perQ!==nS.perQ)return 'Schema opnieuw gepland';
+      if(oS.perQ!==nS.perQ)return U('Schema opnieuw gepland','Schedule replanned');
       let anders=[],eerste=-1;
       for(let b=0;b<nS.assignments.length;b++){
         if(JSON.stringify(oS.assignments[b])!==JSON.stringify(nS.assignments[b])){anders.push(b);if(eerste<0)eerste=b;}
       }
       if(anders.length){
-        if(anders.length>nS.perQ)return 'Schema opnieuw gepland';
+        if(anders.length>nS.perQ)return U('Schema opnieuw gepland','Schedule replanned');
         const q=Math.floor(eerste/nS.perQ)+1;
-        return 'Opstelling Q'+q+' aangepast';
+        return Tf('Opstelling Q{0} aangepast',q);
       }
-      if(o.genHash!==n.genHash)return 'Schema opnieuw gegenereerd';
+      if(o.genHash!==n.genHash)return U('Schema opnieuw gegenereerd','Schedule regenerated');
     }
     // naam, nummer, voorkeuren
     for(const p of (n.players||[])){
       const q=op(p.id); if(!q)continue;
-      if(q.name!==p.name)return 'Naam gewijzigd: '+q.name+' \u2192 '+p.name;
-      if(String(q.num)!==String(p.num))return 'Rugnummer '+p.name+': '+p.num;
-      if(JSON.stringify(q.prefs||[])!==JSON.stringify(p.prefs||[]))return 'Voorkeuren van '+p.name+' aangepast';
+      if(q.name!==p.name)return Tf('Naam gewijzigd: {0} \u2192 {1}',q.name,p.name);
+      if(String(q.num)!==String(p.num))return Tf('Rugnummer {0}: {1}',p.name,p.num);
+      if(JSON.stringify(q.prefs||[])!==JSON.stringify(p.prefs||[]))return Tf('Voorkeuren van {0} aangepast',p.name);
       // De linievinkjes stonden niet in dit rijtje. Ze veranderen wél mee — de stand
       // wordt gewoon gesynchroniseerd — maar de mede-coach las er 'Gegevens bijgewerkt'
       // over, en dat is juist bij deze wijziging misleidend: waar iemand mag staan
@@ -3312,10 +3326,11 @@ function beschrijfWijziging(vorigJSON,nu){
       const oudeL=linesOf(q).slice().sort().join(), nieuweL=linesOf(p).slice().sort().join();
       if(oudeL!==nieuweL){
         const l=LINE_IDS.filter(x=>linesOf(p).includes(x));
-        return 'Linies van '+p.name+': '+(l.length===LINE_IDS.length?'alle linies':l.join(' + '));
+        return Tf('Linies van {0}: {1}',p.name,
+          l.length===LINE_IDS.length?U('alle linies','all lines'):l.map(linieKort).join(' + '));
       }
     }
-    return JSON.stringify(o)===JSON.stringify(n)?'':'Gegevens bijgewerkt';
+    return JSON.stringify(o)===JSON.stringify(n)?'':U('Gegevens bijgewerkt','Data updated');
   }catch(e){return '';}
 }
 function cloudListen(){
@@ -5402,7 +5417,7 @@ function playerRow(p){
         <span class="lnlbl">${U('Mag spelen in linie','May play in line')}</span>
         <div class="lnpick">${LINE_IDS.map(l=>{
           const aan=magInLinie(p,l);
-          const kort=EN()?{voor:'Attack',midden:'Mid',achter:'Defence'}[l]:{voor:'Voor',midden:'Midden',achter:'Achter'}[l];
+          const kort=linieKort(l);
           return `<label class="${aan?'on':''}"><input type="checkbox" data-act="line" data-id="${p.id}" data-line="${l}" ${aan?'checked':''}><span>${kort}</span></label>`;
         }).join('')}</div>
       </div>
@@ -8035,8 +8050,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=253;
-const VERSIE_LABEL='26.9.94';
+const APP_VERSION=254;
+const VERSIE_LABEL='26.9.95';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='14 september 2026', VERSIE_DATUM_EN='14 September 2026';
