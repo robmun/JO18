@@ -1193,6 +1193,7 @@ const WB={
   // Het Nederlands zegt 'iedereen staat op maximaal'; als verbod leest het Engels beter.
   'Iedereen staat op maximaal {0} verschillende posities':'Nobody plays more than {0} different positions',
   '{0} en {1} wisselen elkaar af op {2}':'{0} and {1} rotate at {2}',
+  '{0} wordt altijd gespeeld door {1} of {2}':'{0} is always played by {1} or {2}',
   'Start Q3 gelijk aan start Q1':'Q3 starts the same as Q1',
   '{0} keept {1}':'{0} keeps goal in {1}',
   '{0} wisselmoment in elk kwart':'{0} substitution point per quarter',
@@ -1216,6 +1217,11 @@ const WB={
   'Kies minstens \u00e9\u00e9n kwart':'Pick at least one quarter',
   'Kies minstens \u00e9\u00e9n veldspeler':'Pick at least one outfield player',
   'Kies een speler':'Pick a player',
+  'Kies een positie':'Pick a position',
+  'Kies minstens twee verschillende spelers':'Pick at least two different players',
+  'Voor {0} staat er al zo’n afspraak':'There is already such an arrangement for {0}',
+  '{0} is de vaste keeper en staat de hele wedstrijd op doel':'{0} is the regular goalkeeper and is in goal for the whole match',
+  'Niemand van hen mag {0} spelen — kijk bij de linies op Spelers':'None of them may play {0} — check the lines under Players',
   'Minstens een linie is nodig':'At least one line is required',
   'Genereer eerst een opstelling':'Generate a line-up first',
   'Herplannen lukt niet met deze spelers':'Cannot replan with these players',
@@ -1755,6 +1761,29 @@ function regelPosities(r){
   if(Array.isArray(r.posities)&&r.posities.length)return r.posities.filter(x=>POSMAP[x]);
   return r.pos&&POSMAP[r.pos]?[r.pos]:[];
 }
+// ── Een positie die altijd door één van een klein groepje wordt bemand ('posdoor') ──
+// De tegenhanger van 'speelt altijd op vaste positie': die zet één speler vast op een
+// plek, deze zet één plek vast op een groepje. Het verschil met 'wisselen elkaar af
+// op één positie' is dat de anderen wél tegelijk mogen spelen — alleen ergens anders.
+// Bij een ruilafspraak staat er per blok precies één van het paar op het veld en zit
+// de ander verplicht op de bank; over een hele wedstrijd komt dat op een helft per
+// man neer. Hier is de eis alleen dat de plek bezet is door iemand uit het groepje.
+function regelSpelers(r){
+  const l=Array.isArray(r&&r.spelers)?r.spelers:[];
+  return l.filter(x=>typeof x==='string'&&x);
+}
+// De posdoor-regels die met deze spelerslijst iets te maken hebben, ontdaan van
+// spelers die er niet (meer) zijn.
+function posdoorRegels(rules,ids){
+  const rs=rules||(typeof state!=='undefined'?state.rules:[])||[];
+  const uit=[];
+  for(const r of rs){
+    if(r.type!=='posdoor'||!POSMAP[r.pos])continue;
+    const sp=regelSpelers(r).filter(x=>!ids||ids.includes(x));
+    if(sp.length)uit.push({pos:r.pos,spelers:sp});
+  }
+  return uit;
+}
 function verbodenPosities(pid,rules,POS){
   const rs=rules||(typeof state!=='undefined'?state.rules:[])||[];
   const uit=new Set();
@@ -1801,6 +1830,11 @@ function maxPosRule(rules){
 // volgende, zodat een lagere afspraak nooit een hogere kan overstemmen.
 // Ter vergelijking: de voorkeuren en bonussen samen komen niet boven de 4200 uit.
 const STRAF_NOPOS = 1e8;   // coach zegt: hier nooit
+// 'Deze plek is van dit groepje'. Boven een vaste positie, want een vaste positie
+// is een wens over één speler en dit een afspraak over de hele plek; onder de
+// linie-vinkjes, want als de enige aanwezige uit het groepje daar niet mag staan
+// wint wat de speler kan van wat de coach op die plek wil zien.
+const STRAF_EIGENAAR = 5e6;
 const STRAF_LOCK  = 1e6;   // coach zegt: hier altijd
 const STRAF_LINIE = 1e7;   // speler mag niet in deze linie (vinkjes op Spelers)
 // De vinkjes stonden lang op 1e4, onder een vaste positie. Dat leverde twee problemen op.
@@ -2058,11 +2092,25 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
   // 'Twee spelers wisselen elkaar af op één positie': per blok speelt er precies één
   // van het paar (om en om), die op de gedeelde positie komt te staan.
   const rotates=rules.filter(r=>r.type==='rotate'&&ids.includes(r.p1)&&ids.includes(r.p2));
+  // 'Deze positie wordt altijd door één van deze spelers gespeeld': de verdeling over
+  // de posities kan dat alleen waarmaken als er ook echt iemand uit het groepje op
+  // het veld staat. Dat is een zaak van de selectie, en dus van hier.
+  const posdoors=posdoorRegels(rules,ids);
+  // Wie is er nog het hardst aan spelen toe? Dezelfde maatstaf als de kandidatenlijst
+  // hieronder gebruikt, zodat het erbij halen van een groepslid de minutenverdeling
+  // niet scheeftrekt maar juist volgt.
+  const achterstand=(id,b)=>(t[id]-played[id])/Math.max(1,remFrom[id][b]);
+  // Mag deze speler nu uit dit blok gehaald worden, of is hij de laatste van zijn
+  // groepje die er nog staat? Gebruikt door de rondes die achteraf minuten en
+  // 'liever niet samen' gladstrijken.
+  const posdoorLaatste=(set,id)=>posdoors.some(r=>r.spelers.includes(id)
+    && !r.spelers.some(x=>x!==id&&set.has(x)));
   // 'Start Q3 gelijk aan start Q1': het startblok van Q3 krijgt dezelfde spelers als blok 0,
   // voor zover die dan beschikbaar zijn (wie in Q3 keept, valt hier vanzelf af).
   const q3like=rules.some(r=>r.type==='q3likeq1');
   const q3Block=perQ*2;
   const rotateBlocked=new Set(); // spelers die in dit blok juist NIET ingezet worden (de 'rust'-helft van het paar)
+  const posdoorVast=new Set();   // wie dit blok alleen staat omdat hij zijn plek moet bemannen
   for(let b=0;b<B;b++){
     // Reeds gespeelde blokken (vóór het herplan-moment) liggen vast
     if(b<fromBlock && fixedBlocks && fixedBlocks[b]){
@@ -2085,7 +2133,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
     });
     const sel=new Set(),skipped=[],uitgesteld=[];
     // rotate-paren: kies per blok wie van het paar speelt (afwisselend p1/p2)
-    rotateBlocked.clear();
+    rotateBlocked.clear(); posdoorVast.clear();
     for(let ri=0;ri<rotates.length;ri++){
       const r=rotates[ri];
       const aOk=elig[r.p1]&&elig[r.p1][b], bOk=elig[r.p2]&&elig[r.p2][b];
@@ -2110,6 +2158,19 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
     }
     // eind-blokken: 'speelt zeker het einde'-spelers geforceerd plaatsen
     if(endForce[b]){ for(const id of endForce[b]){ if(sel.size>=10)break; if(rotateBlocked.has(id))continue; if(elig[id]&&elig[id][b])sel.add(id); } }
+    // Bemande posities: staat er nog niemand uit het groepje, haal er dan één bij —
+    // die met de grootste achterstand op zijn eerlijke aandeel. Is er niemand
+    // inzetbaar (geblesseerd, keept dit kwart, zit aan zijn maximum), dan kan het
+    // niet en gaat het blok gewoon door; de melding achteraf vertelt dat.
+    for(const r of posdoors){
+      if(sel.size>=10)break;
+      if(r.spelers.some(id=>sel.has(id)))continue;
+      const kan=r.spelers.filter(id=>elig[id]&&elig[id][b]&&!rotateBlocked.has(id)
+        &&!(b===0&&startBench.has(id))&&!(maxBlk[id]!=null&&played[id]>=maxBlk[id]));
+      if(!kan.length)continue;
+      kan.sort((a,c)=>achterstand(c,b)-achterstand(a,b));
+      sel.add(kan[0]); posdoorVast.add(kan[0]);
+    }
     for(const id of cands){
       if(sel.size>=10)break;
       if(sel.has(id))continue;
@@ -2136,7 +2197,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
     // iemand die het gat vult. Wie vastligt door een andere afspraak blijft staan;
     // liever een tekort dan een gebroken regel.
     if(linieTekort(sel,b)>0){
-      const vast=new Set([...(endForce[b]||[]),...(b===0?startBase:[]),
+      const vast=new Set([...(endForce[b]||[]),...(b===0?startBase:[]),...posdoorVast,
         ...rotates.flatMap(r=>[r.p1,r.p2]),...(q3like&&b===q3Block&&blocks[0]?blocks[0]:[])]);
       for(let poging=0;poging<6;poging++){
         const tekort=linieTekort(sel,b);
@@ -2182,6 +2243,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
           if(!blocks[b].has(hi)||blocks[b].has(lo)||!elig[lo][b])continue;
           if(rotateIds.has(hi)||rotateIds.has(lo))continue; // rotate-paren niet verstoren
           if(endForce[b]&&endForce[b].has(hi))continue; // geforceerde eindspeler niet uit eindblok halen
+          if(posdoorLaatste(blocks[b],hi))continue; // laatste van zijn groepje: dan blijft zijn plek onbemand
           if(maxBlk[lo]!=null&&played[lo]>=maxBlk[lo])continue; // lo niet boven zijn max tillen
           const tmp=new Set(blocks[b]);tmp.delete(hi);
           const conf=conflictsWith(lo,tmp);
@@ -2210,6 +2272,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
         if(blocks[b].has(id)||!elig[id][b])continue;
         const cand=[...blocks[b]].filter(x=>x!==id
           && (minBlk[x]==null || played[x]>Math.min(minBlk[x],caps[x]))
+          && !posdoorLaatste(blocks[b],x)
           && !(maxBlk[id]!=null && played[id]>=maxBlk[id]))
           .sort((a,c)=>(played[c]-t[c])-(played[a]-t[a]))[0];
         if(cand!=null){ blocks[b].delete(cand);blocks[b].add(id);played[cand]--;played[id]++;done=true; }
@@ -2235,8 +2298,10 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
             if(q3like&&b2===q3Block)continue;
             const other=mv===r.p1?r.p2:r.p1;
             if(blocks[b2].has(other))continue;
+            if(posdoorLaatste(blocks[b1],mv))continue;
             for(const x of blocks[b2]){
               if(x===r.p1||x===r.p2||blocks[b1].has(x)||!elig[x]||!elig[x][b1])continue;
+              if(posdoorLaatste(blocks[b2],x))continue;
               const tmp1=new Set(blocks[b1]);tmp1.delete(mv);
               if(conflictsWith(x,tmp1))continue;
               const tmp2=new Set(blocks[b2]);tmp2.delete(x);
@@ -2303,6 +2368,20 @@ function assignAll(blockSets,perQ,rules,byId,vast){
       }
       if(om.length)locks[pid]=om; else delete locks[pid];
     }
+    // Bemande posities: wie uit het groepje staat er dit blok op het veld? Staat er
+    // niemand, dan laten we de plek vrij — iedereen even zwaar straffen verandert de
+    // uitkomst toch niet en zou de andere afwegingen alleen maar vertroebelen.
+    const eigenaar={};
+    for(const r of rules){
+      if(r.type!=='posdoor'||!POSMAP[r.pos])continue;
+      const wie=regelSpelers(r).filter(x=>on.has(x));
+      if(!wie.length)continue;
+      // Plek omzetten naar de speelvorm van dit kwart, net als bij de vaste posities.
+      let plek=POS.some(x=>x.id===r.pos)?r.pos:(POS.find(x=>(x.eq||[]).includes(r.pos))||{}).id;
+      if(!plek)continue;
+      const s=eigenaar[plek]||(eigenaar[plek]=new Set());
+      wie.forEach(x=>s.add(x));
+    }
     const short=ids.length<10;
     // Verboden posities voor de spelers die nu op het veld staan, uitgerekend voor
     // de speelvorm van dit kwart (zie verbodenPosities).
@@ -2314,6 +2393,7 @@ function assignAll(blockSets,perQ,rules,byId,vast){
       s+=pos.line==='achter'?(short?60:6):(pos.line==='midden'?(short?30:3):0);
       if(locks[pid]) s+=locks[pid].includes(pos.id)?STRAF_LOCK:-STRAF_LOCK;
       if(verboden[pid]&&verboden[pid].has(pos.id)) s-=STRAF_NOPOS;
+      if(eigenaar[pos.id]&&!eigenaar[pos.id].has(pid)) s-=STRAF_EIGENAAR;
       if(!magInLinie(p,pos.line)) s-=STRAF_LINIE;   // speler mag niet in deze linie
       // Zou dit een nieuwe positie worden terwijl hij er al genoeg heeft gehad?
       // Alleen straffen als de grens al bereikt is, is te laat: dan heeft hij zijn
@@ -2366,7 +2446,7 @@ function assignAll(blockSets,perQ,rules,byId,vast){
     // Te lange doorschuifketens korter maken. Zie kortKetens hieronder; de start van
     // Q3 slaan we over als die gelijk moet blijven aan Q1, want dan zou de reparatie
     // juist die afspraak breken.
-    if(prev && !(q3like && b===perQ*2)) kortKetens(prev,asg,POS,byId,locks,verboden);
+    if(prev && !(q3like && b===perQ*2)) kortKetens(prev,asg,POS,byId,locks,verboden,eigenaar);
     onthoud(asg);
     out.push(asg);prev=asg;if(b===0)q1a=asg;
   }
@@ -2390,6 +2470,9 @@ function herstelMaxPos(out,perQ,rules,byId,maxPos,vast,q3like){
   for(const r of rules){
     if(r.type==='pos'||r.type==='condpos')onaanraakbaar.add(r.p1);
     if(r.type==='rotate'){onaanraakbaar.add(r.p1);onaanraakbaar.add(r.p2);}
+    // Wie een plek bemant blijft staan waar hij staat: een ruil zou daar iemand van
+    // buiten het groepje neerzetten, en dat is precies wat de regel verbiedt.
+    if(r.type==='posdoor')regelSpelers(r).forEach(x=>onaanraakbaar.add(x));
   }
   const vastTot=(vast&&vast.vanaf)||0;
   const bevroren=b=>b<vastTot||(q3like&&(b===0||b===perQ*2));
@@ -2453,9 +2536,10 @@ function herstelMaxPos(out,perQ,rules,byId,maxPos,vast,q3like){
 // waarin iemand mag spelen worden nooit geschonden. Lukt het daardoor niet, dan
 // blijft de keten lang — beter dat dan een opstelling die de afspraken breekt.
 const MAX_KETEN=3;      // streefwaarde: invaller, vertrekker en hooguit één doorschuiver
-function kortKetens(prev,asg,POS,byId,locks,verboden){
+function kortKetens(prev,asg,POS,byId,locks,verboden,eigenaar){
   const legaal=(pid,posId)=>{
     if(locks[pid]&&!locks[pid].includes(posId))return false;
+    if(eigenaar&&eigenaar[posId]&&!eigenaar[posId].has(pid))return false;
     if(verboden&&verboden[pid]&&verboden[pid].has(posId))return false;
     const pos=POS.find(p=>p.id===posId);
     return !!pos && magInLinie(byId[pid],pos.line);
@@ -3657,6 +3741,14 @@ function valideerStand(s){
         if((r.type==='condpos'||r.type==='rotate') && !r.p2)return weg(U('tweede speler ontbreekt','second player missing'));
         return true;
       }
+      case 'posdoor': {  // deze positie wordt altijd door één van deze spelers gespeeld
+        if(!POSMAP[r.pos])return weg(U('onbekende positie','unknown position'));
+        const sp=[...new Set(regelSpelers(r))].filter(x=>ids.has(x));
+        if(sp.length<2)return weg(U('minstens twee spelers nodig','at least two players needed'));
+        if(sp.length>3)return weg(U('te veel spelers','too many players'));
+        r.spelers=sp;
+        return true;
+      }
       case 'apart': {    // twee spelers liever niet samen
         if(!r.p1||!r.p2||r.p1===r.p2)return weg('twee verschillende spelers nodig');
         return true;
@@ -4434,6 +4526,12 @@ function ruleSentence(r){
     case 'nolinie':return Tf('{0} speelt nooit in de {1}', n(r.p1), LINES[r.line]);
     case 'maxpos': return Tf('Iedereen staat op maximaal {0} verschillende posities', r.n);
     case 'rotate': return Tf('{0} en {1} wisselen elkaar af op {2}', n(r.p1), n(r.p2), PNz(r.pos));
+    case 'posdoor': {
+      const sp=regelSpelers(r).map(x=>n(x));
+      if(sp.length<2)return '';
+      const laatste=sp.pop();
+      return Tf('{0} wordt altijd gespeeld door {1} of {2}', PN(r.pos), sp.join(', '), laatste);
+    }
     case 'q3likeq1': return T('Start Q3 gelijk aan start Q1');
     // De hele wedstrijd krijgt een eigen zin: 'keeps goal in the whole match' loopt
     // niet, terwijl 'keeps goal in Q1 + Q2' juist wel klopt.
@@ -5305,6 +5403,7 @@ function renderRegels(){
       <option value="minutes" ${t==='minutes'?'selected':''}>${U('Speelt minimaal of maximaal aantal minuten','Plays a minimum or maximum number of minutes')}</option>
       <option value="endstrong" ${t==='endstrong'?'selected':''}>${U('Speelt zeker het einde (sterkste slot)','Guaranteed to play the end (strongest finish)')}</option>
       <option value="rotate" ${t==='rotate'?'selected':''}>${U('Twee spelers wisselen elkaar af op één positie','Two players rotate at one position')}</option>
+      <option value="posdoor" ${t==='posdoor'?'selected':''}>${U('Positie altijd gespeeld door één van een paar spelers','Position always played by one of a few players')}</option>
       ${!keeperAanwezig?`<option value="gk" ${t==='gk'?'selected':''}>${U('Keeper voor bepaalde kwarten (vervanger)','Goalkeeper for certain quarters (stand-in)')}</option>`:''}
       <option value="q3likeq1" ${t==='q3likeq1'?'selected':''}>${U('Start Q3 gelijk aan start Q1','Q3 starts the same as Q1')}</option>
       <option value="condpos" ${t==='condpos'?'selected':''}>${U('Vaste positie als ander niet meespeelt','Fixed position when someone else is not playing')}</option>
@@ -5314,7 +5413,7 @@ function renderRegels(){
       <option value="maxpos" ${t==='maxpos'?'selected':''}>${U('Maximaal aantal posities per wedstrijd','Maximum number of positions per match')}</option>
     </select>
     ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">'+U('De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.','The line-up you start Q3 with is identical to the one in Q1. The substitutions after that simply carry on.')+'</p>'
-      :(t==='form'||t==='subs'||t==='maxpos')?''   // deze regels gelden voor het hele team, niet voor één speler
+      :(t==='form'||t==='subs'||t==='maxpos'||t==='posdoor')?''   // deze regels gelden voor het hele team of voor meerdere spelers tegelijk
       :`<div class="frow"><label class="hint">${U('Speler','Player')}</label><select class="sel" id="nrP1">${popts(newRule.p1)}</select></div>`}`;
   if(t==='endstrong')html+=`<div class="frow"><label class="hint">${U('Hoeveel van het einde?','How much of the end?')}</label><select class="sel" id="nrEndAmt">
       <option value="q4">${U('Het hele laatste kwart (Q4)','The whole final quarter (Q4)')}</option>
@@ -5330,6 +5429,15 @@ function renderRegels(){
       <div class="frow"><label class="hint">${U('Of ook','Or also')}</label><select class="sel" id="nrPos2">${leeg}${posopts(gek[1])}</select></div>
       <div class="frow"><label class="hint">${U('Of ook','Or also')}</label><select class="sel" id="nrPos3">${leeg}${posopts(gek[2])}</select></div>
       <p class="hint" style="margin:2px 0 6px">${U('Laat de onderste twee leeg voor \u00e9\u00e9n vaste plek. Vul je er meer in, dan staat hij altijd op \u00e9\u00e9n daarvan \u2014 welke, bepaalt de planner. Meer plekken geeft hem meer ruimte om de minuten eerlijk te verdelen.','Leave the bottom two empty for a single fixed spot. Fill in more and he will always be at one of them \u2014 which one is up to the planner. More spots give it more room to share the minutes out fairly.')}</p>`;
+  }
+  if(t==='posdoor'){
+    const sp=Array.isArray(newRule.spelers)?newRule.spelers:[];
+    const leeg=`<option value="">\u2014</option>`;
+    html+=`<div class="frow"><label class="hint">${U('Positie','Position')}</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>
+      <div class="frow"><label class="hint">${U('Gespeeld door','Played by')}</label><select class="sel" id="nrS1">${leeg}${popts(sp[0])}</select></div>
+      <div class="frow"><label class="hint">${U('Of door','Or by')}</label><select class="sel" id="nrS2">${leeg}${popts(sp[1])}</select></div>
+      <div class="frow"><label class="hint">${U('Of door','Or by')}</label><select class="sel" id="nrS3">${leeg}${popts(sp[2])}</select></div>
+      <p class="hint" style="margin:2px 0 6px">${U('Deze plek is altijd bezet door \u00e9\u00e9n van hen; de onderste mag leeg blijven. Anders dan bij \u2018wisselen elkaar af\u2019 hoeven de anderen niet op de bank: die kunnen tegelijk gewoon ergens anders staan. Wie van hen de plek invult, kiest de planner per blok \u2014 en dat scheelt speeltijd, want een ruilafspraak levert allebei ongeveer een halve wedstrijd op.','This spot is always taken by one of them; the bottom one may stay empty. Unlike \u2018rotate at one position\u2019 the others need not sit out: they can be on the pitch at the same time, elsewhere. Which of them fills the spot is up to the planner, block by block \u2014 and that buys playing time, since a rotation leaves both on about half a match.')}</p>`;
   }
   if(t==='condpos')html+=`<div class="frow"><label class="hint">${U('Positie','Position')}</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>`;
   if(t==='nolinie')html+=`<div class="frow"><label class="hint">${U('Nooit in linie','Never in line')}</label><select class="sel" id="nrLinie">${
@@ -5508,7 +5616,7 @@ function vasteKeeperId(){
 }
 // Regels die over één speler gaan en dus zinloos zijn voor wie de hele wedstrijd op
 // doel staat. 'gk' staat er apart in: die is niet zinloos maar dubbelop.
-const VELDREGELS=['noq','half','minutes','start','endstrong','pos','condpos','rotate','apart','nopos','nolinie'];
+const VELDREGELS=['noq','half','minutes','start','endstrong','pos','condpos','rotate','apart','nopos','nolinie','posdoor'];
 // Bepaalt wie er op doel staat: vaste keeper, aanwezige gastkeeper, of per kwart via 'gk'-regels.
 // Zet state.keeperId en geeft true terug als alles klopt; anders false met een melding.
 function resolveKeeperOrWarn(){
@@ -6315,7 +6423,7 @@ function zetTijdweergave(m){
 // Een regel verwijst naar spelers via r.p1 en r.p2 — meer velden zijn er niet.
 // Dezelfde controle die het verwijderen van een gastspeler al gebruikte, nu als
 // functie, zodat de twee plekken niet uit elkaar kunnen lopen.
-function regelGaatOver(r,id){ return r.p1===id||r.p2===id; }
+function regelGaatOver(r,id){ return r.p1===id||r.p2===id||regelSpelers(r).includes(id); }
 
 // ── Het schema van één speler ──
 // Tik op een naam in de speeltijdkaart en je ziet wat híj de hele wedstrijd doet.
@@ -7517,6 +7625,7 @@ function bind(v){
     else if(_ty==='maxpos'){r={id:'r'+Date.now(),type:'maxpos'};}
     else if(_ty==='form'){r={id:'r'+Date.now(),type:'form'};}
     else if(_ty==='q3likeq1'){r={id:'r'+Date.now(),type:_ty};}
+    else if(_ty==='posdoor'){r={id:'r'+Date.now(),type:'posdoor'};}
     else if(_ty==='gk'){
       const qs=[...v.querySelectorAll('.nrGKq:checked')].map(c=>Number(c.value));
       if(!g('#nrP1')){toast(T('Kies een speler'));return;}
@@ -7587,6 +7696,44 @@ function bind(v){
         const botsL=state.rules.find(x=>x.type==='nolinie'&&verboden.includes(x.line)&&(x.p1===r.p1||x.p1===r.p2));
         if(botsL){toast(Tf('Dat botst met \u2018{0}\u2019', ruleSentence(botsL)));return;}
       }
+    }
+    if(r.type==='posdoor'){
+      r.pos=g('#nrPos');
+      const gekozen=[g('#nrS1'),g('#nrS2'),g('#nrS3')].filter(x=>x&&state.players.some(q=>q.id===x));
+      r.spelers=[...new Set(gekozen)];
+      if(!POSMAP[r.pos]){toast(T('Kies een positie'));return;}
+      if(r.spelers.length<2){toast(T('Kies minstens twee verschillende spelers'));return;}
+      if(state.rules.some(x=>x.type==='posdoor'&&x.pos===r.pos)){
+        toast(Tf('Voor {0} staat er al zo\u2019n afspraak', PNz(r.pos)));return;}
+      // De vaste keeper staat buiten de veldverdeling; hem hier opvoeren zou stil niets doen.
+      const kidP=vasteKeeperId();
+      if(kidP&&r.spelers.includes(kidP)){
+        toast(Tf('{0} is de vaste keeper en staat de hele wedstrijd op doel', pName(kidP)));return;}
+      // Een ruilafspraak op dezelfde plek belooft iets anders en strengers: daar zit
+      // de ander verplicht op de bank. Twee beloftes over \u00e9\u00e9n plek laat de app niet
+      // naast elkaar bestaan \u2014 dan hangt de uitkomst af van de volgorde in de lijst.
+      const botsR=state.rules.find(x=>x.type==='rotate'&&x.pos===r.pos);
+      if(botsR){toast(Tf('Dat botst met \u2018{0}\u2019', ruleSentence(botsR)));return;}
+      // Iemand die v\u00e1\u00e9st op deze plek staat en niet in het groepje zit, kan er niet
+      // tegelijk w\u00e9l en niet staan.
+      const botsP=state.rules.find(x=>{
+        if(x.type!=='pos'&&x.type!=='condpos')return false;
+        const pl=x.type==='pos'?regelPosities(x):(POSMAP[x.pos]?[x.pos]:[]);
+        return pl.length===1&&pl[0]===r.pos&&!r.spelers.includes(x.p1);
+      });
+      if(botsP){toast(Tf('Dat botst met \u2018{0}\u2019', ruleSentence(botsP)));return;}
+      // Kan er \u00fcberhaupt iemand uit het groepje staan? Zo niet, dan is de afspraak
+      // onvervulbaar en zou de planner hem elke wedstrijd stilzwijgend breken.
+      const lijn=POSMAP[r.pos].line;
+      const kanEr=id=>{
+        const sp=state.players.find(q=>q.id===id);
+        if(!sp||!magInLinie(sp,lijn))return false;
+        if(state.rules.some(x=>x.type==='nopos'&&x.p1===id&&x.pos===r.pos))return false;
+        if(state.rules.some(x=>x.type==='nolinie'&&x.p1===id&&x.line===lijn))return false;
+        return true;
+      };
+      if(!r.spelers.some(kanEr)){
+        toast(Tf('Niemand van hen mag {0} spelen \u2014 kijk bij de linies op Spelers', PNz(r.pos)));return;}
     }
     if(r.type==='nopos'){
       if(state.rules.some(x=>x.type==='nopos'&&x.p1===r.p1&&x.pos===r.pos)){toast(T('Deze regel bestaat al'));return;}
@@ -7661,6 +7808,13 @@ function chipTap(pid){
     const POS=positionsOfQ(q,state.rules);
     if(verbodenPosities(id,state.rules,POS).has(np))
       found.push(`Een regel zegt dat ${pName(id)} nooit ${PNz(np)} speelt.`);
+    // Een bemande plek: zet je er iemand anders neer, dan is de afspraak verbroken
+    // voor dit blok. De ruil gaat door — hij hoort alleen niet onopgemerkt te blijven.
+    const eig=state.rules.find(r=>r.type==='posdoor'&&r.pos===np&&!regelSpelers(r).includes(id));
+    if(eig){
+      const wie=regelSpelers(eig).map(pName), laatste=wie.pop();
+      found.push(`Afgesproken is dat ${PNz(np)} door ${wie.join(', ')} of ${laatste} wordt gespeeld.`);
+    }
     const lijn=POSMAP[np]&&POSMAP[np].line, sp=byId(id);
     if(lijn&&sp&&!magInLinie(sp,lijn))
       found.push(`${pName(id)} mag volgens Spelers niet in de ${LINES[lijn]} staan.`);
@@ -7834,8 +7988,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=249;
-const VERSIE_LABEL='26.9.90';
+const APP_VERSION=250;
+const VERSIE_LABEL='26.9.91';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='14 september 2026', VERSIE_DATUM_EN='14 September 2026';
@@ -8026,7 +8180,7 @@ function ztControleer(st,sch,naam,fout){
   // Linie-vinkjes horen in dit rijtje thuis: zijn de linies ongelijk bezet, dan ligt
   // het verschil in speeltijd vast in de invoer en niet in de verdeling. De app zegt
   // dat apart tegen de coach (zie linieSpeeltijd); een testfout maken heeft geen zin.
-  const beperkend=(st.rules||[]).some(r=>['noq','minutes','gk','rotate','endstrong','maxpos'].includes(r.type))
+  const beperkend=(st.rules||[]).some(r=>['noq','minutes','gk','rotate','endstrong','maxpos','posdoor'].includes(r.type))
     || st.players.some(p=>p.present&&Array.isArray(p.lines)&&p.lines.length&&p.lines.length<LINE_IDS.length);
   const m=Object.values(sch.minutes||{});
   if(!beperkend&&m.length){
@@ -8144,6 +8298,32 @@ function zelftest(){
     ztControleer(st,sch,'noq',fout);
     if(sch)for(let b=0;b<sch.perQ*4;b++){const q=Math.floor(b/sch.perQ)+1;
       if([2,4].includes(q)&&Object.values(sch.assignments[b]).includes('p1'))fout('noq: p1 speelt in Q'+q);}
+  });
+  test('Regel: positie bemand door een groepje',()=>{
+    const st=ztTeam(15,{rules:[{id:'pd',type:'posdoor',pos:'mm',spelers:['p0','p1']}]});
+    const sch=buildSchedule(st);
+    ztControleer(st,sch,'posdoor',fout);
+    const B=sch?sch.perQ*4:0;
+    let samen=0;
+    for(let b=0;b<B;b++){
+      const a=sch.assignments[b], wie=a.mm;
+      if(wie!=='p0'&&wie!=='p1')fout('posdoor: midden midden in blok '+b+' door '+wie);
+      const opVeld=Object.values(a);
+      if(opVeld.includes('p0')&&opVeld.includes('p1'))samen++;
+    }
+    // Het verschil met een ruilafspraak: ze mogen w\u00e9l tegelijk spelen. Gebeurt dat
+    // nooit, dan gedraagt de regel zich alsnog als een rotatie en levert hij geen
+    // speeltijd op \u2014 precies wat hij moest oplossen.
+    if(B&&samen===0)fout('posdoor: p0 en p1 stonden geen enkel blok samen op het veld');
+    // En als er \u00e9\u00e9n van de twee een kwart mist, moet de ander de plek overnemen.
+    const st2=ztTeam(15,{rules:[{id:'pd',type:'posdoor',pos:'mm',spelers:['p0','p1']},
+                                {id:'nq',type:'noq',p1:'p0',qs:[2]}]});
+    const sch2=buildSchedule(st2);
+    if(sch2)for(let b=0;b<sch2.perQ*4;b++){
+      const wie=sch2.assignments[b].mm;
+      if(wie!=='p0'&&wie!=='p1')fout('posdoor: met een afwezig kwart valt de plek in blok '+b+' aan '+wie);
+      if(Math.floor(b/sch2.perQ)===1&&wie==='p0')fout('posdoor: p0 speelt in Q2 terwijl dat niet mag');
+    }
   });
   test('Regel: twee spelers niet samen',()=>{
     const st=ztTeam(15,{rules:[{id:'a',type:'apart',p1:'p0',p2:'p1'}]});
