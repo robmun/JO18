@@ -1500,6 +1500,24 @@ function positionsOf(form){
   return (FORMATIONS[form]||FORMATIONS[DEFAULT_FORM]).pos.map(([id,x,y])=>({...POSMAP[id],x,y}));
 }
 function positionsOfQ(q,rules){return positionsOf(formOfQ(q,rules));}
+// ── Welke posities bestaan er in déze wedstrijd? ──
+// POSITIONS is de complete lijst van zeventien plekken over alle speelvormen heen.
+// Op het veld staan er nooit meer dan tien tegelijk, en zonder speelvormregel zijn
+// dat altijd die van 4-3-3. Midden voor, Spits links, Midden rechts en de rest
+// horen bij speelvormen die deze wedstrijd niet gespeeld worden; als keuze in een
+// uitklaplijst leveren ze alleen maar voorkeuren op die nergens op het veld
+// terugkomen. De app ving dat op via gelijkwaardige plekken (POSITIONS[].eq), maar
+// dat is reparatie achteraf van een keuze die niet aangeboden had moeten worden.
+//
+// Een speelvormregel kan per kwart iets anders instellen, dus het is de optelsom
+// over de vier kwarten — speel je Q1 in 4-3-3 en Q2 in 3-4-3, dan horen de plekken
+// van beide erbij. De volgorde blijft die van POSITIONS: van voor naar achter.
+function posInGebruik(rules){
+  const rs=rules||(typeof state!=='undefined'?state.rules:[])||[];
+  const uit=new Set();
+  for(let q=0;q<4;q++)positionsOfQ(q,rs).forEach(x=>uit.add(x.id));
+  return POSITIONS.filter(x=>uit.has(x.id)).map(x=>x.id);
+}
 // Regel 'subs': vast aantal wisselmomenten per kwart (1-4) voor de hele wedstrijd.
 // Zonder regel kiest de app zelf (zie buildSchedule).
 function subsRule(rules){
@@ -5189,6 +5207,23 @@ function renderSpelers(){
   return html;
 }
 function dupNum(p){return p.num!==''&&p.num!=null&&state.players.filter(x=>x.num===p.num).length>1;}
+// De opties voor één voorkeursvakje.
+//
+// Staat er bij een speler nog een positie uit een andere speelvorm — een lijst van
+// vóór deze wijziging, of een speelvormregel die later is weggehaald — dan blijft
+// die in de lijst staan, met een aantekening erachter. Weglaten zou het vakje op
+// ‘—’ zetten en de voorkeur stilzwijgend wissen zodra de coach iets anders in
+// dezelfde rij aanpast, en dat merk je pas als de opstelling er anders uitziet dan
+// je gewend bent.
+function posOpties(sel,inGebruik){
+  const ids=inGebruik.slice();
+  if(sel&&POSMAP[sel]&&!ids.includes(sel))ids.push(sel);
+  return ids.map(id=>{
+    const vreemd=!inGebruik.includes(id);
+    const label=PN(id)+(vreemd?' — '+U('niet in deze speelvorm','not in this formation'):'');
+    return `<option value="${id}" ${sel===id?'selected':''}>${esc(label)}</option>`;
+  }).join('');
+}
 function playerRow(p){
   const open=expandedPlayer===p.id;
   const nummer=(p.num??'')===''?'&ndash;':esc(String(p.num));
@@ -5200,9 +5235,14 @@ function playerRow(p){
     <button class="chev" data-act="expand" data-id="${p.id}" aria-label="Naam, nummer en posities aanpassen"><svg viewBox="0 0 24 24"><polyline points="${open?'6 15 12 9 18 15':'6 9 12 15 18 9'}"/></svg></button>
   </div>`;
   if(open){
-    const opts=(sel)=>`<option value="">—</option>`+POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${PN(x.id)}</option>`).join('');
+    // Alleen de plekken die in deze wedstrijd op het veld staan; zonder
+    // speelvormregel zijn dat de tien van 4-3-3 in plaats van alle zeventien.
+    const inGebruik=posInGebruik(state.rules);
+    const opts=(sel)=>`<option value="">—</option>`+posOpties(sel,inGebruik);
     // Eerste voorkeur kan óók 'Keeper' zijn (alleen hier, niet als alternatief).
-    const optsK=(sel)=>`<option value="">—</option><option value="keeper" ${sel==='keeper'?'selected':''}>${U('Keeper','Goalkeeper')}</option>`+POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.name}</option>`).join('');
+    // Hier stond x.name in plaats van PN(x.id): in het Engels waren de alternatieven
+    // vertaald en de eerste voorkeur niet.
+    const optsK=(sel)=>`<option value="">—</option><option value="keeper" ${sel==='keeper'?'selected':''}>${U('Keeper','Goalkeeper')}</option>`+posOpties(sel,inGebruik);
     const isK=p.prefs[0]==='keeper';
     row+=`<div class="editpane"><div class="idrow">
       <label class="numlbl">${U('Rugnummer','Shirt no.')}<input class="${dupNum(p)?'dupe':''}" type="number" inputmode="numeric" data-act="num" data-id="${p.id}" value="${p.num??''}" placeholder="&ndash;"></label>
@@ -5235,7 +5275,13 @@ function playerRow(p){
 let newRule={type:'noq'};
 function renderRegels(){
   const popts=(sel)=>state.players.filter(p=>!p.guest||p.present).map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
-  const posopts=(sel)=>POSITIONS.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${PN(x.id)}</option>`).join('');
+  // Dezelfde beperking als bij de voorkeursposities op het spelerstabblad: alleen de
+  // plekken die in deze wedstrijd op het veld staan. Een regel voor Midden rechts
+  // terwijl er 4-3-3 gespeeld wordt, doet niets — hij wijst naar een plek die in geen
+  // enkel kwart bestaat, en dat merk je pas als de opstelling er anders uitziet dan
+  // je dacht af te spreken.
+  const inGebruik=posInGebruik(state.rules);
+  const posopts=(sel)=>posOpties(sel,inGebruik);
   // Liggende tablet: vastgelegde regels links, nieuwe regel rechts
   let html=isWide()?`<div class="twocol"><div>`:'';
   html+=`<div class="card"><h2>${U('Coachregels','Coach rules')} <span class="sub">${state.rules.length}</span></h2>`;
@@ -7788,8 +7834,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=247;
-const VERSIE_LABEL='26.9.88';
+const APP_VERSION=249;
+const VERSIE_LABEL='26.9.90';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='14 september 2026', VERSIE_DATUM_EN='14 September 2026';
@@ -8123,6 +8169,21 @@ function zelftest(){
     for(const p of voor) if(!verboden.has(p.id))fout('nolinie: '+p.id+' hoort verboden te zijn');
     for(const p of POS) if(p.line!=='voor'&&verboden.has(p.id))fout('nolinie: '+p.id+' hoort juist toegestaan te blijven');
     if(verbodenPosities('b',rs,POS).size)fout('nolinie: de regel raakt ook een andere speler');
+  });
+  test('Voorkeurslijst volgt de speelvorm',()=>{
+    const zonder=posInGebruik([]);
+    if(zonder.length!==10)fout('posInGebruik: zonder speelvormregel horen er 10 plekken te zijn, kreeg '+zonder.length);
+    for(const id of ['mv','sl','sr','ml','mr','lca','rca'])
+      if(zonder.includes(id))fout('posInGebruik: '+id+' hoort niet bij 4-3-3');
+    // Een speelvormregel voor twee kwarten: de plekken van beide vormen tellen mee.
+    const gemengd=posInGebruik([{id:'f',type:'form',form:'3-4-3',qs:[1,2]}]);
+    for(const id of ['ml','mr'])
+      if(!gemengd.includes(id))fout('posInGebruik: '+id+' hoort erbij zodra 3-4-3 gespeeld wordt');
+    if(!gemengd.includes('lman'))fout('posInGebruik: de plekken van 4-3-3 in Q3 en Q4 zijn weggevallen');
+    // Een voorkeur van buiten de speelvorm blijft in de lijst staan, anders wist
+    // hij zichzelf zodra de coach iets anders in dezelfde rij aanpast.
+    if(!posOpties('mr',zonder).includes('value="mr"'))fout('posOpties: een bestaande voorkeur mag niet uit de lijst vallen');
+    if(posOpties('',zonder).includes('value="mr"'))fout('posOpties: een leeg vakje hoort geen vreemde plek aan te bieden');
   });
   test('Migratie van oude gegevens',()=>{
     const oud={players:[{id:'a',name:'A',prefs:['lv','',''],present:true},
