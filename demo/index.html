@@ -147,6 +147,14 @@ main{
   :root{ --fs-xs:12px; --fs-sm:13.5px; --fs-md:14.5px; --fs-base:15.5px; --fs-lg:17.5px; --fs-xl:21px; --fs-h:17px; }
   main{max-width:1200px;padding-left:14px;padding-right:14px}
   .twocol{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;align-items:start}
+  /* Alleen het wedstrijdscherm, want alleen daar staat het veld. Het veld is even
+     breed als het hoog mag zijn (verhouding 100:150) en dat is op de meeste iPads
+     smaller dan een halve kolom. Gecentreerd bleef die overgebleven lucht links
+     én rechts staan, terwijl alleen rechts hem nodig heeft: daar hangt de klok
+     buiten het gras. De lucht links gaat naar de tekstkolom. --veldkolom komt uit
+     meetVeldkolom; zonder die waarde valt hij terug op de oude halve breedte.
+     De schermen Spelers en Regels gebruiken .twocol ook en blijven 1fr 1fr. */
+  .twocol:has(> .col-field){grid-template-columns:var(--veldkolom,1fr) 1fr}
   .twocol>div{min-width:0}
   /* Het veld blijft in beeld terwijl je de wisselteksten ernaast doorleest.
      Het wordt zo breed als past zonder hoger te worden dan het scherm. */
@@ -159,7 +167,10 @@ main{
      kolommen wisselspelers links blijven zichtbaar. */
   /* De rij is precies zo breed als het veld, anders wordt de klok uitgelijnd op de
      kolom en hangt hij ver naast het gras in plaats van net over de rand. */
-  .twocol .col-field .veldrij{position:relative;width:fit-content;margin:0 auto}
+  /* margin-right blijft auto: de lucht rechts van het veld is de band waar de klok
+     in hangt, en die moet even breed blijven als hij was. Links stond ook auto en
+     werd daarmee even breed; --veldpad zet daar een vaste, kleine waarde voor terug. */
+  .twocol .col-field .veldrij{position:relative;width:fit-content;margin:0 auto 0 var(--veldpad,auto)}
   /* Breedte volgt uit de hoogte en de verhouding 100:150. Met alleen 'width:auto'
      klapte het veld in zodra de rij zich naar de inhoud voegde. */
   .twocol .col-field .fieldwrap{--veldh:min(calc(100dvh - 250px), calc((100% - 0px) * 999));
@@ -337,6 +348,16 @@ body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,
   .twocol .wmoment.nu{margin:14px 0;padding:12px 12px 10px}
   .twocol .wmoment.nu .wtime{font-size:var(--fs-lg);margin-bottom:8px}
   .twocol .wmoment.nu .wline{font-size:var(--fs-xl);padding:5px 0;line-height:1.28}
+  /* De kolom is breder geworden, dus de regels buiten het eerstvolgende moment
+     kunnen een maat omhoog. Die stonden op de telefoonmaat en dat las in de dug-out
+     op een meter afstand niet lekker. Het moment dat eraan komt blijft op --fs-xl:
+     dat is al de grootste regel op het scherm en daar zitten ook de langste zinnen
+     in (‘… daardoor schuift X van A naar B’). */
+  .twocol .startq .wline{font-size:var(--fs-md);padding:3px 0}
+  .twocol .wmoment .wtime{font-size:var(--fs-sm)}
+  .twocol .wmoment .wline{font-size:var(--fs-md);padding:3px 0}
+  .twocol .wmoment .wgeb{font-size:var(--fs-md)}
+  .twocol .wmoment .wbench{font-size:var(--fs-sm)}
 }
 
 /* ---------- Speeltijd per speler ---------- */
@@ -4713,7 +4734,46 @@ function huidigQ(){
 // blijft er 47px speling naar rechts over, op een 12,9 inch maar 3, en de bank
 // schuift ook nog op zodra er een derde rij bij komt. Vandaar een meting.
 const GK_MARGE=14;         // lucht die aan beide kanten vrij blijft
+
+// ── Het veld naar links, de wisselteksten breder ──
+// De linkerkolom was een halve schermbreedte en het veld stond daar gecentreerd in.
+// Omdat het veld zijn breedte uit de hoogte haalt, bleef er aan weerszijden lucht
+// over — op een 10,2 inch zo'n 70px per kant. Rechts is die lucht in gebruik: de
+// klok steekt buiten het gras en hangt erin. Links staat er niets.
+// Dus: veld links uitlijnen, de kolom precies zo breed maken als het veld plus de
+// band rechts ervan, en het verschil gaat naar de tekstkolom.
+//
+// De band rechts blijft tot op de pixel even breed, en dat is geen detail: die band
+// is precies wat meetGroteKlok als ruimte voor de klok meet (grensR - grensL). Werd
+// hij smaller, dan kromp de klok mee. Het veld en de klok schuiven daarom samen op.
+const VELD_LINKS=6;        // lucht die links van het veld overblijft
+function meetVeldkolom(){
+  const st=document.documentElement.style;
+  const veld=document.querySelector('.twocol .col-field .fieldwrap');
+  const grid=veld?veld.closest('.twocol'):null;
+  if(!veld||!grid||!isWide()){
+    st.removeProperty('--veldkolom'); st.removeProperty('--veldpad'); return;
+  }
+  // Rekenen vanaf de natuurlijke helft-om-helft, niet vanaf de breedte die er nu
+  // staat. Anders schuift het veld bij elke meting opnieuw een stukje op en kruipt
+  // de kolom bij elke draai van de iPad verder dicht.
+  const gap=parseFloat(getComputedStyle(grid).columnGap)||0;
+  const halveKolom=(grid.clientWidth-gap)/2;
+  const veldB=veld.getBoundingClientRect().width;
+  const lucht=(halveKolom-veldB)/2;          // wat er bij centreren per kant overbleef
+  // Past het veld toch niet ruim in de halve kolom, dan is er niets te winnen en
+  // blijft alles zoals het was.
+  if(!(lucht>VELD_LINKS+1)){
+    st.removeProperty('--veldkolom'); st.removeProperty('--veldpad'); return;
+  }
+  st.setProperty('--veldpad',VELD_LINKS+'px');
+  st.setProperty('--veldkolom',Math.round(VELD_LINKS+veldB+lucht)+'px');
+}
+
 function meetGroteKlok(){
+  // Eerst de kolom, dan de klok: de klok meet af op de linkerrand van de tekstkolom,
+  // en die staat na deze aanroep pas op zijn plek.
+  meetVeldkolom();
   const st=document.documentElement.style;
   const gk=document.getElementById('grklok');
   if(!gk||!isWide()){ st.removeProperty('--gkW'); st.removeProperty('--gkR'); st.removeProperty('--gkMax'); return; }
@@ -7728,11 +7788,11 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=246;
-const VERSIE_LABEL='26.9.87';
+const APP_VERSION=247;
+const VERSIE_LABEL='26.9.88';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
-const VERSIE_DATUM_NL='12 september 2026', VERSIE_DATUM_EN='12 September 2026';
+const VERSIE_DATUM_NL='14 september 2026', VERSIE_DATUM_EN='14 September 2026';
 function versieDatum(){ return EN()?VERSIE_DATUM_EN:VERSIE_DATUM_NL; }
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
