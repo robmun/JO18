@@ -7,7 +7,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="JO18-5">
-<meta name="theme-color" content="#0a1b36">
+<!-- Gelijk aan de kopbalk. iOS legt deze kleur bij een schermvullende app over de
+     strook achter de klok en het eilandje; stond hij op een andere tint, dan liep de
+     bovenrand van de kopbalk zichtbaar van donker naar licht. -->
+<meta name="theme-color" content="#103b77">
 <link rel="apple-touch-icon" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
 <link rel="icon" href="icon-ghc-navy.png">
@@ -116,7 +119,14 @@ body{
   /* krimpt mee op een smalle telefoon, zodat de titel op één regel blijft */
   width:clamp(34px,10.5vw,40px);height:clamp(34px,10.5vw,40px);flex-shrink:0;
   border-radius:var(--r-md);border:1px solid var(--stroke);
-  background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  /* Geen backdrop-filter meer. Hij zat er voor toen de kopbalk nog doorzichtig was;
+     op een dekkende balk vervaagt hij een egale kleur en levert dus niets op. Maar
+     een backdrop-filter dwingt WebKit wel om alles erachter — de hele kopbalk — als
+     aparte laag te tekenen, en in zo'n laag worden de titel en het clublogo zichtbaar
+     zachter afgebeeld. Gemeten op een schermafdruk van de iPhone: de randen van de
+     titel waren minder dan half zo scherp als die van dezelfde witte tekst elders op
+     de pagina, terwijl de helderheid gelijk was. Niet donkerder dus, maar waziger. */
+  background:var(--glass);
   color:var(--txt);display:flex;align-items:center;justify-content:center;font-size:17px;
 }
 .iconbtn:active{background:var(--glass-strong)}
@@ -3504,12 +3514,21 @@ function wijzigenGeblokkeerd(){
 // 'CLOUD.on && CLOUD.role===viewer' — en die eerste voorwaarde is verkeerd: de
 // verbinding valt weg zodra het bereik slecht is, en dan verviel de kijkstand.
 function isKijker(){ return CLOUD.role==='viewer'; }
+// ── Wanneer hoort de kijkbalk er te staan? ──
+// Bij twee dingen: de echte kijkstand, en een demo waarvan de termijn voorbij is.
+// Die twee stonden apart uitgeschreven in render() en in meetKijkbalk(), en liepen
+// daardoor uit elkaar: bij een verlopen demo werd de balk wél getoond maar niet
+// gemeten. De app viel dan terug op 34px, terwijl de balk op een iPhone met eilandje
+// bijna 90px hoog is — die telt de veilige rand bovenin bij zijn eigen hoogte op.
+// Gevolg: de kopbalk schoof 50 pixels onder de melding en de twee teksten lagen over
+// elkaar. Één functie, twee gebruikers, zodat ze niet opnieuw kunnen gaan afwijken.
+function kijkbalkAan(){ return isKijker() || (DEMO && demoVerlopen()); }
 // Hoogte van de kijkbalk meten en vastleggen, zodat de kopbalk er precies onder begint.
 let _kijkbalkT=null;
 function meetKijkbalk(){
   const st=document.documentElement.style;
   const el=document.getElementById('viewerBar');
-  if(!el||!isKijker()){ st.removeProperty('--kijkbalkH'); return; }
+  if(!el||!kijkbalkAan()){ st.removeProperty('--kijkbalkH'); return; }
   const h=Math.round(el.getBoundingClientRect().height);
   if(h>0)st.setProperty('--kijkbalkH',h+'px');
   // Eén keer aftellen, niet bij elke hertekening opnieuw — anders komt de balk bij
@@ -7410,7 +7429,7 @@ function render(){
   // Knoppen dimmen wanneer er niets te wijzigen valt: in de kijkstand, en bij een
   // demo waarvan de termijn voorbij is. Stond eerder alleen in de cloudverbinding
   // en werd dus nooit gezet bij een verlopen demo zonder samenwerken.
-  document.body.classList.toggle('viewer',isKijker()||(DEMO&&demoVerlopen()));
+  document.body.classList.toggle('viewer',kijkbalkAan());
   if(DEMO)setTimeout(demoTips,0);
   controleerSchema();
   if(isKijker()&&['timer','spelers','regels'].includes(activeTab)){activeTab='wedstrijd';}
@@ -8125,8 +8144,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=256;
-const VERSIE_LABEL='26.9.97';
+const APP_VERSION=257;
+const VERSIE_LABEL='26.9.98';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
@@ -9050,7 +9069,9 @@ function zetZon(aan,stil){
   document.body.classList.toggle('sun',!!aan);
   try{localStorage.setItem(SLEUTEL('gw_zon'),aan?'1':'0');}catch(e){}
   const m=document.querySelector('meta[name="theme-color"]');
-  if(m)m.setAttribute('content',aan?'#eef2f7':'#091e48');
+  // Ook hier de kleur van de kopbalk zelf: wit in de zonstand, en anders het blauw
+  // waarop de titel staat.
+  if(m)m.setAttribute('content',aan?'#ffffff':'#103b77');
   // de timer heeft zijn eigen zonstand; die laten we meeschakelen
   if(stil)return;
   try{
