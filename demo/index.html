@@ -93,7 +93,19 @@ body{
 .appbar>div:first-child{flex:1 1 auto;min-width:0}
 .appbar{
   position:sticky;top:0;z-index:40;
-  padding:calc(10px + env(safe-area-inset-top)) 10px 10px;
+  /* ── Extra lucht onder de veilige rand ──
+     iOS legt een waas met een donkere sluier over de strook achter de klok en het
+     eilandje, zodat die altijd leesbaar blijven boven wat er ook onder staat. Die
+     waas loopt door tot voorbij de veilige rand en dooft daarna uit. Op een iPhone
+     met eilandje is de rand 59px, maar pas vanaf ongeveer 95px vanaf de schermrand
+     is er niets meer van te zien — gemeten aan het clublogo op een schermafdruk:
+     de scherpte van de randen klom van 2 op 68px via 42 op 82px naar 130 op 94px,
+     en de kleur liep in datzelfde stuk van (13,40,93) naar de balkkleur (16,59,119).
+     Het logo en de titel stonden met hun bovenkant in die zone en zagen er daardoor
+     wazig en verwassen uit.
+     Vandaar de ruimere factor: 59 × 1,6 + 10 = 104px, net onder de waas. Toestellen
+     zonder zo'n rand houden env() op nul en veranderen dus niet. */
+  padding:calc(10px + env(safe-area-inset-top) * 1.6) 10px 10px;
   display:flex;align-items:center;justify-content:space-between;gap:7px;
   /* Dekkend, en bewust zonder backdrop-filter — zelfde reden als bij de tabbalk.
      De balk stond op rgba(...,.55) met blur(22px) saturate(170%). Een vervaging van
@@ -1102,7 +1114,9 @@ body.viewer .card .sub.readonly{color:var(--sem-out)}
 /* Kijkstand-balk voor spelers */
 #viewerBar{position:fixed;left:0;right:0;top:0;z-index:60;display:none;
   background:linear-gradient(180deg,#1f5a9e,#183466);color:#fff;text-align:center;
-  font-size:var(--fs-sm);font-weight:700;padding:calc(env(safe-area-inset-top) + 6px) 12px 6px;
+  /* Zelfde reden als bij de kopbalk hierboven: deze tekst stond met zijn bovenkant
+     in de waas van iOS en was daardoor grijzig in plaats van wit. */
+  font-size:var(--fs-sm);font-weight:700;padding:calc(env(safe-area-inset-top) * 1.6 + 6px) 12px 6px;
   box-shadow:0 2px 10px rgba(0,0,0,.35)}
 body.viewer #viewerBar{display:block}
 /* De kopbalk plakt zelf ook op nul, dus zonder deze verschuiving schoven ze over
@@ -8144,8 +8158,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=257;
-const VERSIE_LABEL='26.9.98';
+const APP_VERSION=258;
+const VERSIE_LABEL='26.9.99';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
