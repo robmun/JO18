@@ -92,9 +92,17 @@ body{
   position:sticky;top:0;z-index:40;
   padding:calc(10px + env(safe-area-inset-top)) 10px 10px;
   display:flex;align-items:center;justify-content:space-between;gap:7px;
-  background:rgba(10,27,54,.55);
-  backdrop-filter:blur(22px) saturate(170%);
-  -webkit-backdrop-filter:blur(22px) saturate(170%);
+  /* Dekkend, en bewust zonder backdrop-filter — zelfde reden als bij de tabbalk.
+     De balk stond op rgba(...,.55) met blur(22px) saturate(170%). Een vervaging van
+     22 pixels haalt ook kleur op van büiten de balk: de onderste rand pakte het gras
+     van het veld dat er net onder begint, en liep zo van donkerblauw bovenin naar
+     lichtblauw-groen onderin. De titel staat precies in die overgang — vandaar dat
+     hij aan de bovenkant leek te vervagen. Wat eronder langs schuift veranderde de
+     kleur van de balk bovendien per schermpositie.
+     Dekkend haalt die hele koppeling weg: de titel staat altijd op dezelfde kleur.
+     De waarde is opgemeten aan de balk zoals hij boven aan de pagina stond, zodat
+     het beeld hetzelfde blijft op de plek waar het al goed was. */
+  background:#103b77;
   border-bottom:1px solid rgba(255,255,255,.08);
 }
 .appbar .logoBox{width:clamp(32px,7.5vw,50px);height:clamp(32px,7.5vw,50px);flex-shrink:0;display:grid;place-items:center}
@@ -483,10 +491,12 @@ body.sun .accitem.open{background:#eaf1fb}
    de bovenkant van het schuifgebied, net onder de kopbalk. */
 .qbar{position:sticky;top:-13px;z-index:30;display:flex;gap:8px;
   margin:-12px -5px 10px;padding:8px 5px 7px;
-  background:rgba(10,27,54,.72);backdrop-filter:blur(18px) saturate(170%);
-  -webkit-backdrop-filter:blur(18px) saturate(170%);
+  /* Ook dekkend: hij plakt vlak boven het veld, dus zijn vervaging pakte het gras
+     mee. Gemeten verschoof hij van (18,48,92) naar (16,62,64) zodra het veld eronder
+     kwam — zichtbaar groen. */
+  background:#0f2d59;
   border-bottom:1px solid rgba(255,255,255,.08)}
-body.sun .qbar{background:rgba(238,243,251,.88);border-bottom-color:#c9d6ea}
+body.sun .qbar{background:#eef3fb;border-bottom-color:#c9d6ea}
 .qgroep{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;
   padding:5px 6px;border-radius:12px;background:var(--card);border:1px solid var(--stroke)}
 /* 20px tussen de bolletjes, niet 7. Ze stonden zo dicht op elkaar dat je met een
@@ -1088,14 +1098,19 @@ body.viewer #viewerBar{display:block}
 /* De kopbalk plakt zelf ook op nul, dus zonder deze verschuiving schoven ze over
    elkaar heen en las je de clubnaam half door de kijkmelding. De hoogte wordt gemeten
    (zie meetKijkbalk): met een vast getal klopt hij niet zodra de tekst afbreekt op een
-   smal scherm of iOS er een veilige rand bij optelt. */
-body.viewer #app{padding-top:var(--kijkbalkH,34px)}
+   smal scherm of iOS er een veilige rand bij optelt.
+   De ruimte stond op #app — een element dat niet bestaat. Alleen de kopbalk schoof
+   dus omlaag en de inhoud bleef staan, waardoor die twee elkaar 34 pixels overlapten:
+   in de demo las je de eerste regel van de melding dwars door de kopbalk heen. Het
+   hoort op de flexkolom zelf te staan; die is body, en met box-sizing:border-box
+   krimpt de inhoud er netjes voor in. */
+body.viewer{padding-top:var(--kijkbalkH,34px);transition:padding-top .4s ease}
 body.viewer .appbar{top:var(--kijkbalkH,34px)}
 /* Na een paar tellen weg: de melding is een begroeting, geen blijvende rand. Wat je
    wél blijvend moet kunnen zien staat in de titel. */
 #viewerBar{transition:opacity .4s ease}
 body.viewer.kijkbalk-weg #viewerBar{opacity:0;pointer-events:none}
-body.viewer.kijkbalk-weg #app{padding-top:0}
+body.viewer.kijkbalk-weg{padding-top:0}
 body.viewer.kijkbalk-weg .appbar{top:0}
 
 </style>
@@ -4988,6 +5003,64 @@ function meetGroteKlok(){
 }
 addEventListener('resize',()=>requestAnimationFrame(meetGroteKlok));
 
+// ── De wisselteksten meelopen met de klok (kijkstand op een liggende tablet) ──
+// Op het grote scherm in de dug-out zit niemand te scrollen. Het moment dat eraan
+// komt staat groot in een eigen kader, maar bij drie wisselmomenten per kwart zakt
+// dat kader uit beeld zodra het tweede aan de beurt is — precies wanneer je het
+// nodig hebt. Hier schuift de kolom mee: zodra er een ander moment aanstaand wordt,
+// komt dat bovenaan te staan.
+//
+// Bewust alleen bíj een wisseling van het aanstaande moment, en niet elke seconde.
+// Zo vecht het nooit met iemand die zelf even naar de speeltijden scrolt: wie
+// wegscrolt houdt zijn plek tot het volgende wisselmoment, en dan is er ook echt
+// iets nieuws te lezen. Alleen in de kijkstand, want een coach die zelf bedient
+// scrolt de hele wedstrijd heen en weer en wil niet teruggeduwd worden.
+const VOLG_MARGE=12;          // lucht boven het kader
+let _volgtMoment=null;        // welk moment staat er bovenaan gezet?
+function volgWisselTekst(){
+  const v=document.getElementById('view');
+  // Bijgezette ruimte hoort weg zodra er niet meer meegelopen wordt. Bij een
+  // hertekening verdwijnt hij vanzelf — die bouwt het raster opnieuw op — maar bij
+  // het draaien van de iPad niet, en dan bleef er onderaan een gat staan.
+  const stop=()=>{
+    _volgtMoment=null;
+    const r=v&&v.querySelector('.twocol'); if(r)r.style.paddingBottom='';
+  };
+  if(!v||!isWide()||!isKijker()||!isQTab(activeTab)){stop();return;}
+  const el=v.querySelector('.twocol .wmoment.nu');
+  // De ruimte komt op het raster zelf en niet op de tekstkolom: het veld ernaast is
+  // op een grote iPad soms de langste van de twee, en dan rekt extra ruimte onder de
+  // tekst het geheel niet op en blijft het laatste kader net onder de rand hangen.
+  const raster=el?el.closest('.twocol'):null;
+  // Alleen meelopen zodra het kwart dat je bekíjkt ook echt onderweg is. Vóór de
+  // aftrap hoort de startopstelling bovenaan te staan — dat is dan het blok dat je
+  // leest — en bij een kwart dat al geweest is valt er niets vooruit te kijken.
+  const q=huidigQ();
+  const onderweg = klok.q!=null && klok.q-1===q && klok.sec>0;
+  if(!raster||!onderweg){stop();return;}
+  const merk=q+':'+(el.dataset.min||'');
+  if(merk===_volgtMoment)return;
+  _volgtMoment=merk;
+  // Eerst de eerder bijgezette ruimte weghalen, anders stapelt die zich op.
+  raster.style.paddingBottom='';
+  // De afstand van de bovenkant van de inhoud tot dit kader. scrollTop erbij optellen
+  // maakt hem onafhankelijk van waar we nu staan, ook als de browser tijdens het
+  // wegnemen van de ruimte hierboven zelf al is bijgeschoven.
+  const doel=Math.max(0, v.scrollTop + (el.getBoundingClientRect().top
+             - v.getBoundingClientRect().top) - VOLG_MARGE);
+  // Het laatste moment van een kwart heeft soms te weinig onder zich om nog tot
+  // bovenaan te kunnen klimmen. Dan zetten we er precies genoeg ruimte bij; meestal
+  // is dat niets, want de speeltijdenkaart staat er nog onder.
+  const tekort=Math.round(doel-(v.scrollHeight-v.clientHeight));
+  if(tekort>0)raster.style.paddingBottom=tekort+'px';
+  const zacht=!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  try{ v.scrollTo({top:doel,behavior:zacht?'smooth':'auto'}); }
+  catch(e){ v.scrollTop=doel; }
+}
+// Bij draaien verandert de hele indeling, dus dan opnieuw uitlijnen in plaats van
+// de stand van vóór de draai aanhouden.
+addEventListener('resize',()=>requestAnimationFrame(()=>{_volgtMoment=null;volgWisselTekst();}));
+
 // Meet de tabbalk en legt de hoogte vast, zodat de timer er precies tegenaan sluit.
 function meetTabbar(){
   const tb=document.querySelector('.tabbar'); if(!tb)return;
@@ -7262,7 +7335,9 @@ function renderQuarter(q){
     }
     const mo=r.mo;
     const kop=wisselKop(q,mo.minuut);
-    tekst+=`<div class="wmoment${mo.minuut===volgendeMinuut?' nu':''}"><div class="wtime">${kop}</div>`;
+    // data-min: waaraan het meelopen in de kijkstand ziet dat er een ander moment
+    // aanstaand is geworden (zie volgWisselTekst).
+    tekst+=`<div class="wmoment${mo.minuut===volgendeMinuut?' nu':''}" data-min="${mo.minuut}"><div class="wtime">${kop}</div>`;
     tekst+=chainsEmpty(mo.wissels)?'<p class="empty">'+U('Geen wissels op dit moment.','No substitutions at this point.')+'</p>':wisselLines(mo.wissels);
     tekst+=`<div class="wbench"><b>${U('Wissels daarna:','On the bench after that:')}</b> ${mo.bankNa.map(pKort).map(esc).join(', ')||'—'}</div></div>`;
   }
@@ -7406,7 +7481,7 @@ function render(){
   // Bij her-renderen op hetzelfde tabblad: scrollpositie behouden
   // (iOS springt anders naar boven zodra de inhoud even inklapt).
   if(_keepY!==null&&_sc&&Math.abs(_sc.scrollTop-_keepY)>2)_sc.scrollTop=_keepY;
-  requestAnimationFrame(()=>{updateScrollUI();fitNames();zwevendeKlokBijwerken();meetKijkbalk();meetGroteKlok();});
+  requestAnimationFrame(()=>{updateScrollUI();fitNames();zwevendeKlokBijwerken();meetKijkbalk();meetGroteKlok();volgWisselTekst();});
 }
 // Kwartbolletjes. Een eigen keuze gaat voor op de klok, en gaat mee naar de timer
 // zodat beide hetzelfde kwart tonen. Aparte functie omdat de bolletjes op een
@@ -8050,11 +8125,11 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=254;
-const VERSIE_LABEL='26.9.95';
+const APP_VERSION=256;
+const VERSIE_LABEL='26.9.97';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
-const VERSIE_DATUM_NL='14 september 2026', VERSIE_DATUM_EN='14 September 2026';
+const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
 function versieDatum(){ return EN()?VERSIE_DATUM_EN:VERSIE_DATUM_NL; }
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
