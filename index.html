@@ -5,7 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- 'black-translucent' liet de app onder de klok en het eilandje doorlopen. Sinds
+     iOS daar een waas met een sluier overheen legt — zodat de klok leesbaar blijft
+     boven wat er ook onder staat — werd alles wat daar stond wazig en verwassen: het
+     logo, de titel en de kijkmelding. Daar was alleen omheen te werken door de
+     kopbalk ruim 30 pixels hoger te maken, en dat is een hoge prijs voor lucht.
+     Met 'default' loopt de app niet meer onder de klok door: iOS tekent die strook
+     zelf, in de kleur uit theme-color — die staat gelijk aan de kopbalk, dus het
+     ziet er nog steeds uit als één doorlopende balk. De veilige rand bovenin valt
+     daarmee weg, dus de kopbalk wordt juist compacter dan hij ooit was. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="JO18-5">
 <!-- Gelijk aan de kopbalk. iOS legt deze kleur bij een schermvullende app over de
      strook achter de klok en het eilandje; stond hij op een andere tint, dan liep de
@@ -93,19 +102,10 @@ body{
 .appbar>div:first-child{flex:1 1 auto;min-width:0}
 .appbar{
   position:sticky;top:0;z-index:40;
-  /* ── Extra lucht onder de veilige rand ──
-     iOS legt een waas met een donkere sluier over de strook achter de klok en het
-     eilandje, zodat die altijd leesbaar blijven boven wat er ook onder staat. Die
-     waas loopt door tot voorbij de veilige rand en dooft daarna uit. Op een iPhone
-     met eilandje is de rand 59px, maar pas vanaf ongeveer 95px vanaf de schermrand
-     is er niets meer van te zien — gemeten aan het clublogo op een schermafdruk:
-     de scherpte van de randen klom van 2 op 68px via 42 op 82px naar 130 op 94px,
-     en de kleur liep in datzelfde stuk van (13,40,93) naar de balkkleur (16,59,119).
-     Het logo en de titel stonden met hun bovenkant in die zone en zagen er daardoor
-     wazig en verwassen uit.
-     Vandaar de ruimere factor: 59 × 1,6 + 10 = 104px, net onder de waas. Toestellen
-     zonder zo'n rand houden env() op nul en veranderen dus niet. */
-  padding:calc(10px + env(safe-area-inset-top) * 1.6) 10px 10px;
+  /* De veilige rand telt gewoon mee, zonder opslag: de app loopt niet meer onder de
+     klok door (zie de meta bovenin), dus er is geen waas meer om onderuit te komen.
+     Op een toestel dat wel een rand meldt, blijft de balk er netjes onder beginnen. */
+  padding:calc(10px + env(safe-area-inset-top)) 10px 10px;
   display:flex;align-items:center;justify-content:space-between;gap:7px;
   /* Dekkend, en bewust zonder backdrop-filter — zelfde reden als bij de tabbalk.
      De balk stond op rgba(...,.55) met blur(22px) saturate(170%). Een vervaging van
@@ -1114,9 +1114,7 @@ body.viewer .card .sub.readonly{color:var(--sem-out)}
 /* Kijkstand-balk voor spelers */
 #viewerBar{position:fixed;left:0;right:0;top:0;z-index:60;display:none;
   background:linear-gradient(180deg,#1f5a9e,#183466);color:#fff;text-align:center;
-  /* Zelfde reden als bij de kopbalk hierboven: deze tekst stond met zijn bovenkant
-     in de waas van iOS en was daardoor grijzig in plaats van wit. */
-  font-size:var(--fs-sm);font-weight:700;padding:calc(env(safe-area-inset-top) * 1.6 + 6px) 12px 6px;
+  font-size:var(--fs-sm);font-weight:700;padding:calc(env(safe-area-inset-top) + 6px) 12px 6px;
   box-shadow:0 2px 10px rgba(0,0,0,.35)}
 body.viewer #viewerBar{display:block}
 /* De kopbalk plakt zelf ook op nul, dus zonder deze verschuiving schoven ze over
@@ -8158,8 +8156,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=258;
-const VERSIE_LABEL='26.9.99';
+const APP_VERSION=259;
+const VERSIE_LABEL='26.9.100';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
