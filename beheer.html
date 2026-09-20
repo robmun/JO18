@@ -4,19 +4,41 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Beheer — opstelling &amp; wissels</title>
+<!-- Deze pagina staat op een openbare GitHub-map: wie het adres raadt kan hem openen.
+     De beveiliging zit in de Firestore-regels en niet in het verborgen houden van dit
+     bestand, maar in een zoekmachine hoort hij niet thuis. -->
+<meta name="robots" content="noindex,nofollow,noarchive">
 <!-- ============================================================================
      Beheerpagina. Bewust een los bestand: hij hoort niet in de app thuis en je wilt
      hem ook niet per ongeluk meeleveren aan een coach. Zet hem naast index.html en
      open hem zelf; hij staat nergens vandaan gelinkt.
 
      Wat hij kan:
+       - één team opzoeken op code, met de gekoppelde toestellen en hun kenmerk
        - de noodrem van de demo tonen en omzetten
        - de gebruikscijfers per dag laten zien
-       - één team opzoeken op code, met de gekoppelde coaches
+       - de techniek- en foutentellers per week laten zien
 
      Wat hij bewust NIET kan: een lijst van alle teams tonen. De regels staan geen
      'list' toe op de collectie 'teams', want dan zou een onraadbare teamcode zinloos
      zijn. Dat is de prijs van die keuze, en die is hem waard.
+
+     Versie 2 (20 september 2026):
+       - 'Team opzoeken' staat bovenaan; dat is waarvoor je deze pagina in de praktijk
+         opent. De kaart met je eigen kenmerk heb je maar één keer per browser nodig
+         en staat daarom onderaan, met een rode balk bovenin als je geen beheerder bent.
+       - Elke tabel is te sorteren door op een kolomkop te tikken.
+       - Het kenmerk staat nu per regel in de teamtabel, met een kopieerknop. Dat is
+         het enige gegeven waarmee je iemand in de console toelaat of verwijdert, en
+         het overtypen daarvan uit een schermafdruk gaat mis op I tegen l en O tegen 0.
+       - De pagina wijst op twee dingen die je anders over het hoofd ziet: hetzelfde
+         toestel dat twee keer voorkomt (een her-installatie laat het oude kenmerk
+         staan) en kenmerken met coachrechten waar geen naam bij hoort.
+       - Cijfers en techniek worden meteen opgehaald zodra blijkt dat je beheerder
+         bent, in plaats van pas na een tik op 'Ophalen'. 'Nog niet opgehaald' is
+         namelijk niet te onderscheiden van 'er is niets'.
+       - Bij een mislukte ophaalactie staat er nu wát er misging: geen rechten is iets
+         anders dan geen gegevens, en dat scheelt zoeken in de verkeerde hoek.
 ============================================================================ -->
 <style>
   :root{
@@ -27,7 +49,7 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--txt);
     font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    padding:16px 14px 60px;max-width:820px;margin-inline:auto}
+    padding:16px 14px 60px;max-width:900px;margin-inline:auto}
   h1{font-size:1.3rem;margin:0 0 4px}
   h2{font-size:1.05rem;margin:0 0 10px}
   .sub{color:var(--dim);font-size:.85rem;margin:0 0 20px}
@@ -44,20 +66,33 @@
     font-size:.85rem;cursor:pointer}
   button.prim{background:var(--accent);border-color:var(--accent);color:#06152c}
   button.gevaar{background:var(--rood);border-color:var(--rood);color:#fff}
+  button.mini{padding:2px 8px;font-size:.72rem;font-weight:600}
   button:disabled{opacity:.45;cursor:default}
   .rij{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .kenmerk{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem;
     background:rgba(255,255,255,.07);padding:3px 7px;border-radius:6px;word-break:break-all}
+  /* Tabellen kunnen breder zijn dan een telefoon; laat ze zelf schuiven in plaats van
+     de hele pagina te laten uitrekken. */
+  .tabelhouder{overflow-x:auto;-webkit-overflow-scrolling:touch}
   table{width:100%;border-collapse:collapse;font-size:.85rem}
-  th,td{text-align:right;padding:5px 6px;border-bottom:1px solid rgba(255,255,255,.07)}
+  th,td{text-align:right;padding:5px 6px;border-bottom:1px solid rgba(255,255,255,.07);
+    white-space:nowrap}
   th:first-child,td:first-child{text-align:left}
   th{color:var(--dim);font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em}
+  /* Sorteerbare koppen: een tik erop is de bediening, dus dat moet je kunnen zien. */
+  th.sorteer{cursor:pointer;user-select:none}
+  th.sorteer:hover{color:var(--txt)}
+  th.sorteer .pijl{font-size:.7em;opacity:.85}
   tr.totaal td{border-top:2px solid var(--rand);border-bottom:none;font-weight:800}
   .vlag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.75rem;font-weight:800}
   .vlag.open{background:rgba(63,166,106,.2);color:#7fdca4;border:1px solid rgba(63,166,106,.5)}
   .vlag.dicht{background:rgba(224,103,74,.2);color:#ffb39e;border:1px solid rgba(224,103,74,.5)}
   .fout{background:rgba(224,103,74,.14);border:1px solid rgba(224,103,74,.45);
     border-radius:10px;padding:10px;font-size:.85rem;margin-top:10px}
+  .let{background:rgba(224,103,74,.10);border:1px solid rgba(224,103,74,.35);
+    border-radius:10px;padding:10px;font-size:.82rem;margin-top:10px;color:#ffd2c4}
+  .let b{color:#fff}
+  #geenBeheer{display:none}
 </style>
 </head>
 <body>
@@ -65,14 +100,22 @@
 <h1>Beheer</h1>
 <p class="sub">opstelling &amp; wissels — niet gelinkt vanuit de app</p>
 
-<!-- ── Wie ben ik ──────────────────────────────────────────────────────────── -->
+<!-- Alleen zichtbaar als je géén beheerder bent: dan werkt de halve pagina niet en
+     hoor je dat te lezen vóórdat je je afvraagt waarom er niets komt. -->
+<div class="fout" id="geenBeheer" style="margin:0 0 14px"></div>
+
+<!-- ── Team opzoeken ───────────────────────────────────────────────────────── -->
 <div class="kaart">
-  <h2>Jouw kenmerk</h2>
+  <h2>Team opzoeken</h2>
+  <p class="hint">Een lijst van alle teams is er bewust niet: de beveiliging staat geen
+    opsomming toe, anders zou een onraadbare teamcode niets waard zijn. Je kunt wel
+    één team opzoeken als je de code hebt.</p>
+  <label>Teamcode</label>
   <div class="rij">
-    <span class="kenmerk" id="uid">…</span>
-    <button id="kopieerUid">Kopieer</button>
+    <input id="teamcode" placeholder="bijv. k7m2xq9rtb4p" autocapitalize="none" spellcheck="false" style="flex:1">
+    <button id="zoek">Zoek</button>
   </div>
-  <p class="hint" id="rolUit" style="margin-top:10px">Verbinden…</p>
+  <div id="team" style="margin-top:12px"></div>
 </div>
 
 <!-- ── Noodrem ─────────────────────────────────────────────────────────────── -->
@@ -94,7 +137,7 @@
 
 <!-- ── Cijfers ─────────────────────────────────────────────────────────────── -->
 <div class="kaart">
-  <h2>Gebruik</h2>
+  <h2>Gebruik van de demo</h2>
   <div class="rij">
     <label style="margin:0">Laatste</label>
     <select id="periode" style="width:auto">
@@ -104,7 +147,7 @@
     </select>
     <button id="haal">Ophalen</button>
   </div>
-  <div id="cijfers" style="margin-top:12px"><p class="hint">Nog niet opgehaald.</p></div>
+  <div id="cijfers" style="margin-top:12px"><p class="hint">Wachten op verbinding…</p></div>
 </div>
 
 <!-- ── Techniek en fouten ──────────────────────────────────────────────────── -->
@@ -119,21 +162,18 @@
     </select>
     <button id="haalTech">Ophalen</button>
   </div>
-  <div id="techniek" style="margin-top:12px"><p class="hint">Nog niet opgehaald.</p></div>
+  <div id="techniek" style="margin-top:12px"><p class="hint">Wachten op verbinding…</p></div>
 </div>
 
-<!-- ── Team opzoeken ───────────────────────────────────────────────────────── -->
+<!-- ── Wie ben ik ──────────────────────────────────────────────────────────── -->
+<!-- Onderaan: dit heb je één keer per browser nodig, en daarna nooit meer. -->
 <div class="kaart">
-  <h2>Team opzoeken</h2>
-  <p class="hint">Een lijst van alle teams is er bewust niet: de beveiliging staat geen
-    opsomming toe, anders zou een onraadbare teamcode niets waard zijn. Je kunt wel
-    één team opzoeken als je de code hebt.</p>
-  <label>Teamcode</label>
+  <h2>Jouw kenmerk</h2>
   <div class="rij">
-    <input id="teamcode" placeholder="bijv. k7m2xq9rtb4p" autocapitalize="none" spellcheck="false" style="flex:1">
-    <button id="zoek">Zoek</button>
+    <span class="kenmerk" id="uid">…</span>
+    <button id="kopieerUid">Kopieer</button>
   </div>
-  <div id="team" style="margin-top:12px"></div>
+  <p class="hint" id="rolUit" style="margin-top:10px">Verbinden…</p>
 </div>
 
 <script>
@@ -142,6 +182,7 @@
 const FB_CONFIG={"apiKey":"AIzaSyDwrfF3mDmievts5mme5fOlRJ3O3fhKGb8","authDomain":"hockey-app-teaming.firebaseapp.com","projectId":"hockey-app-teaming","storageBucket":"hockey-app-teaming.firebasestorage.app","messagingSenderId":"527542328518","appId":"1:527542328518:web:e2537891c7941d09568bc7"};
 
 const $=id=>document.getElementById(id);
+const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let db=null, uid=null, magBeheren=false;
 
 function laad(src){return new Promise((ok,fout)=>{const s=document.createElement('script');
@@ -152,6 +193,25 @@ function toonFout(waar,e){
   p.textContent=waar+': '+(e&&e.message||e);
   return p;
 }
+// 'Missing or insufficient permissions' is de meest voorkomende fout hier en zegt in
+// die bewoording niemand iets. Vertaal hem naar de enige oorzaak die hij in de praktijk
+// heeft, en laat de rest ongemoeid — anders verstop je een echte storing.
+function uitlegFout(e){
+  const code=(e&&e.code)||'';
+  if(code==='permission-denied')
+    return 'De beveiligingsregels laten dit niet toe. Voor deze cijfers moet het kenmerk '
+      +'onderaan deze pagina in beheer/beheerders staan, veld uids.';
+  if(code==='unavailable')
+    return 'Geen verbinding met Firestore. Controleer je internet en probeer opnieuw.';
+  return '';
+}
+function foutBlok(waar,e){
+  const h=document.createElement('div');
+  h.appendChild(toonFout(waar,e));
+  const u=uitlegFout(e);
+  if(u)h.appendChild(Object.assign(document.createElement('p'),{className:'hint',textContent:u}));
+  return h;
+}
 // Zonder verbinding is elke knop zinloos, en 'Cannot read properties of null' zegt
 // niemand iets. Eén controle vooraf, met een melding die wél iets zegt.
 function verbonden(doel){
@@ -160,6 +220,58 @@ function verbonden(doel){
     new Error('De pagina heeft geen verbinding met Firebase. Controleer je internet en laad opnieuw.'))); }
   return false;
 }
+
+// ── Sorteren ───────────────────────────────────────────────────────────────
+// Eén functie voor alle tabellen op deze pagina. Een kop krijgt 'data-nosort' als
+// sorteren er geen betekenis heeft (de kolom met knoppen).
+//
+// De sorteerwaarde komt uit 'data-sort' als die er staat, en anders uit de tekst.
+// Dat onderscheid is nodig voor datums: op het scherm staat '7 sep, 14:31', en daarop
+// sorteren geeft alfabetische onzin waarin april voor maart komt. In 'data-sort' staat
+// het tijdstip in milliseconden, en daar klopt de volgorde wel.
+// Een streepje (niets ingevuld) gaat altijd onderaan, welke richting je ook kiest:
+// het is geen kleine waarde, het is een lege.
+function sorteerWaarde(cel){
+  const d=cel.getAttribute('data-sort');
+  if(d!==null&&d!==''){ const n=Number(d); return isNaN(n)?d.toLowerCase():n; }
+  const t=cel.textContent.trim();
+  if(t===''||t==='—')return null;
+  const n=Number(t.replace(/\./g,'').replace(',','.'));
+  return isNaN(n)?t.toLowerCase():n;
+}
+function sorteerbaar(tabel){
+  const tbody=tabel.tBodies[0]; if(!tbody)return;
+  const koppen=[...tabel.querySelectorAll('thead th')];
+  koppen.forEach((th,i)=>{
+    if(th.hasAttribute('data-nosort'))return;
+    th.classList.add('sorteer');
+    th.title='Tik om te sorteren';
+    th.onclick=()=>{
+      const op = th.getAttribute('data-richting')!=='op';
+      koppen.forEach(x=>{ x.removeAttribute('data-richting');
+        const p=x.querySelector('.pijl'); if(p)p.remove(); });
+      th.setAttribute('data-richting',op?'op':'af');
+      const pijl=document.createElement('span');
+      pijl.className='pijl'; pijl.textContent=op?' ▲':' ▼';
+      th.appendChild(pijl);
+      const rijen=[...tbody.rows].filter(r=>!r.classList.contains('totaal'));
+      const staart=[...tbody.rows].filter(r=>r.classList.contains('totaal'));
+      rijen.sort((a,b)=>{
+        const x=sorteerWaarde(a.cells[i]), y=sorteerWaarde(b.cells[i]);
+        if(x===null&&y===null)return 0;
+        if(x===null)return 1;          // leeg altijd onderaan
+        if(y===null)return -1;
+        let r;
+        if(typeof x==='number'&&typeof y==='number')r=x-y;
+        else r=String(x).localeCompare(String(y),'nl');
+        return op?r:-r;
+      });
+      rijen.concat(staart).forEach(r=>tbody.appendChild(r));
+    };
+  });
+}
+// Alle tabellen binnen een element sorteerbaar maken, ná het vullen.
+function sorteerAlles(el){ el.querySelectorAll('table').forEach(sorteerbaar); }
 
 async function start(){
   try{
@@ -173,8 +285,17 @@ async function start(){
     $('uid').textContent=uid;
     await bepaalRol();
     await demoLezen();
+    // De vorige teamcode onthouden: je zoekt vrijwel altijd hetzelfde team op.
+    try{ const v=localStorage.getItem('beheer_team'); if(v){ $('teamcode').value=v; zoekTeam(); } }catch(e){}
+    // Meteen ophalen in plaats van wachten op een tik. 'Nog niet opgehaald' en 'er is
+    // niets' zagen er hetzelfde uit, en dat is precies de vraag die je hier hebt.
+    if(magBeheren){ $('haal').click(); $('haalTech').click(); }
+    else {
+      $('cijfers').innerHTML='<p class="hint">Je kunt deze cijfers niet lezen — zie onderaan.</p>';
+      $('techniek').innerHTML='<p class="hint">Je kunt deze cijfers niet lezen — zie onderaan.</p>';
+    }
   }catch(e){
-    $('uid').textContent='\u2014';
+    $('uid').textContent='—';
     $('rolUit').textContent='';
     $('rolUit').appendChild(toonFout('Verbinden mislukt',e));
     $('demoVlag').className='vlag dicht'; $('demoVlag').textContent='onbekend';
@@ -185,6 +306,9 @@ async function start(){
 // dan krijg je een nieuw kenmerk en moet je het opnieuw in de lijst zetten. Dat is de
 // prijs van inloggen zonder account; voor een pagina die je zelf een paar keer per
 // seizoen opent is dat te overzien.
+//
+// Let op: dit kenmerk is niet hetzelfde als dat van de app op je telefoon. Elke
+// browser en elke app-installatie logt apart anoniem in en krijgt een eigen kenmerk.
 async function bepaalRol(){
   try{
     const d=await db.collection('beheer').doc('beheerders').get();
@@ -197,6 +321,15 @@ async function bepaalRol(){
     : 'Je staat <b>niet</b> in de beheerderslijst. Zet het kenmerk hierboven in de '
       + 'Firebase-console in <span class="kenmerk">beheer/beheerders</span>, veld '
       + '<span class="kenmerk">uids</span>, en laad deze pagina opnieuw.';
+  if(!magBeheren){
+    $('geenBeheer').style.display='block';
+    $('geenBeheer').innerHTML='Deze browser staat niet in de beheerderslijst. '
+      +'De demo omzetten en de cijfers lezen lukt daarom niet; een team opzoeken wel. '
+      +'Onderaan deze pagina staat het kenmerk dat je in '
+      +'<span class="kenmerk">beheer/beheerders</span> moet zetten. '
+      +'<b>Let op:</b> dat is een ander kenmerk dan dat van de app op je telefoon — '
+      +'elke browser logt apart anoniem in.';
+  }
 }
 
 // ── Noodrem ────────────────────────────────────────────────────────────────
@@ -213,7 +346,7 @@ async function demoLezen(){
       $('demoFout').appendChild(toonFout('Let op',
         new Error('beheer/demo bestaat nog niet. Bewaren maakt hem aan.')));
     }
-  }catch(e){ $('demoFout').appendChild(toonFout('Demo-instelling lezen mislukt',e)); }
+  }catch(e){ $('demoFout').appendChild(foutBlok('Demo-instelling lezen mislukt',e)); }
 }
 async function demoSchrijven(open){
   $('demoFout').innerHTML='';
@@ -225,28 +358,40 @@ async function demoSchrijven(open){
     await db.collection('beheer').doc('demo').set(
       {open:!!open, dagen:Math.round(dagen), boodschap:$('boodschap').value.trim()});
     await demoLezen();
-  }catch(e){ $('demoFout').appendChild(toonFout('Bewaren mislukt',e)); }
+  }catch(e){ $('demoFout').appendChild(foutBlok('Bewaren mislukt',e)); }
 }
 $('bewaar').onclick=()=>demoSchrijven($('demoVlag').textContent!=='gesloten');
 $('sluit').onclick =()=>{ if(confirm('De demo sluiten voor iedereen?'))demoSchrijven(false); };
 $('open').onclick  =()=>demoSchrijven(true);
-$('kopieerUid').onclick=async()=>{
-  if(!uid)return;
-  try{ await navigator.clipboard.writeText(uid); $('kopieerUid').textContent='Gekopieerd'; }
-  catch(e){ $('kopieerUid').textContent='Selecteer en kopieer zelf'; }
-};
+$('kopieerUid').onclick=()=>kopieer(uid,$('kopieerUid'));
+
+// Kopiëren met terugmelding in de knop zelf. Zonder die terugmelding weet je niet of
+// het gelukt is, en dan typ je het alsnog over — precies wat je wilde vermijden.
+async function kopieer(tekst,knop){
+  if(!tekst)return;
+  const oud=knop.textContent;
+  try{ await navigator.clipboard.writeText(tekst); knop.textContent='Gekopieerd'; }
+  catch(e){
+    // Zonder https of zonder toestemming werkt het klembord niet; dan maar selecteren.
+    try{
+      const s=document.createElement('textarea'); s.value=tekst; document.body.appendChild(s);
+      s.select(); document.execCommand('copy'); s.remove(); knop.textContent='Gekopieerd';
+    }catch(x){ knop.textContent='Selecteer zelf'; }
+  }
+  setTimeout(()=>{knop.textContent=oud;},1400);
+}
 
 // ── Cijfers ────────────────────────────────────────────────────────────────
 // Eén document per dag, met de datum als sleutel. We halen ze per dag op in plaats
 // van met een bereikvraag: dat vraagt geen index en het zijn er hooguit negentig.
 const VELDEN=['opening','terugkeer','vanaf_beginscherm','schema_gemaakt','timer_gestart','kaart'];
 const KOPPEN={opening:'nieuw',terugkeer:'terug',vanaf_beginscherm:'beginscherm',
-  schema_gemaakt:'schema\u2019s',timer_gestart:'timer',kaart:'kaarten'};
+  schema_gemaakt:'schema’s',timer_gestart:'timer',kaart:'kaarten'};
 $('haal').onclick=async()=>{
   const n=Number($('periode').value);
   const doel=$('cijfers');
   if(!verbonden(doel))return;
-  doel.innerHTML='<p class="hint">Ophalen\u2026</p>';
+  doel.innerHTML='<p class="hint">Ophalen…</p>';
   const dagen=[];
   for(let i=0;i<n;i++){
     const d=new Date(Date.now()-i*864e5);
@@ -257,32 +402,32 @@ $('haal').onclick=async()=>{
     const rijen=docs.map((d,i)=>({dag:dagen[i], v:d.exists?(d.data()||{}):null}))
                     .filter(r=>r.v);
     if(!rijen.length){
-      doel.innerHTML='<p class="hint">Geen cijfers in deze periode. '
-        +'Krijg je hier niets terwijl je zeker weet dat de demo gebruikt is, '
-        +'controleer dan of je kenmerk in de beheerderslijst staat.</p>';
+      doel.innerHTML='<p class="hint">Geen cijfers in deze periode. Deze tellers vullen '
+        +'zich alleen vanuit de <b>demo</b> (het adres met /demo/), niet vanuit de echte app.</p>';
       return;
     }
     const tot={}; VELDEN.forEach(v=>tot[v]=0);
     rijen.forEach(r=>VELDEN.forEach(v=>tot[v]+=Number(r.v[v]||0)));
-    let h='<table><thead><tr><th>dag</th>'
+    // De datum krijgt een sorteerwaarde mee, anders sorteert '09-30' voor '10-01'.
+    let h='<div class="tabelhouder"><table><thead><tr><th>dag</th>'
       +VELDEN.map(v=>'<th>'+KOPPEN[v]+'</th>').join('')+'</tr></thead><tbody>';
     rijen.forEach(r=>{
-      h+='<tr><td>'+r.dag.slice(5)+'</td>'
-        +VELDEN.map(v=>'<td>'+(r.v[v]||'\u2014')+'</td>').join('')+'</tr>';
+      h+='<tr><td data-sort="'+r.dag.replace(/-/g,'')+'">'+r.dag.slice(5)+'</td>'
+        +VELDEN.map(v=>'<td data-sort="'+Number(r.v[v]||0)+'">'+(r.v[v]||'—')+'</td>').join('')+'</tr>';
     });
     h+='<tr class="totaal"><td>totaal</td>'
-      +VELDEN.map(v=>'<td>'+tot[v]+'</td>').join('')+'</tr></tbody></table>'
+      +VELDEN.map(v=>'<td>'+tot[v]+'</td>').join('')+'</tr></tbody></table></div>'
       +'<p class="hint" style="margin-top:10px">'
       +'<b>nieuw</b> is een toestel dat de demo voor het eerst opende, '
       +'<b>terug</b> een toestel dat op een latere dag terugkwam. '
       +'Er wordt niets bijgehouden dat naar een persoon of toestel te herleiden is, '
-      +'dus wie de demo gebruikt kun je hier niet zien \u2014 alleen hoeveel.</p>';
+      +'dus wie de demo gebruikt kun je hier niet zien — alleen hoeveel. '
+      +'Tik op een kolomkop om te sorteren.</p>';
     doel.innerHTML=h;
+    sorteerAlles(doel);
   }catch(e){
     doel.innerHTML='';
-    doel.appendChild(toonFout('Cijfers ophalen mislukt',e));
-    doel.appendChild(Object.assign(document.createElement('p'),
-      {className:'hint',textContent:'Meestal betekent dit dat je kenmerk niet in de beheerderslijst staat.'}));
+    doel.appendChild(foutBlok('Cijfers ophalen mislukt',e));
   }
 };
 
@@ -311,11 +456,12 @@ const MODELLEN={'320x568':'iPhone SE (1e)','375x667':'iPhone SE 2/3, 6/7/8',
 $('haalTech').onclick=async()=>{
   const n=Number($('weken').value), doel=$('techniek');
   if(!verbonden(doel))return;
-  doel.innerHTML='<p class="hint">Ophalen\u2026</p>';
+  doel.innerHTML='<p class="hint">Ophalen…</p>';
   const weken=[];
   for(let i=0;i<n;i++)weken.push(isoWeek(new Date(Date.now()-i*7*864e5)));
+  const uniek=[...new Set(weken)];
   try{
-    const docs=await Promise.all([...new Set(weken)].map(w=>db.collection('techniek').doc(w).get()));
+    const docs=await Promise.all(uniek.map(w=>db.collection('techniek').doc(w).get()));
     const tot={}; ONDERWERPEN.forEach(([k])=>tot[k]={});
     let gevonden=0;
     docs.forEach(d=>{
@@ -327,9 +473,14 @@ $('haalTech').onclick=async()=>{
       });
     });
     if(!gevonden){
-      doel.innerHTML='<p class="hint">Nog geen gegevens. Ze verschijnen zodra iemand '
-        +'de app opent met een versie die dit meetelt \u2014 en zodra jouw kenmerk in de '
-        +'beheerderslijst staat.</p>';
+      // Zeg erbij wélke documenten er zijn gezocht. Anders blijf je raden of de
+      // gegevens ontbreken of dat de pagina op de verkeerde plek kijkt.
+      doel.innerHTML='<p class="hint">Nog geen gegevens in deze periode. Elk toestel '
+        +'schrijft hier hoogstens één keer per dag iets in, en alleen met een appversie '
+        +'die deze tellers kent — na een upload duurt het dus even voor er iets staat. '
+        +'Gezocht in <span class="kenmerk">techniek</span>: '
+        +uniek.map(w=>'<span class="kenmerk">'+esc(w)+'</span>').join(' ')
+        +'</p>';
       return;
     }
     let h='';
@@ -337,67 +488,138 @@ $('haalTech').onclick=async()=>{
       const rijen=Object.entries(tot[k]).sort((a,b)=>b[1]-a[1]);
       if(!rijen.length)return;
       const som=rijen.reduce((s,r)=>s+r[1],0);
-      h+='<h3 style="font-size:.9rem;margin:14px 0 6px">'+titel+'</h3><table><tbody>';
+      h+='<h3 style="font-size:.9rem;margin:14px 0 6px">'+titel+'</h3>'
+        +'<div class="tabelhouder"><table><thead><tr><th>waarde</th><th>aantal</th>'
+        +'<th data-nosort style="width:34%;text-align:left">aandeel</th></tr></thead><tbody>';
       rijen.forEach(([sleutel,n])=>{
-        let toon=sleutel;
-        if(k==='appversie')toon=sleutel.replace(/_/g,'.');
-        if(k==='scherm'&&MODELLEN[sleutel])toon=sleutel+' \u2014 <span style="color:var(--dim)">'+MODELLEN[sleutel]+'</span>';
-        if(k==='ios'&&/^safari/.test(sleutel))toon='Safari '+sleutel.replace('safari','')+' <span style="color:var(--dim)">(iPad meldt zijn versie niet)</span>';
-        h+='<tr><td>'+toon+'</td><td>'+n+'</td>'
-          +'<td style="width:34%"><span style="display:inline-block;height:7px;border-radius:4px;'
+        let toon=esc(sleutel);
+        if(k==='appversie')toon=esc(sleutel.replace(/_/g,'.'));
+        if(k==='scherm'&&MODELLEN[sleutel])toon=esc(sleutel)+' — <span style="color:var(--dim)">'+esc(MODELLEN[sleutel])+'</span>';
+        if(k==='ios'&&/^safari/.test(sleutel))toon='Safari '+esc(sleutel.replace('safari',''))+' <span style="color:var(--dim)">(iPad meldt zijn versie niet)</span>';
+        h+='<tr><td data-sort="'+esc(sleutel)+'">'+toon+'</td><td data-sort="'+n+'">'+n+'</td>'
+          +'<td style="text-align:left"><span style="display:inline-block;height:7px;border-radius:4px;'
           +'background:var(--accent);width:'+Math.round(100*n/som)+'%"></span></td></tr>';
       });
-      h+='</tbody></table>';
+      h+='</tbody></table></div>';
     });
-    h+='<p class="hint" style="margin-top:14px">Alles is opgeteld in groepen, nooit per '
-      +'toestel \u2014 je ziet dus niet wie wat gebruikt. De schermmaat is een benadering van '
+    h+='<p class="hint" style="margin-top:14px">Opgeteld over '+gevonden+' van de '
+      +uniek.length+' gezochte weken. Alles is opgeteld in groepen, nooit per '
+      +'toestel — je ziet dus niet wie wat gebruikt. De schermmaat is een benadering van '
       +'het model: Apple zet het model niet meer in de user-agent, en veel iPhones delen '
       +'dezelfde maat. Bij de fouten staat alleen de categorie, want de tekst kan een '
-      +'spelersnaam bevatten.</p>';
+      +'spelersnaam bevatten. Tik op een kolomkop om te sorteren.</p>';
     doel.innerHTML=h;
+    sorteerAlles(doel);
   }catch(e){
     doel.innerHTML='';
-    doel.appendChild(toonFout('Ophalen mislukt',e));
-    doel.appendChild(Object.assign(document.createElement('p'),
-      {className:'hint',textContent:'Meestal betekent dit dat je kenmerk niet in de beheerderslijst staat.'}));
+    doel.appendChild(foutBlok('Ophalen mislukt',e));
   }
 };
 
 // ── Team opzoeken ──────────────────────────────────────────────────────────
-$('zoek').onclick=async()=>{
+async function zoekTeam(){
   const code=$('teamcode').value.trim().toLowerCase();
   const doel=$('team');
   if(!verbonden(doel))return;
   if(!code){ doel.innerHTML='<p class="hint">Vul een teamcode in.</p>'; return; }
-  doel.innerHTML='<p class="hint">Zoeken\u2026</p>';
+  doel.innerHTML='<p class="hint">Zoeken…</p>';
   try{
     const d=await db.collection('teams').doc(code).get();
     if(!d.exists){ doel.innerHTML='<p class="hint">Geen team met deze code.</p>'; return; }
+    try{ localStorage.setItem('beheer_team',code); }catch(e){}
     const v=d.data()||{};
     const eds=Array.isArray(v.editors)?v.editors:[];
     const co=v.coaches||{};
     const dag=t=>t?new Date(Number(t)).toLocaleString('nl-NL',
-      {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'\u2014';
-    let h='<table><thead><tr><th>naam</th><th>rol</th><th>sinds</th><th>laatst actief</th></tr></thead><tbody>';
-    const ids=new Set(Object.keys(co).concat(eds));
-    if(!ids.size)h+='<tr><td colspan="4">Nog niemand gekoppeld.</td></tr>';
+      {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'—';
+
+    const ids=[...new Set(Object.keys(co).concat(eds).concat(v.owner?[v.owner]:[]))];
+    const rol=id=>(v.owner===id)?'eigenaar':(eds.includes(id)?'coach':'kijker');
+
+    let h='<div class="tabelhouder"><table><thead><tr>'
+      +'<th>naam</th><th>rol</th><th>toestel</th><th>sinds</th><th>laatst actief</th>'
+      +'<th>kenmerk</th><th data-nosort></th></tr></thead><tbody>';
+    if(!ids.length)h+='<tr><td colspan="7">Nog niemand gekoppeld.</td></tr>';
+    // Standaard op 'laatst actief', nieuwste bovenaan: dat is de volgorde waarin je
+    // deze lijst leest als je zoekt wie er onlangs was.
+    ids.sort((a,b)=>Number((co[b]||{}).laatst||0)-Number((co[a]||{}).laatst||0));
     ids.forEach(id=>{
       const c=co[id]||{};
-      const rol=(v.owner===id)?'eigenaar':(eds.includes(id)?'coach':'kijker');
-      h+='<tr><td>'+(c.naam||'<span class="kenmerk">'+id.slice(0,10)+'\u2026</span>')+'</td>'
-        +'<td>'+rol+'</td><td>'+dag(c.sinds)+'</td><td>'+dag(c.laatst)+'</td></tr>';
+      // Een rang voor de rol, zodat sorteren eigenaar-coach-kijker oplevert in plaats
+      // van de alfabetische volgorde coach-eigenaar-kijker.
+      const r=rol(id), rang={eigenaar:0,coach:1,kijker:2}[r];
+      h+='<tr>'
+        +'<td>'+(c.naam?esc(c.naam):'<span style="color:var(--dim)">geen naam</span>')+'</td>'
+        +'<td data-sort="'+rang+'">'+r+'</td>'
+        +'<td>'+esc(c.toestel||'—')+'</td>'
+        +'<td data-sort="'+Number(c.sinds||0)+'">'+dag(c.sinds)+'</td>'
+        +'<td data-sort="'+Number(c.laatst||0)+'">'+dag(c.laatst)+'</td>'
+        +'<td><span class="kenmerk">'+esc(id)+'</span></td>'
+        +'<td><button class="mini" data-kop="'+esc(id)+'">Kopieer</button></td>'
+        +'</tr>';
     });
-    h+='</tbody></table>'
-      +'<p class="hint" style="margin-top:10px">Iemand verwijderen doe je in de '
-      +'Firebase-console: <span class="kenmerk">teams / '+code+'</span>, veld '
-      +'<span class="kenmerk">editors</span>. Deze pagina kan dat niet \u2014 alleen de '
-      +'eigenaar van een team mag die lijst wijzigen, en dat ben jij hier niet.</p>';
+    h+='</tbody></table></div>';
+
+    // ── Wat er opvalt ──
+    // Twee dingen die je met het oog mist en die allebei echt zijn voorgekomen.
+    const let_=[];
+    // 1. Hetzelfde toestel onder twee kenmerken. Dat is een her-installatie: iOS gooit
+    //    de opslag van de app weg, de app krijgt een nieuw kenmerk én een nieuw
+    //    toestelnummer, en het oude blijft als dode regel staan.
+    const perNaam={};
+    Object.entries(co).forEach(([id,c])=>{
+      const n=(c.naam||'').trim().toLowerCase(); if(!n)return;
+      (perNaam[n]=perNaam[n]||[]).push([id,c]);
+    });
+    Object.entries(perNaam).forEach(([n,lijst])=>{
+      if(lijst.length<2)return;
+      const oud=lijst.slice().sort((a,b)=>Number(b[1].laatst||0)-Number(a[1].laatst||0)).slice(1);
+      let_.push('<b>'+esc(lijst[0][1].naam)+'</b> staat '+lijst.length+' keer in de lijst, '
+        +'met verschillende kenmerken. Meestal een her-installatie: het oudste kenmerk is dood '
+        +'en kan weg uit <span class="kenmerk">coaches</span> en <span class="kenmerk">editors</span>. '
+        +'Oudste: '+oud.map(([id,c])=>'<span class="kenmerk">'+esc(id)+'</span> ('+dag(c.laatst)+')').join(', '));
+    });
+    // 2. Coachrechten zonder naam: een kenmerk in 'editors' waar geen regel bij hoort.
+    //    Die kun je niet thuisbrengen, en dus ook niet met een gerust hart laten staan.
+    const naamloos=eds.filter(id=>!co[id]);
+    if(naamloos.length)
+      let_.push(naamloos.length+' kenmerk'+(naamloos.length===1?'':'en')+' in '
+        +'<span class="kenmerk">editors</span> zonder naam in <span class="kenmerk">coaches</span>. '
+        +'Die toestellen mogen wijzigen maar zijn niet thuis te brengen: '
+        +naamloos.map(id=>'<span class="kenmerk">'+esc(id)+'</span>').join(', '));
+    // 3. Staat het koppelvenster nog open? Dat hoort een kwartier te duren.
+    const tot=Number(v.koppelTot||0);
+    if(tot>Date.now())
+      let_.push('Het koppelvenster staat nog <b>'+Math.ceil((tot-Date.now())/60000)
+        +' minuten</b> open. Zolang dat zo is kan elk toestel dat de teamcode kent '
+        +'zichzelf als coach toevoegen.');
+    if(let_.length)
+      h+='<div class="let"><b>Wat opvalt</b><ul style="margin:6px 0 0;padding-left:18px">'
+        +let_.map(t=>'<li style="margin:4px 0">'+t+'</li>').join('')+'</ul></div>';
+
+    h+='<p class="hint" style="margin-top:10px">'
+      +'<b>'+eds.length+'</b> toestel'+(eds.length===1?'':'len')+' met wijzigrechten, '
+      +'<b>'+ids.length+'</b> in totaal bekend. Eigenaar: '
+      +(v.owner?'<span class="kenmerk">'+esc(v.owner)+'</span>':'—')+'.'
+      +'<br>Iemand toevoegen of verwijderen doe je in de Firebase-console: '
+      +'<span class="kenmerk">teams / '+esc(code)+'</span>, veld '
+      +'<span class="kenmerk">editors</span>. Deze pagina kan dat niet — alleen de '
+      +'eigenaar van een team mag die lijst wijzigen, en dat ben jij hier niet. '
+      +'Gebruik de kopieerknop en typ een kenmerk nooit over: een hoofdletter I en een '
+      +'kleine l zijn in de meeste lettertypen niet uit elkaar te houden.</p>';
     doel.innerHTML=h;
+    sorteerAlles(doel);
+    doel.querySelectorAll('button[data-kop]').forEach(b=>{
+      b.onclick=()=>kopieer(b.getAttribute('data-kop'),b);
+    });
   }catch(e){
     doel.innerHTML='';
-    doel.appendChild(toonFout('Team ophalen mislukt',e));
+    doel.appendChild(foutBlok('Team ophalen mislukt',e));
   }
-};
+}
+$('zoek').onclick=zoekTeam;
+// Op een telefoon tik je Enter, niet de knop.
+$('teamcode').addEventListener('keydown',e=>{ if(e.key==='Enter')zoekTeam(); });
 
 start();
 </script>
