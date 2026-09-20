@@ -384,6 +384,59 @@ body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,
      dat is al de grootste regel op het scherm en daar zitten ook de langste zinnen
      in (‘… daardoor schuift X van A naar B’). */
   .twocol .startq .wline{font-size:var(--fs-md);padding:3px 0}
+  /* ── De klokbalk boven de wisselkolom ──
+     De ronde klok hing over het veld en werd van drie kanten klemgezet: de bank
+     links, de wisselkolom rechts en de rechtsvoor eronder. Gemeten kwam hij daardoor
+     op vier van de vijf iPad-maten niet verder dan cijfers van 74 pixels, en naar
+     links uitbreiden maakte hem kléiner — een cirkel die breder wordt, wordt ook
+     hoger, en dan komen er meer spelers onder hem te staan.
+     Hier heeft hij de volle breedte van de kolom en alleen zijn eigen hoogte als
+     grens. Eén regel: de cijfers links, daarnaast het kwart en wat er nog te spelen
+     is, en onderin een voortgangsbalk. Dat is ongeveer 95 pixels hoog waar een
+     wisselregel er 64 is — je raakt dus anderhalve regel kwijt en wint een derde
+     aan cijferhoogte. De ruimte rechts van het veld die de ronde klok bezette gaat
+     naar deze kolom terug (zie meetVeldkolom), en dat is meer dan de balk kost.
+     Plakkend bovenaan: op een scherm langs de lijn mag de tijd nooit wegscrollen. */
+  .twocol .klokbalk{
+    /* top:0 plakt aan de bínnenrand van het scrollvak, en dat vak heeft 12px lucht
+       bovenin (zie main). Daardoor bleef er een strook van 12 pixels over waar de
+       wisseltekst onder de kopbalk door schoof: één afgesneden regel boven de klok.
+       Vandaar dezelfde 12 er weer af, zodat de balk tot tegen de kopbalk komt. */
+    position:sticky;top:-12px;z-index:6;
+    display:flex;align-items:center;gap:16px;
+    padding:8px 16px;margin-bottom:10px;
+    -webkit-tap-highlight-color:transparent;
+    /* Dekkend, en zonder de vervaging van een gewone kaart. Een plakkende kaart met
+       een doorzichtige achtergrond laat de wisselteksten er dwars doorheen lopen:
+       dan staan er twee regels over elkaar en lees je geen van beide. Dezelfde reden
+       als bij de kopbalk destijds. */
+    background:#12305f;
+    backdrop-filter:none;-webkit-backdrop-filter:none;
+    box-shadow:0 10px 18px -10px rgba(4,14,32,.75);
+  }
+  .twocol .klokbalk.tikbaar{cursor:pointer}
+  body.sun .twocol .klokbalk{background:#ffffff;box-shadow:0 8px 14px -10px rgba(15,32,64,.35)}
+  .twocol .klokbalk .kb-tijd{
+    /* Op de breedte van het scherm en niet van de kolom: een containervraag zou het
+       netter doen, maar dit is voorspelbaar en werkt op elke iOS-versie. Op een
+       9,7 inch komt hij op 76, op een 12,9 inch op 101 — overal ruim boven de 74
+       van de ronde klok. */
+    font-size:clamp(64px,7.4vw,104px);
+    font-weight:800;line-height:.92;
+    font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;
+    letter-spacing:-1px;color:#ff6a52;flex:0 0 auto;
+  }
+  .twocol .klokbalk.pauze .kb-tijd{color:rgba(255,106,82,.72)}
+  .twocol .klokbalk .kb-rechts{flex:1 1 auto;min-width:0}
+  .twocol .klokbalk .kb-sub{font-size:var(--fs-md);font-weight:700;color:var(--txt)}
+  .twocol .klokbalk .kb-rest{font-size:var(--fs-sm);color:var(--dim);margin-top:2px}
+  .twocol .klokbalk .kb-baan{height:9px;border-radius:5px;margin-top:8px;
+    background:rgba(255,255,255,.13);overflow:hidden}
+  .twocol .klokbalk .kb-voort{height:100%;border-radius:5px;background:#7fb4ff;
+    transition:width .4s linear,background .3s}
+  .twocol .klokbalk .kb-voort.laat{background:#ff5a45}
+  body.sun .twocol .klokbalk .kb-baan{background:rgba(15,32,64,.16)}
+  body.sun .twocol .klokbalk .kb-voort{background:#2f6fd0}
   .twocol .wmoment .wtime{font-size:var(--fs-sm)}
   .twocol .wmoment .wline{font-size:var(--fs-md);padding:3px 0}
   .twocol .wmoment .wgeb{font-size:var(--fs-md)}
@@ -1393,6 +1446,7 @@ const WB={
   'Je bent gekoppeld als coach':'You are connected as a coach',
   'Je bent nu de eigenaar van dit team':'You are now the owner of this team',
   'Alleen een coach kan een coach toelaten':'Only a coach can allow a coach in',
+  'nog {0} min in dit kwart':'{0} min left in this quarter',
   'Je kijkt mee als {0}':'You are following as {0}',
   'Dit toestel staat nog steeds niet in de coachlijst':'This device is still not in the coach list',
   'Verbinden mislukt':'Connecting failed',
@@ -4994,6 +5048,37 @@ function klokBoogDeel(sec){
   const deel=Math.max(0,Math.min(1,sec/QLEN));
   return tijdweergave()==='aflopend' ? 1-deel : deel;
 }
+// De klokbalk boven de wisselkolom. Houdt de ids gkTijd en gkSub aan, want
+// veldKlokBijwerken() werkt die elke seconde bij zonder de pagina te hertekenen;
+// een andere naam zou betekenen dat de klok alleen nog bij een hertekening opschoof.
+function klokBalkHTML(){
+  const k=klokTekst();
+  const QLEN=17.5*60;
+  const sec=klok.q==null?0:Math.min(klok.sec,QLEN);
+  const deel=klokBoogDeel(sec);
+  const laatst=sec>QLEN-120;                       // laatste twee minuten van het kwart
+  // Een kijker heeft geen timertabblad; render() stuurt hem meteen terug naar de
+  // wedstrijd. Een balk van honderd pixels die niets doet als je erop tikt is erger
+  // dan een balk die er niet uitziet alsof hij iets doet, dus in de kijkstand is hij
+  // geen knop.
+  const tik=!isKijker();
+  return `<div class="card klokbalk${k.loopt?'':' pauze'}${tik?' tikbaar':''}" id="klokbalk"${tik?` role="button" tabindex="0" title="${U('Naar de timer','To the timer')}"`:''}>
+    <div class="kb-tijd" id="gkTijd">${k.tijd}</div>
+    <div class="kb-rechts">
+      <div class="kb-sub" id="gkSub">${k.kwart}${k.loopt?'':' \u00b7 '+U('pauze','paused')}</div>
+      <div class="kb-rest" id="gkRest">${klokRestTekst()}</div>
+      <div class="kb-baan"><div class="kb-voort${laatst?' laat':''}" id="gkVoort" style="width:${Math.round(deel*100)}%"></div></div>
+    </div>
+  </div>`;
+}
+// 'nog 11,3 minuten in dit kwart'. Bewust de resterende tijd en niet de verstreken:
+// op de bank is de vraag altijd hoe lang het nog duurt.
+function klokRestTekst(){
+  if(klok.q==null)return U('nog niet begonnen','not started yet');
+  const over=Math.max(0,17.5*60-Math.min(klok.sec,17.5*60));
+  if(over<=0)return U('kwart is vol','quarter is full');
+  return Tf('nog {0} min in dit kwart', fmtMin(Math.round(over/6)/10));
+}
 function groteKlokHTML(bankAantal){
   const k=klokTekst(); if(!k)return '';
   // Twee kolommen bank passen naast de klok tot en met zes spelers; daarboven komt
@@ -5118,6 +5203,18 @@ function veldKlokBijwerken(){
       boog.setAttribute('stroke-dashoffset',(KLOK_OMTREK*(1-klokBoogDeel(sec))).toFixed(1));
       boog.classList.toggle('laat',sec>QLEN-120);
     }
+    // De balk boven de wisselkolom: dezelfde cijfers, maar een rechte voortgangsbalk
+    // en een regel met de resterende tijd.
+    const rest=document.getElementById('gkRest');
+    if(rest)rest.textContent=klokRestTekst();
+    const voort=document.getElementById('gkVoort');
+    if(voort){
+      const QLEN=17.5*60, sec=klok.q==null?0:Math.min(klok.sec,QLEN);
+      voort.style.width=Math.round(klokBoogDeel(sec)*100)+'%';
+      voort.classList.toggle('laat',sec>QLEN-120);
+    }
+    const balk=document.getElementById('klokbalk');
+    if(balk)balk.classList.toggle('pauze',!k.loopt);
   }
   zwevendeKlokBijwerken();
   kaartenBijwerken();
@@ -5238,8 +5335,15 @@ function meetVeldkolom(){
   if(!(lucht>VELD_LINKS+1)){
     st.removeProperty('--veldkolom'); st.removeProperty('--veldpad'); return;
   }
+  // De band rechts van het veld was er voor de ronde klok: die hing buiten het gras
+  // en had precies die ruimte nodig. Nu de klok boven de wisselkolom staat is die
+  // band leeg, en leeg is verspilling — hij gaat naar de tekstkolom. Dat levert op
+  // een iPad Air zo'n 200 pixels breedte op, ruim meer dan de klokbalk aan hoogte
+  // kost. Er blijft een kleine tussenruimte staan zodat het veld en de eerste kaart
+  // niet tegen elkaar aan plakken.
+  const VELD_RECHTS=12;
   st.setProperty('--veldpad',VELD_LINKS+'px');
-  st.setProperty('--veldkolom',Math.round(VELD_LINKS+veldB+lucht)+'px');
+  st.setProperty('--veldkolom',Math.round(VELD_LINKS+veldB+VELD_RECHTS)+'px');
 }
 
 function meetGroteKlok(){
@@ -5295,6 +5399,16 @@ addEventListener('resize',()=>requestAnimationFrame(meetGroteKlok));
 // iets nieuws te lezen. Alleen in de kijkstand, want een coach die zelf bedient
 // scrolt de hele wedstrijd heen en weer en wil niet teruggeduwd worden.
 const VOLG_MARGE=12;          // lucht boven het kader
+// De klokbalk plakt bovenaan de kolom. Zonder zijn hoogte erbij schuift het moment
+// dat bovenaan hoort te staan er precies onder — en dan is het meelopen nog erger
+// dan niets doen, want het kader is dan half weg zonder dat je begrijpt waarom.
+function volgMarge(){
+  const b=document.getElementById('klokbalk');
+  // +20 voor de lucht die de balk zelf onder zich heeft (zijn ondermarge) plus de
+  // 12 pixels die hij met een negatieve plakrand naar boven inneemt. Nagemeten: met
+  // alleen de hoogte raakt het kader de balk precies, zonder tussenruimte.
+  return VOLG_MARGE + (b?Math.round(b.getBoundingClientRect().height)+20:0);
+}
 let _volgtMoment=null;        // welk moment staat er bovenaan gezet?
 function volgWisselTekst(){
   const v=document.getElementById('view');
@@ -5326,7 +5440,7 @@ function volgWisselTekst(){
   // maakt hem onafhankelijk van waar we nu staan, ook als de browser tijdens het
   // wegnemen van de ruimte hierboven zelf al is bijgeschoven.
   const doel=Math.max(0, v.scrollTop + (el.getBoundingClientRect().top
-             - v.getBoundingClientRect().top) - VOLG_MARGE);
+             - v.getBoundingClientRect().top) - volgMarge());
   // Het laatste moment van een kwart heeft soms te weinig onder zich om nog tot
   // bovenaan te kunnen klimmen. Dan zetten we er precies genoeg ruimte bij; meestal
   // is dat niets, want de speeltijdenkaart staat er nog onder.
@@ -6626,6 +6740,15 @@ function volgKlokVanAnder(){
     let sec=k.basis||0, loopt=!!k.loopt;
     if(k.loopt&&k.sinds)sec+=Math.max(0,(Date.now()-k.sinds)/1000);
     if(sec>17.5*60+600){ sec=Math.min(k.basis||0,17.5*60+600); loopt=false; }  // achtergelaten ankerpunt
+    // Springt de klok naar een ander kwart, dan volgt het wedstrijdtabblad weer vanzelf.
+    // Diezelfde regel stond al bij de berichten van de eigen timer, maar niet hier — en
+    // dit is nu juist de weg waarlangs een kijker zijn klok krijgt: die heeft helemaal
+    // geen timertabblad. Tikte hij in de rust Q3 aan om vooruit te kijken, dan bleef het
+    // beeld daar staan terwijl de wedstrijd in Q4 liep. Uitgerekend op de iPad langs de
+    // lijn, waar niemand doorheeft dat hij naar het verkeerde kwart kijkt.
+    // Een eigen keuze is bedoeld om even vooruit te kijken, niet om het beeld voorgoed
+    // vast te zetten. Binnen hetzelfde kwart blijft die keuze dus gewoon staan.
+    if(klok.q!==k.q)toonQ=null;
     klok={q:k.q,sec:Math.floor(sec),loopt:loopt};
     veldKlokBijwerken(); beeldBijwerken();
   };
@@ -7569,10 +7692,12 @@ function renderQuarter(q){
   // waardoor een keeper met voor- én achternaam buiten zijn plaatje liep.
   if(keeper)veld+=`<div class="chip kpc" style="left:50%;top:93%"><div class="ball keeperball${keeper.id===capt?' capt':''}">${KEEPER_HELM}${keeper.id===capt?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(pKort(keeper.id))}</div></div>`;
   veld+=`</div>`                                      // einde fieldwrap
-    +(isWide()?groteKlokHTML(benchIds.length)+`</div>`:'')   // klok over het veld, einde veldrij
+    +(isWide()?`</div>`:'')   // einde veldrij; de klok staat nu boven de wisselkolom
     +`${isKijker()?'':`<p class="hint" style="margin-top:10px">${U('Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor ','Tap two players to swap them — including with the bench. Applies to ')}${toonBlok===0?U('de start van dit kwart','the start of this quarter'):U('dit moment in het kwart','this point in the quarter')}.</p>`}</div>`;
   // Alles wat naast het veld komt te staan in de brede stand
   let tekst='';
+  // De klok bovenaan deze kolom, niet meer over het veld. Zie de CSS bij .klokbalk.
+  if(isWide())tekst+=klokBalkHTML();
   // Wissel bij start van kwart (t.o.v. vorige kwart)
   if(q>0){
     const d=wisselChains(sch.assignments[qStart-1],sch.assignments[qStart]);
@@ -7926,6 +8051,7 @@ function bind(v){
   // De klokken op het veld brengen je naar de timer.
   klokKlikbaar(v.querySelector('#veldklok'));
   klokKlikbaar(v.querySelector('#grklok'));
+  klokKlikbaar(v.querySelector('#klokbalk'));
   // ── Tabblad Meer: klokrichting ──
   v.querySelectorAll('[data-klokstand]').forEach(el=>el.onclick=()=>zetTijdweergave(el.dataset.klokstand));
   // ── Tabblad Meer: taal ──
@@ -8414,8 +8540,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=264;
-const VERSIE_LABEL='26.9.105';
+const APP_VERSION=266;
+const VERSIE_LABEL='26.9.107';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
