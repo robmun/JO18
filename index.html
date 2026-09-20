@@ -3191,7 +3191,9 @@ async function cloudLogin(){
 async function cloudClaimOfKoppel(){
   CLOUD.geweigerd=false;   // elke verbindingspoging begint schoon
   try{
-    const snap=await CLOUD.ref.get();
+    let snap;
+    try{ snap=await CLOUD.ref.get({source:'server'}); }
+    catch(e){ onthoudFout('team van server lezen',e); snap=await CLOUD.ref.get(); }
     if(!snap.exists){
       // Nieuw team: wie het aanmaakt is eigenaar.
       await CLOUD.ref.set({owner:CLOUD.uid,editors:[CLOUD.uid],rev:0},{merge:true});
@@ -3239,6 +3241,7 @@ async function cloudClaimOfKoppel(){
       // Vandaar deze vlag: alleen zo kan de app uitleggen wat er aan de hand is in
       // plaats van er zwijgend 'rol: kijker' van te maken.
       CLOUD.geweigerd=true;
+      CLOUD.gelezen={owner:String(d.owner||''),editors:lijst.slice(0,12)};
       CLOUD.role='viewer';
       document.body.classList.toggle('viewer',true);
       kijkManifest();
@@ -3651,7 +3654,43 @@ function geweigerdUitleg(){
     +'<br><br><b>How to get back in</b><br>Ask a fellow coach to tap \u2018Allow a coach in\u2019 in their app, then tap \u2018Reconnect\u2019 below. If nobody else has coach rights, add the id below to <b>editors</b> of this team in the Firebase console.')
     +'<div class="hint" style="margin:10px 0 0"><span style="opacity:.75">'+U('kenmerk van dit toestel','id of this device')+'</span>'
     +'<br><span style="font-family:ui-monospace,monospace;font-size:12px;user-select:all;-webkit-user-select:all">'+esc(CLOUD.uid||'—')+'</span></div>'
+    +vergelijkKenmerken()
     +'<button class="btn full" id="opnieuwBtn" style="margin-top:10px">'+U('Opnieuw verbinden','Reconnect')+'</button>';
+}
+// Zet naast elkaar wat dit toestel is en wat er in de database staat, met de lengte
+// erbij en de plek van het eerste verschil. Een overgetypt kenmerk struikelt bijna
+// altijd over I tegen l, O tegen 0, of een spatie die is meegeplakt — en dat zie je
+// aan de tekst alleen niet. Alles wat hier staat komt uit het team van dit toestel;
+// het is geen geheim, het staat ook gewoon in de console.
+function vergelijkKenmerken(){
+  const g=CLOUD.gelezen; if(!g)return '';
+  const mij=String(CLOUD.uid||'');
+  // Waar lopen twee teksten voor het eerst uiteen? -1 als ze gelijk zijn.
+  const eersteVerschil=(a,b)=>{
+    const n=Math.max(a.length,b.length);
+    for(let i=0;i<n;i++) if(a[i]!==b[i]) return i;
+    return -1;
+  };
+  const regel=(label,waarde)=>{
+    const w=String(waarde==null?'':waarde);
+    const i=eersteVerschil(mij,w);
+    const oordeel = i<0 ? '<b style="color:#8ef0a8">'+U('gelijk','same')+'</b>'
+      : U('wijkt af vanaf teken ','differs from character ')+(i+1)
+        +' (<b>'+esc(w.slice(i,i+1)||'—')+'</b> '+U('tegen','vs')+' <b>'+esc(mij.slice(i,i+1)||'—')+'</b>)';
+    return '<div style="margin:4px 0"><span style="opacity:.75">'+label+'</span>'
+      +'<br><span style="font-family:ui-monospace,monospace;font-size:11px;user-select:all;-webkit-user-select:all">'+esc(w||'—')+'</span>'
+      +' <span style="opacity:.6">['+w.length+']</span><br>'+oordeel+'</div>';
+  };
+  let h='<div class="hint" style="margin:10px 0 0;border-top:1px solid rgba(255,255,255,.12);padding-top:8px">'
+    +'<b>'+U('Wat de app in de database ziet','What the app sees in the database')+'</b>'
+    +'<div style="margin:4px 0"><span style="opacity:.75">'+U('jouw kenmerk','your id')+'</span>'
+    +'<br><span style="font-family:ui-monospace,monospace;font-size:11px">'+esc(mij)+'</span>'
+    +' <span style="opacity:.6">['+mij.length+']</span></div>'
+    +regel(U('owner','owner'),g.owner);
+  if(!g.editors.length)h+='<div style="margin:4px 0">'+U('editors is leeg','editors is empty')+'</div>';
+  g.editors.forEach((e,i)=>{ h+=regel('editors['+i+']',e); });
+  h+='</div>';
+  return h;
 }
 // Voor wie bewust als kijker binnenkwam — via een kijk-link, of doordat een gedeeld
 // toestel een keer op 'Kijker' is gezet. Die keuze wordt onthouden, en er was daarna
@@ -8253,8 +8292,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=261;
-const VERSIE_LABEL='26.9.102';
+const APP_VERSION=262;
+const VERSIE_LABEL='26.9.103';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
