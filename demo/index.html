@@ -1370,7 +1370,9 @@ const WB={
   'Verbinding verbroken':'Disconnected',
   'Je bent gekoppeld als coach':'You are connected as a coach',
   'Je bent nu de eigenaar van dit team':'You are now the owner of this team',
-  'Alleen de eigenaar kan een coach toelaten':'Only the owner can allow a coach in',
+  'Alleen een coach kan een coach toelaten':'Only a coach can allow a coach in',
+  'Dit toestel staat nog steeds niet in de coachlijst':'This device is still not in the coach list',
+  'Verbinden mislukt':'Connecting failed',
   'Koppelen staat 15 minuten open \u2014 laat je mede-coach nu de app openen':'Pairing is open for 15 minutes \u2014 have your co-coach open the app now',
   'Je bedient nu de klok':'You are controlling the clock now',
   'Alleen een verbonden coach kan de klok overnemen':'Only a connected coach can take over the clock',
@@ -3140,7 +3142,11 @@ function save(){
 /* ============ Samenwerken (live, via Firebase Firestore) ============ */
 // Vaste Firebase-config van dit project (mag openbaar: beveiliging zit in de Firestore-regels + login, niet in deze sleutel)
 const FB_CONFIG={"apiKey":"AIzaSyDwrfF3mDmievts5mme5fOlRJ3O3fhKGb8","authDomain":"hockey-app-teaming.firebaseapp.com","projectId":"hockey-app-teaming","storageBucket":"hockey-app-teaming.firebasestorage.app","messagingSenderId":"527542328518","appId":"1:527542328518:web:e2537891c7941d09568bc7"};
-const CLOUD={on:false,cfg:FB_CONFIG,team:'',role:'editor',name:'',db:null,ref:null,unsub:null,applying:false,writeT:null,status:'uit',lastBy:'',lastAt:0,lastWhat:'',vorig:null,klok:null,klokBaas:null,klokT:null,rev:0,eigenRev:0,uid:null,rol:null,koppelTot:0};
+// 'geweigerd' betekent: dit toestel vroeg om de coachrol, maar staat niet in de
+// coachlijst van het team. Dat is iets anders dan een kijker die bewust via een
+// kijk-link binnenkomt, en het hoort ook anders op het scherm te komen. Zonder dit
+// onderscheid zag je alleen 'rol: Kijker' en bleef onduidelijk waaróm.
+const CLOUD={on:false,cfg:FB_CONFIG,team:'',role:'editor',name:'',db:null,ref:null,unsub:null,applying:false,writeT:null,status:'uit',lastBy:'',lastAt:0,lastWhat:'',vorig:null,klok:null,klokBaas:null,klokT:null,rev:0,eigenRev:0,uid:null,rol:null,koppelTot:0,geweigerd:false};
 // Vast id per toestel, zodat we onze eigen klokwijzigingen herkennen.
 const DEVICE_ID=(function(){try{let d=localStorage.getItem(SLEUTEL('gw_device'));if(!d){d='d'+Math.random().toString(36).slice(2,10);localStorage.setItem(SLEUTEL('gw_device'),d);}return d;}catch(e){return 'd'+Math.random().toString(36).slice(2,10);}})();
 function cloudLoadSettings(){try{const r=JSON.parse(localStorage.getItem(SLEUTEL('gw_cloud'))||'null');if(r){CLOUD.cfg=r.cfg||FB_CONFIG;CLOUD.team=(r.team||'').trim().toLowerCase();CLOUD.role=r.role||'editor';CLOUD.name=r.name||'';CLOUD.on=!!r.on;}}catch(e){onthoudFout('cloudinstellingen lezen',e);}}
@@ -3183,6 +3189,7 @@ async function cloudLogin(){
 }
 // Bepaalt wat dit toestel mag: eigenaar worden, meedoen als coach, of alleen kijken.
 async function cloudClaimOfKoppel(){
+  CLOUD.geweigerd=false;   // elke verbindingspoging begint schoon
   try{
     const snap=await CLOUD.ref.get();
     if(!snap.exists){
@@ -3220,12 +3227,32 @@ async function cloudClaimOfKoppel(){
     // merkte er niets van — maar hij keek wel naar een opstelling die niet klopte.
     // De rol volgt nu uit de gegevens en niet uit het adres.
     if(CLOUD.role!=='viewer'&&Number(d.koppelTot||0)<=Date.now()){
+      // Hier wordt iemand die om de coachrol vroeg teruggezet naar kijken. Dat is
+      // terecht — de coachlijst is de waarheid — maar het overkomt ook een coach die
+      // niets verkeerd doet. Het kenmerk waarmee dit toestel bij de database bekend
+      // staat, bewaart Firebase in de opslag van de app. Haal je de app van je
+      // beginscherm en zet je hem er opnieuw op, dan gooit iOS die opslag weg en
+      // krijgt hetzelfde toestel een níeuw kenmerk. Het oude staat nog in 'editors'
+      // en 'owner', het nieuwe in niets — en je valt terug naar kijken, terwijl het
+      // coachoverzicht nog gewoon 'eigenaar' bij je naam zet (dat zijn de bewaarde
+      // gegevens van je vorige kenmerk; vandaar dat het lijkt alsof je wél mag).
+      // Vandaar deze vlag: alleen zo kan de app uitleggen wat er aan de hand is in
+      // plaats van er zwijgend 'rol: kijker' van te maken.
+      CLOUD.geweigerd=true;
       CLOUD.role='viewer';
       document.body.classList.toggle('viewer',true);
       kijkManifest();
       if(['timer','spelers','regels'].includes(activeTab))activeTab='wedstrijd';
     }
-    if(CLOUD.role==='viewer'){ CLOUD.rol='kijker'; render(); return; }
+    if(CLOUD.role==='viewer'){
+      CLOUD.rol='kijker';
+      // Ook een kijker zijn eigen regel laten schrijven. De beveiligingsregels laten
+      // dat toe — elk toestel mag uitsluitend zijn eigen regel in 'coaches' aanraken —
+      // en het is precies wat een eigenaar nodig heeft: hij ziet nu in het overzicht
+      // welk toestel buiten staat, met het kenmerk dat hij moet toelaten.
+      noteerCoach((d.coaches&&d.coaches[CLOUD.uid])?null:'aangemeld');
+      render(); return;
+    }
     // Coach die er nog niet bij staat: alleen binnen het koppelvenster toevoegen.
     if(Number(d.koppelTot||0)>Date.now()){
       try{
@@ -3261,7 +3288,7 @@ function coachOverzichtHTML(){
     const r=c[uid]||{};
     const ik=uid===CLOUD.uid?' (dit toestel)':'';
     h+=`<div class="hint" style="margin:6px 0 0;padding-left:22px">
-      <b>${esc(r.naam||'coach zonder naam')}</b>${ik} &middot; ${r.rol==='eigenaar'?'eigenaar':'coach'}
+      <b>${esc(r.naam||'coach zonder naam')}</b>${ik} &middot; ${r.rol==='eigenaar'?'eigenaar':(r.rol==='kijker'?'kijkt mee — nog niet toegelaten':'coach')}
       <br>sinds ${dag(r.sinds)} &middot; actief ${gel(r.laatst)}
       <br><span style="font-family:ui-monospace,monospace;font-size:11px;opacity:.75">${esc(uid)}</span></div>`;
   });
@@ -3290,8 +3317,15 @@ function noteerCoach(hoe){
   }catch(e){ onthoudFout('coach noteren',e); }
 }
 // Zet het koppelvenster een kwartier open zodat een mede-coach zich kan aanmelden.
+// Ook een gewone coach mag dit, niet alleen de eigenaar. Zoals het stond kon een team
+// zichzelf buitensluiten: is het kenmerk van de eigenaar weg — nieuwe telefoon, app
+// opnieuw op het beginscherm, opslag gewist — dan is er niemand meer die de deur kan
+// openzetten, ook de eigenaar zelf niet, en is de Firebase-console de enige uitweg.
+// Een coach mag toch al de hele opstelling wijzigen; een kwartier de deur openzetten
+// voor een collega is daarnaast geen stap van betekenis.
+// LET OP: dit werkt pas als ook de beveiligingsregels het toelaten (route B2).
 function koppelvensterOpen(){
-  if(!CLOUD.ref||CLOUD.rol!=='eigenaar'){toast(T('Alleen de eigenaar kan een coach toelaten'));return;}
+  if(!CLOUD.ref||(CLOUD.rol!=='eigenaar'&&CLOUD.rol!=='coach')){toast(T('Alleen een coach kan een coach toelaten'));return;}
   const tot=Date.now()+15*60*1000;
   CLOUD.ref.set({koppelTot:tot},{merge:true})
     .then(()=>{CLOUD.koppelTot=tot;cloudUpdateCard();render();
@@ -3604,6 +3638,53 @@ function cloudKorteStatus(){
   if(CLOUD.status==='fout')return U('verbindingsfout','connection error');
   return U('uit','off');
 }
+// Wat er te zien is voor wie om de coachrol vroeg en kijken kreeg. Het kenmerk staat
+// erbij, want dat is het enige gegeven waarmee een mede-coach of de Firebase-console
+// dit toestel kan toelaten, en juist als je buitenstaat is het nergens anders te vinden.
+function geweigerdUitleg(){
+  return ico('waarschuwing')+U(
+    '<b>Dit toestel staat niet in de coachlijst van team ‘'+esc(CLOUD.team)+'’.</b> Meekijken kan wel, wijzigen niet.'
+    +'<br><br>Dit gebeurt vrijwel altijd doordat de app opnieuw op het beginscherm is gezet, of doordat de gegevens van de app zijn gewist. Je toestel krijgt dan een nieuw kenmerk en het team kent alleen het oude nog. Dat je naam in het coachoverzicht nog bij ‘eigenaar’ staat klopt dus ook — dat hoort bij je vórige kenmerk.'
+    +'<br><br><b>Zo kom je er weer in</b><br>Laat een mede-coach in zijn app op ‘Coach toelaten’ tikken en tik daarna hieronder op ‘Opnieuw verbinden’. Is er niemand anders met coachrechten, zet dan in de Firebase-console het kenmerk hieronder bij <b>editors</b> van dit team.',
+    '<b>This device is not in the coach list of team ‘'+esc(CLOUD.team)+'’.</b> You can follow along but not make changes.'
+    +'<br><br>This almost always happens after re-adding the app to the home screen, or after clearing the app\u2019s data. The device then gets a new id and the team only knows the old one. Your name still showing as \u2018owner\u2019 in the coach overview is correct too \u2014 that belongs to your previous id.'
+    +'<br><br><b>How to get back in</b><br>Ask a fellow coach to tap \u2018Allow a coach in\u2019 in their app, then tap \u2018Reconnect\u2019 below. If nobody else has coach rights, add the id below to <b>editors</b> of this team in the Firebase console.')
+    +'<div class="hint" style="margin:10px 0 0"><span style="opacity:.75">'+U('kenmerk van dit toestel','id of this device')+'</span>'
+    +'<br><span style="font-family:ui-monospace,monospace;font-size:12px;user-select:all;-webkit-user-select:all">'+esc(CLOUD.uid||'—')+'</span></div>'
+    +'<button class="btn full" id="opnieuwBtn" style="margin-top:10px">'+U('Opnieuw verbinden','Reconnect')+'</button>';
+}
+// Voor wie bewust als kijker binnenkwam — via een kijk-link, of doordat een gedeeld
+// toestel een keer op 'Kijker' is gezet. Die keuze wordt onthouden, en er was daarna
+// geen weg terug: van rol wisselen doe je op de Samenwerken-kaart, en die staat op het
+// tabblad Spelers dat in de kijkstand wegvalt. Voor een speler is dat prima, voor een
+// coach met een iPad een doodlopende weg. Vandaar deze knop. Hij geeft niemand rechten
+// die hij niet heeft: staat het kenmerk niet in de coachlijst, dan komt hij gewoon weer
+// als kijker terug — nu wel mét de uitleg waarom.
+function kijkerUitleg(){
+  return ico('oog',16)+U(
+    '<b>Je kijkt mee met team ‘'+esc(CLOUD.team)+'’.</b> Je ziet altijd de laatste stand, maar kunt niets wijzigen.'
+    +'<br><br>Ben je coach van dit team en hoor je te kunnen wijzigen? Dan is dit toestel als kijker binnengekomen. Tik hieronder om als coach te verbinden.',
+    '<b>You are following team ‘'+esc(CLOUD.team)+'’.</b> You always see the latest state, but cannot change anything.'
+    +'<br><br>Are you a coach of this team and should you be able to make changes? Then this device connected as a viewer. Tap below to connect as a coach.')
+    +'<div class="hint" style="margin:10px 0 0"><span style="opacity:.75">'+U('kenmerk van dit toestel','id of this device')+'</span>'
+    +'<br><span style="font-family:ui-monospace,monospace;font-size:12px;user-select:all;-webkit-user-select:all">'+esc(CLOUD.uid||'—')+'</span></div>'
+    +'<button class="btn full" id="opnieuwBtn" style="margin-top:10px">'+U('Verbind als coach','Connect as a coach')+'</button>';
+}
+// Verbreken en opnieuw verbinden in één tik. Twee keer op 'Verbinden / verbreken'
+// tikken doet hetzelfde, maar wie hier staat weet juist niet wat er mis is; dan hoort
+// er één knop te staan die doet wat er nodig is.
+function opnieuwVerbinden(){
+  cloudDisconnect();
+  // De rol terug op coach. Zonder dit vraagt de app bij het opnieuw verbinden weer om
+  // kijken en blijft hij keurig buiten staan, ook als hij intussen is toegelaten.
+  CLOUD.role='editor'; CLOUD.on=true; document.body.classList.remove('viewer');
+  cloudConnect().then(()=>{
+    cloudSaveSettings();   // bewaar de uitkomst, niet de wens
+    toast(CLOUD.role==='viewer'?T('Dit toestel staat nog steeds niet in de coachlijst')
+                               :T('Je bent gekoppeld als coach'));
+    render();
+  }).catch(()=>toast(T('Verbinden mislukt')));
+}
 function cloudUpdateCard(){
   const sub=document.getElementById('cloudSub');
   if(sub)sub.innerHTML=cloudKorteStatus();
@@ -3622,7 +3703,14 @@ function cloudUpdateCard(){
       }
       t+=coachOverzichtHTML();
     }else if(CLOUD.rol==='coach'){
-      t+='<br>'+ico('sleutel',16)+U('Je bent gekoppeld als coach.','You are connected as a coach.');
+      t+='<br>'+ico('sleutel',16)+U('Je bent gekoppeld als coach.','You are connected as a coach.')
+        +' &middot; <button class="btn small" id="koppelBtn">'+U('Coach toelaten','Allow a coach in')+'</button>';
+      if(Number(CLOUD.koppelTot||0)>Date.now()){
+        const min=Math.ceil((CLOUD.koppelTot-Date.now())/60000);
+        t+='<br>'+ico('klok',16)+Tf('Koppelen staat open, nog {0} — laat je mede-coach nu de app openen.','<b id="koppelTeller">'+min+':00</b>');
+      }
+    }else if(CLOUD.rol==='kijker'&&CLOUD.geweigerd){
+      t+='<br>'+geweigerdUitleg();
     }else if(CLOUD.rol==='wacht'){
       t+='<br>'+ico('waarschuwing')+U('<b>Je bent nog niet gekoppeld.</b> Je kunt meelezen maar niet wijzigen. Vraag de hoofdcoach om op ‘Coach toelaten’ te tikken en open daarna deze app opnieuw.','<b>You are not paired yet.</b> You can read along but not change anything. Ask the head coach to tap ‘Allow a coach in’, then open this app again.');
     }
@@ -3646,6 +3734,7 @@ function cloudUpdateCard(){
   // wijziging opnieuw geschreven, en dan was de koppeling uit bind() al weg. Daardoor
   // deed 'Coach toelaten' niets zodra er een keer iets was gesynchroniseerd.
   const kb=el.querySelector('#koppelBtn'); if(kb)kb.onclick=koppelvensterOpen;
+  const ob=el.querySelector('#opnieuwBtn'); if(ob)ob.onclick=opnieuwVerbinden;
   const ko=el.querySelector('#klokOver');  if(ko)ko.onclick=klokOvernemen;
   koppelTellerBijwerken();
 }
@@ -7006,7 +7095,13 @@ function selectieVerwijderen(){
 // door elkaar: back-up en schudden onderaan, tussen de uitleg. Diagnose staat
 // helemaal onderaan, want die heb je alleen nodig als er iets stuk is.
 function renderUitleg(){
-  let h=`<h2 class="sectiekop">${U('Instellingen','Settings')}</h2>`;
+  let h='';
+  // Bovenaan en niet ingeklapt: dit is het enige tabblad dat een afgewezen coach nog
+  // heeft, en het is ook het enige wat hij op dat moment wil weten.
+  if(CLOUD.on&&CLOUD.role==='viewer')
+    h+=`<div class="card"><h2>${U('Je kunt nu alleen meekijken','You can only follow along')}</h2>
+      <div class="hint" style="margin:0">${CLOUD.geweigerd?geweigerdUitleg():kijkerUitleg()}</div></div>`;
+  h+=`<h2 class="sectiekop">${U('Instellingen','Settings')}</h2>`;
   h+=taalKaart();
   h+=klokRichtingKaart();
   h+=selectieKaart();
@@ -7759,6 +7854,8 @@ function bind(v){
   if(bim)bim.onclick=backupImportPrompt;
   const cs=v.querySelector('#cloudSetup');
   if(cs)cs.onclick=cloudSetupDialog;
+  const ov=v.querySelector('#opnieuwBtn');
+  if(ov)ov.onclick=opnieuwVerbinden;
   const shv=v.querySelector('#cloudShareView');
   if(shv)shv.onclick=()=>cloudShareLink('viewer');
   const shc=v.querySelector('#cloudShareCoach');
@@ -8156,8 +8253,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=259;
-const VERSIE_LABEL='26.9.100';
+const APP_VERSION=261;
+const VERSIE_LABEL='26.9.102';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
