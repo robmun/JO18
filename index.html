@@ -388,6 +388,28 @@ body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,
   .twocol .wmoment .wline{font-size:var(--fs-md);padding:3px 0}
   .twocol .wmoment .wgeb{font-size:var(--fs-md)}
   .twocol .wmoment .wbench{font-size:var(--fs-sm)}
+  /* De kop van elk wisselmoment wit, zwaar en onderstreept. Hij stond in het blauw
+     van de accentkleur, en dat is op een meter afstand in de dug-out nauwelijks van
+     de omliggende tekst te onderscheiden — terwijl juist die kop je vertelt wélk
+     moment je leest. Wit is hier de zwaarste kleur die er is, en de streep maakt er
+     een kop van in plaats van een regel die toevallig dikker is.
+     De streep staat op afstand van de letters en is twee pixels dik: strak tegen de
+     tekst aan wordt hij bij dit lettertype een vlek onder de staarten van de g en j. */
+  .twocol .wmoment .wtime{
+    color:#ffffff;
+    font-weight:900;
+    text-decoration:underline;
+    text-decoration-thickness:2px;
+    text-underline-offset:5px;
+  }
+  /* In de zonstand is wit onleesbaar; daar wordt het hetzelfde donkerblauw als de
+     rest van de tekst, met de streep en het gewicht eraan. Deze regel moet zwaarder
+     wegen dan die hierboven én dan de algemene zonregel, vandaar de hele keten. */
+  body.sun .twocol .wmoment .wtime{color:#0b1626}
+  /* Een melding (kaart, blessure) houdt zijn eigen rode kop: die kleur is daar het
+     signaal, en die mag niet wegvallen achter deze regel. */
+  .twocol .wmoment.gebeurtenis .wtime{color:#ffb3a3}
+  body.sun .twocol .wmoment.gebeurtenis .wtime{color:#a01a10}
 }
 
 /* ---------- Speeltijd per speler ---------- */
@@ -1371,6 +1393,7 @@ const WB={
   'Je bent gekoppeld als coach':'You are connected as a coach',
   'Je bent nu de eigenaar van dit team':'You are now the owner of this team',
   'Alleen een coach kan een coach toelaten':'Only a coach can allow a coach in',
+  'Je kijkt mee als {0}':'You are following as {0}',
   'Dit toestel staat nog steeds niet in de coachlijst':'This device is still not in the coach list',
   'Verbinden mislukt':'Connecting failed',
   'Koppelen staat 15 minuten open \u2014 laat je mede-coach nu de app openen':'Pairing is open for 15 minutes \u2014 have your co-coach open the app now',
@@ -1406,6 +1429,9 @@ const WB={
   'Na {0} min':'After {0} min',
   ', dus bij {0} min op de klok':', so at {0} min on the clock',
   ' in Q{0}, dus bij {1} min':' in Q{0}, so at {1} min',
+  'Na {0} {1}':'After {0} {1}',
+  ', dus bij {0} {1} op de klok':', so at {0} {1} on the clock',
+  ' in Q{0}, dus bij {1} {2}':' in Q{0}, so at {1} {2}',
   // ── Waarschuwingen boven het veld ──
   '{0} staat toch op {1}, terwijl daar een regel tegen is. Er was geen andere plek voor hem \u2014 kijk of de regel kan vervallen.':
     '{0} is playing {1} even though a rule says otherwise. There was nowhere else to put him \u2014 see whether the rule can go.',
@@ -2753,18 +2779,37 @@ function kwartMomenten(q,sch){
 // Scherm en deel-afbeelding gebruiken allebei deze functie: ze liepen eerder al
 // een keer uit elkaar omdat ze het ieder zelf uitrekenden.
 // q is nulgebaseerd: q===1 is Q2.
+// 'min' of 'minuten'? Afgekort op een telefoon, waar de kop naast een smalle kolom
+// staat en een derde regel erbij de wisseltekst wegdrukt. Voluit op een liggende
+// tablet: daar is de kolom breed genoeg en wordt dit vanaf de bank gelezen, waar een
+// afkorting niets scheelt maar wel een fractie langer nadenken kost.
+// De print houdt de afgekorte vorm: die past op precies één A4 en de koppen worden
+// daar op 58 tekens afgebroken.
+let langeMinuten=()=>{ try{ return isWide(); }catch(e){ return false; } };
+// 'na 1 minuut', niet 'na 1 minuten'. Een wisselmoment op precies één minuut komt
+// zelden voor, maar het is één regel om het goed te doen.
+function minWoord(v){ return String(v)==='1' ? U('minuut','minute') : U('minuten','minutes'); }
 function wisselKop(q,minuut){
-  const na=Tf('Na {0} min',fmtMin(minuut));
+  const lang=langeMinuten();
+  const m=fmtMin(minuut);
+  const na=lang ? Tf('Na {0} {1}',m,minWoord(m)) : Tf('Na {0} min',m);
   switch(tijdweergave()){
-    case 'aflopend':
+    case 'aflopend':{
       // Aflopend telt elk kwart terug van 17,5 naar 0, dus 17,5 − 6 = 11,5.
-      return na+Tf(', dus bij {0} min op de klok',fmtMin(17.5-minuut));
+      const k=fmtMin(17.5-minuut);
+      return na+(lang ? Tf(', dus bij {0} {1} op de klok',k,minWoord(k))
+                      : Tf(', dus bij {0} min op de klok',k));
+    }
     case 'oplopend':
       // Elk kwart begint op nul: de klok wijst gewoon hetzelfde getal aan.
       return na;
-    default:
+    default:{
       // Doorlopend: Q2 en Q4 tellen verder vanaf 17:30.
-      return (q===1||q===3) ? na+Tf(' in Q{0}, dus bij {1} min',q+1,fmtMin(minuut+17.5)) : na;
+      if(q!==1&&q!==3)return na;
+      const k=fmtMin(minuut+17.5);
+      return na+(lang ? Tf(' in Q{0}, dus bij {1} {2}',q+1,k,minWoord(k))
+                      : Tf(' in Q{0}, dus bij {1} min',q+1,k));
+    }
   }
 }
 // Wissels als ketens: 'X erin voor Y — positie; daarmee schuift Z van A naar B'
@@ -3215,6 +3260,11 @@ async function cloudClaimOfKoppel(){
       if(CLOUD.role==='viewer'){
         CLOUD.rol='kijker';
         noteerCoach();
+        // Ook hier de naamvraag: een toestel dat wél in de coachlijst staat maar als
+        // kijker binnenkomt heeft meestal al een naam, maar niet altijd — een iPad die
+        // ooit via een kijk-link is opgezet bijvoorbeeld. De vraag stelt zichzelf
+        // alleen als er nog geen eigen naam is, dus dit kost niemand iets.
+        setTimeout(()=>kijkerNaamVragen(false),1200);
         return;
       }
       CLOUD.rol=(d.owner===CLOUD.uid)?'eigenaar':'coach';
@@ -3254,7 +3304,11 @@ async function cloudClaimOfKoppel(){
       // en het is precies wat een eigenaar nodig heeft: hij ziet nu in het overzicht
       // welk toestel buiten staat, met het kenmerk dat hij moet toelaten.
       noteerCoach((d.coaches&&d.coaches[CLOUD.uid])?null:'aangemeld');
-      render(); return;
+      render();
+      // Even wachten: het scherm mag eerst staan. Een venster dat over een nog lege
+      // pagina verschijnt oogt als een storing in plaats van als een vraag.
+      setTimeout(()=>kijkerNaamVragen(false),1200);
+      return;
     }
     // Coach die er nog niet bij staat: alleen binnen het koppelvenster toevoegen.
     if(Number(d.koppelTot||0)>Date.now()){
@@ -3318,6 +3372,68 @@ function noteerCoach(hoe){
       catch(e){ onthoudFout('coach noteren',e); }
     });
   }catch(e){ onthoudFout('coach noteren',e); }
+}
+// ── Hoe heet je? ──
+// Sinds een kijker zijn eigen regel wegschrijft, verschijnt hij in het coachoverzicht.
+// Alleen heet hij daar 'speler': dat is de naam die de app invult als er nog geen is,
+// en die komt uit de kijk-link. Bij drie spelers heb je dus drie regels 'speler' die
+// niet uit elkaar te houden zijn, en dan is de hele lijst niets waard.
+//
+// Daarom één keer vragen. Uitdrukkelijk niet verplicht: een speler die zijn naam niet
+// wil geven hoort gewoon de opstelling te kunnen bekijken, en een leeg antwoord of
+// 'Overslaan' laat het op 'speler' staan. De vraag komt daarna nooit meer terug, ook
+// niet bij overslaan — nog eens vragen is zeuren.
+//
+// Niet in de coachstand: die vult zijn naam al in bij het instellen van samenwerken.
+function naamAlGevraagd(){
+  try{ return localStorage.getItem(SLEUTEL('gw_naamgevraagd'))==='1'; }catch(e){ return true; }
+}
+function naamGevraagdOnthouden(){
+  try{ localStorage.setItem(SLEUTEL('gw_naamgevraagd'),'1'); }catch(e){}
+}
+// Heeft dit toestel een naam die iets zegt? 'speler' en 'coach' zijn de automatische
+// invullingen en tellen dus niet mee.
+function heeftEigenNaam(){
+  const n=(CLOUD.name||'').trim().toLowerCase();
+  return !!n && n!=='speler' && n!=='coach' && n!=='coach zonder naam';
+}
+function kijkerNaamVragen(altijd){
+  if(!CLOUD.on||CLOUD.role!=='viewer')return;
+  if(!altijd && (naamAlGevraagd()||heeftEigenNaam()))return;
+  // Niet over een ander venster heen, en niet terwijl de klok loopt: wie langs de lijn
+  // naar de wissels kijkt zit niet te wachten op een vraag over zijn naam.
+  if(document.querySelector('#modalHost .modal'))return;
+  if(!altijd && klok && klok.loopt)return;
+  const h=document.getElementById('modalHost');
+  h.innerHTML=`<div class="modal-back center" id="mback"><div class="modal" role="dialog" aria-modal="true" style="max-width:min(94vw,420px)">
+    <h3>${U('Hoe heet je?','What is your name?')}</h3>
+    <p style="font-size:var(--fs-sm);color:var(--dim);margin:0 0 8px">${U(
+      'Alleen zodat je coach in zijn overzicht ziet wie er meekijkt. Je kunt dit overslaan — je ziet de opstelling hoe dan ook. Je naam blijft binnen het team en er gaat verder niets mee.',
+      'Only so your coach can see who is following along in their overview. You can skip this — you will see the line-up either way. Your name stays within the team and nothing else is sent along.')}</p>
+    <input class="cin" id="mnaam" type="text" maxlength="24" autocomplete="name"
+      placeholder="${U('je voornaam','your first name')}" value="${esc(heeftEigenNaam()?CLOUD.name:'')}">
+    <div class="row" style="margin-top:10px">
+      <button class="btn ghost" id="mover">${U('Overslaan','Skip')}</button>
+      <button class="btn" id="mok">${U('Bewaren','Save')}</button>
+    </div>
+  </div></div>`;
+  const sluit=()=>{ naamGevraagdOnthouden(); closeModal(); };
+  document.getElementById('mback').onclick=e=>{ if(e.target.id==='mback')sluit(); };
+  document.getElementById('mover').onclick=sluit;
+  const inv=document.getElementById('mnaam');
+  const bewaar=()=>{
+    const n=(inv.value||'').trim().slice(0,24);
+    naamGevraagdOnthouden();
+    closeModal();
+    if(!n)return;                      // leeg is hetzelfde als overslaan
+    CLOUD.name=n; cloudSaveSettings();
+    noteerCoach();                     // werkt de eigen regel in 'coaches' bij
+    toast(Tf('Je kijkt mee als {0}', esc(n)));
+    render();
+  };
+  document.getElementById('mok').onclick=bewaar;
+  inv.addEventListener('keydown',e=>{ if(e.key==='Enter')bewaar(); });
+  setTimeout(()=>{ try{ inv.focus(); }catch(e){} },80);
 }
 // Zet het koppelvenster een kwartier open zodat een mede-coach zich kan aanmelden.
 // Ook een gewone coach mag dit, niet alleen de eigenaar. Zoals het stond kon een team
@@ -3705,7 +3821,10 @@ function kijkerUitleg(){
     +'<br><br>Ben je coach van dit team en hoor je te kunnen wijzigen? Dan is dit toestel als kijker binnengekomen. Tik hieronder om als coach te verbinden.',
     '<b>You are following team ‘'+esc(CLOUD.team)+'’.</b> You always see the latest state, but cannot change anything.'
     +'<br><br>Are you a coach of this team and should you be able to make changes? Then this device connected as a viewer. Tap below to connect as a coach.')
-    +'<div class="hint" style="margin:10px 0 0"><span style="opacity:.75">'+U('kenmerk van dit toestel','id of this device')+'</span>'
+    +'<div class="hint" style="margin:10px 0 0"><span style="opacity:.75">'+U('je kijkt mee als','you are following as')+'</span> <b>'
+    +esc(heeftEigenNaam()?CLOUD.name:U('speler','player'))+'</b> &middot; '
+    +'<button class="btn small" id="naamBtn">'+U('Naam wijzigen','Change name')+'</button></div>'
+    +'<div class="hint" style="margin:6px 0 0"><span style="opacity:.75">'+U('kenmerk van dit toestel','id of this device')+'</span>'
     +'<br><span style="font-family:ui-monospace,monospace;font-size:12px;user-select:all;-webkit-user-select:all">'+esc(CLOUD.uid||'—')+'</span></div>'
     +'<button class="btn full" id="opnieuwBtn" style="margin-top:10px">'+U('Verbind als coach','Connect as a coach')+'</button>';
 }
@@ -3774,6 +3893,7 @@ function cloudUpdateCard(){
   // deed 'Coach toelaten' niets zodra er een keer iets was gesynchroniseerd.
   const kb=el.querySelector('#koppelBtn'); if(kb)kb.onclick=koppelvensterOpen;
   const ob=el.querySelector('#opnieuwBtn'); if(ob)ob.onclick=opnieuwVerbinden;
+  const nb=el.querySelector('#naamBtn');    if(nb)nb.onclick=()=>kijkerNaamVragen(true);
   const ko=el.querySelector('#klokOver');  if(ko)ko.onclick=klokOvernemen;
   koppelTellerBijwerken();
 }
@@ -7895,6 +8015,8 @@ function bind(v){
   if(cs)cs.onclick=cloudSetupDialog;
   const ov=v.querySelector('#opnieuwBtn');
   if(ov)ov.onclick=opnieuwVerbinden;
+  const nv=v.querySelector('#naamBtn');
+  if(nv)nv.onclick=()=>kijkerNaamVragen(true);
   const shv=v.querySelector('#cloudShareView');
   if(shv)shv.onclick=()=>cloudShareLink('viewer');
   const shc=v.querySelector('#cloudShareCoach');
@@ -8292,8 +8414,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=262;
-const VERSIE_LABEL='26.9.103';
+const APP_VERSION=264;
+const VERSIE_LABEL='26.9.105';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
@@ -8897,7 +9019,14 @@ async function shareQuarterImage(q){
     .sort((a,b)=>a.minuut-b.minuut || (a.mo?-1:1));
   for(const r of dRegels){
     const naMin=r.minuut;
+    // In het deelplaatje bewust de korte vorm, ongeacht het scherm waarop je het maakt.
+    // Dat plaatje is 1080 pixels breed, wat je toestel ook is, en de koppen worden hier
+    // op 58 tekens afgebroken — 'minuten' kost dan een regel extra per wisselmoment en
+    // dat duwt de tekst onder de rand.
+    // (De A4-print gaat hier niet langs: die schrijft zijn eigen 'Na 6 min:'.)
+    const _wasWide=langeMinuten; langeMinuten=()=>false;
     const kop=wisselKop(q,naMin)+':';
+    langeMinuten=_wasWide;
     const lines = r.g ? wrapText('• '+gebeurtenisTekst(r.g),58)
       : (chainsEmpty(r.mo.wissels)?['geen wissels']:plainChainText(r.mo.wissels).flatMap(t=>wrapText('• '+t,58)));
     blocks.push({head:kop,lines});
