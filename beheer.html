@@ -39,6 +39,13 @@
          namelijk niet te onderscheiden van 'er is niets'.
        - Bij een mislukte ophaalactie staat er nu wát er misging: geen rechten is iets
          anders dan geen gegevens, en dat scheelt zoeken in de verkeerde hoek.
+
+     Versie 3 (20 september 2026):
+       - De her-installatiemelding kijkt niet meer naar de automatische namen 'speler'
+         en 'coach'. Sinds 26.9.104 vraagt de app een kijker eenmalig om zijn naam, en
+         wie dat overslaat blijft 'speler' heten; drie van die regels zijn dus geen
+         drievoudige her-installatie.
+       - Erbij: hoeveel kijkers nog 'speler' heten. Dat zegt of die vraag aankomt.
 ============================================================================ -->
 <style>
   :root{
@@ -566,9 +573,17 @@ async function zoekTeam(){
     // 1. Hetzelfde toestel onder twee kenmerken. Dat is een her-installatie: iOS gooit
     //    de opslag van de app weg, de app krijgt een nieuw kenmerk én een nieuw
     //    toestelnummer, en het oude blijft als dode regel staan.
+    // Alleen op échte namen groeperen. 'speler' en 'coach' zijn de namen die de app
+    // zelf invult als er geen is opgegeven: 'speler' voor wie via een kijk-link
+    // binnenkomt, 'coach' voor wie samenwerken instelt zonder zijn naam in te vullen.
+    // Drie spelers die de naamvraag overslaan heten dus alle drie 'speler', en zonder
+    // deze uitzondering meldt de pagina dat als een her-installatie. Een valse melding
+    // is erger dan geen melding: na twee keer negeer je hem, ook wanneer hij klopt.
+    const AUTONAMEN=['speler','coach','coach zonder naam'];
     const perNaam={};
     Object.entries(co).forEach(([id,c])=>{
-      const n=(c.naam||'').trim().toLowerCase(); if(!n)return;
+      const n=(c.naam||'').trim().toLowerCase();
+      if(!n||AUTONAMEN.includes(n))return;
       (perNaam[n]=perNaam[n]||[]).push([id,c]);
     });
     Object.entries(perNaam).forEach(([n,lijst])=>{
@@ -593,6 +608,15 @@ async function zoekTeam(){
       let_.push('Het koppelvenster staat nog <b>'+Math.ceil((tot-Date.now())/60000)
         +' minuten</b> open. Zolang dat zo is kan elk toestel dat de teamcode kent '
         +'zichzelf als coach toevoegen.');
+    // 4. Hoeveel kijkers heten nog 'speler'? Geen probleem, wel goed om te weten:
+    //    het zegt of de naamvraag aankomt, en het verklaart waarom de lijst regels
+    //    bevat die je niet thuis kunt brengen.
+    const naamloos2=Object.entries(co)
+      .filter(([id,c])=>(c.naam||'').trim().toLowerCase()==='speler').length;
+    if(naamloos2>=2)
+      let_.push(naamloos2+' kijkers heten nog <b>speler</b> — die hebben de vraag naar '
+        +'hun naam overgeslagen of draaien een app van vóór 26.9.104. Ze zijn onderling '
+        +'niet uit elkaar te houden; dat mag, maar je kunt ze ook niet aanspreken.');
     if(let_.length)
       h+='<div class="let"><b>Wat opvalt</b><ul style="margin:6px 0 0;padding-left:18px">'
         +let_.map(t=>'<li style="margin:4px 0">'+t+'</li>').join('')+'</ul></div>';
