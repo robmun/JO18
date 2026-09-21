@@ -427,6 +427,18 @@ body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,
     box-shadow:0 10px 18px -10px rgba(4,14,32,.75);
   }
   .twocol .klokbalk.tikbaar{cursor:pointer}
+  /* Rood op wit, in de zonstand. Het rood van de klok (#ff6a52) is licht genoeg voor
+     de donkerblauwe balk — contrast 5,6 — maar haalt op wit maar 2,8, onder de 3 die
+     grote cijfers minimaal nodig hebben. #EB4B1E is dieper en haalt op wit 3,8.
+     Omgekeerd zou die kleur op donkerblauw juist slechter zijn (4,2 in plaats van
+     5,6), dus de keuze valt per ondergrond en niet voor de hele app.
+     De pauzestand dimt hier tot 85% in plaats van 72%: dieper dimmen zakt op wit weer
+     onder de grens (72% komt op 2,7, 85% op 3,2). 'Pauze' staat er ook in woorden bij.
+     De voortgangsbalk krijgt in de laatste twee minuten hetzelfde rood, zodat er in
+     de zonstand niet twee verschillende roden naast elkaar staan. */
+  body.sun .twocol .klokbalk .kb-tijd{color:#eb4b1e}
+  body.sun .twocol .klokbalk.pauze .kb-tijd{color:rgba(235,75,30,.85)}
+  body.sun .twocol .klokbalk .kb-voort.laat{background:#eb4b1e}
   body.sun .twocol .klokbalk{background:#ffffff;box-shadow:0 8px 14px -10px rgba(15,32,64,.35)}
   /* Rechte hoeken, geen tussenruimte. De balk plakt bovenaan en de wisselkaart schuift
      eronder door; met afgeronde hoeken bleef er in elke hoek een stukje van die kaart
@@ -8589,8 +8601,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=268;
-const VERSIE_LABEL='26.9.109';
+const APP_VERSION=269;
+const VERSIE_LABEL='26.9.110';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
