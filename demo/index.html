@@ -5360,6 +5360,7 @@ function meetVeldkolom(){
   if(!veld||!grid||!isWide()){
     st.removeProperty('--veldkolom'); st.removeProperty('--veldpad'); return;
   }
+  veldVolgen(veld);
   // Rekenen vanaf de natuurlijke helft-om-helft, niet vanaf de breedte die er nu
   // staat. Anders schuift het veld bij elke meting opnieuw een stukje op en kruipt
   // de kolom bij elke draai van de iPad verder dicht.
@@ -5422,6 +5423,66 @@ function meetGroteKlok(){
   st.setProperty('--gkR', Math.round(r.right-grensR)+'px');
 }
 addEventListener('resize',()=>requestAnimationFrame(meetGroteKlok));
+// ── Na het draaien van de iPad opnieuw meten, en blijven meten tot het klopt ──
+// Bij het opstarten klopte de verdeling (smal veld, brede tekstkolom), maar na
+// liggend → staand → liggend stond het scherm op precies half om half. Dat is de
+// terugvalstand van meetVeldkolom: die meet hoeveel lucht er naast het veld over is,
+// en is dat te weinig, dan laat hij de verdeling op de helft staan.
+// Op een iPad draait de indeling in stappen. Het resize-bericht komt al binnen
+// terwijl de hoogte nog van de staande stand is; het veld haalt zijn breedte uit die
+// hoogte en is dan veel te breed, er lijkt geen lucht over, en de meting kiest
+// half om half. Als de hoogte daarna goed komt, volgt er vaak géén nieuw resize-
+// bericht meer — de breedte was immers al goed. In een desktopbrowser gebeurt dat
+// allemaal in één keer, en daar was het dus niet na te spelen.
+// Het veld haalt zijn maat uit 100dvh, en juist die waarde loopt op een iPad na het
+// draaien achter. Het veld staat dan even op de maat van de staande stand, wordt
+// begrensd op de halve kolom, en er lijkt nul lucht over. Als dvh daarna goed komt,
+// krimpt het veld — maar het venster zelf veranderde niet meer van maat, dus er komt
+// geen resize-bericht en niemand meet opnieuw.
+// Oplossing in twee lagen:
+//   1. een ResizeObserver op het veld zelf (zie veldVolgen, aangeroepen vanuit
+//      meetVeldkolom). Die meldt zich precies wanneer het veld van maat verandert,
+//      ongeacht of en wanneer de browser een resize meldt. Dat kan geen lus worden:
+//      meetVeldkolom maakt de kolom net zo breed als het veld plus wat lucht, en het
+//      veld zelf verandert daar niet door van maat.
+//   2. na een orientationchange nog drie keer meten, als vangnet voor oudere iOS-
+//      versies of een observer die om welke reden ook niet vuurt.
+(function(){
+  let timers=[];
+  const opnieuw=()=>{
+    timers.forEach(clearTimeout); timers=[];
+    const meet=()=>{ meetGroteKlok(); _volgtMoment=null; volgWisselTekst(); };
+    requestAnimationFrame(meet);
+    [150,400,900].forEach(ms=>timers.push(setTimeout(meet,ms)));
+  };
+  addEventListener('orientationchange',opnieuw);
+})();
+// Het veld wordt bij elke hertekening opnieuw opgebouwd, dus de observer hangt aan
+// het veld dat er nú staat en verhuist mee als er een nieuw komt.
+let _veldWaker=null, _veldGevolgd=null;
+function veldVolgen(veld){
+  if(!window.ResizeObserver||!veld||veld===_veldGevolgd)return;
+  try{
+    if(_veldWaker)_veldWaker.disconnect();
+    _veldGevolgd=veld;
+    let vorige='';
+    _veldWaker=new ResizeObserver(regels=>{
+      const r=regels[0]&&regels[0].contentRect; if(!r)return;
+      const maat=Math.round(r.width)+'x'+Math.round(r.height);
+      if(maat===vorige)return;
+      const eerste=vorige===''; vorige=maat;
+      if(eerste)return;                 // de eerste melding is de maat die we net gemeten hebben
+      requestAnimationFrame(()=>{
+        const st=document.documentElement.style, oud=st.getPropertyValue('--veldkolom');
+        meetGroteKlok();
+        // Andere kolombreedte? Dan breken de wisselteksten anders af en staat het
+        // volgende moment op een andere plek; opnieuw uitlijnen.
+        if(st.getPropertyValue('--veldkolom')!==oud){ _volgtMoment=null; volgWisselTekst(); }
+      });
+    });
+    _veldWaker.observe(veld);
+  }catch(e){ onthoudFout('veld volgen',e); }
+}
 
 // ── De wisselteksten meelopen met de klok (kijkstand op een liggende tablet) ──
 // Op het grote scherm in de dug-out zit niemand te scrollen. Het moment dat eraan
@@ -8601,8 +8662,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=269;
-const VERSIE_LABEL='26.9.110';
+const APP_VERSION=270;
+const VERSIE_LABEL='26.9.111';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
