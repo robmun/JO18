@@ -427,6 +427,23 @@ body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,
     box-shadow:0 10px 18px -10px rgba(4,14,32,.75);
   }
   .twocol .klokbalk.tikbaar{cursor:pointer}
+  /* Het verbindingsbolletje naast het kwart. Klein en rustig zolang alles goed is —
+     groen met 'live' — en pas nadrukkelijk als het misgaat: dan oranje, met de melding
+     op de plek van de resterende tijd en een oranje rand om de hele balk. Oranje en
+     niet rood: rood is hier al de kleur van de tijd, en een melding in dezelfde kleur
+     als de cijfers valt niet op. */
+  .twocol .klokbalk .kb-verb{display:inline-flex;align-items:center;gap:5px;margin-left:12px;
+    font-size:var(--fs-xs);font-weight:700;letter-spacing:.3px;vertical-align:1px}
+  .twocol .klokbalk .kb-verb:empty{display:none}
+  .twocol .klokbalk .kb-verb::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor}
+  .twocol .klokbalk .kb-verb.live,.twocol .klokbalk .kb-verb.terug{color:#3ecf7a}
+  .twocol .klokbalk .kb-verb.weg{color:#ffb020}
+  .twocol .klokbalk.verbroken{box-shadow:inset 0 0 0 2px #ffb020,0 10px 18px -10px rgba(4,14,32,.75)}
+  .twocol .klokbalk.verbroken .kb-rest{color:#ffc24d;font-weight:700}
+  body.sun .twocol .klokbalk .kb-verb.live,body.sun .twocol .klokbalk .kb-verb.terug{color:#0a7a3c}
+  body.sun .twocol .klokbalk .kb-verb.weg{color:#a15c00}
+  body.sun .twocol .klokbalk.verbroken{box-shadow:inset 0 0 0 2px #d98a00,0 8px 14px -10px rgba(15,32,64,.35)}
+  body.sun .twocol .klokbalk.verbroken .kb-rest{color:#8a4d00}
   /* Rood op wit, in de zonstand. Het rood van de klok (#ff6a52) is licht genoeg voor
      de donkerblauwe balk — contrast 5,6 — maar haalt op wit maar 2,8, onder de 3 die
      grote cijfers minimaal nodig hebben. #EB4B1E is dieper en haalt op wit 3,8.
@@ -1483,6 +1500,7 @@ const WB={
   'Je bent gekoppeld als coach':'You are connected as a coach',
   'Je bent nu de eigenaar van dit team':'You are now the owner of this team',
   'Alleen een coach kan een coach toelaten':'Only a coach can allow a coach in',
+  'sinds {0} — tijd kan afwijken':'since {0} — time may be off',
   'nog {0} min in dit kwart':'{0} min left in this quarter',
   'Je kijkt mee als {0}':'You are following as {0}',
   'Dit toestel staat nog steeds niet in de coachlijst':'This device is still not in the coach list',
@@ -3544,6 +3562,8 @@ function koppelvensterOpen(){
 }
 function cloudDisconnect(){
   if(CLOUD.unsub){try{CLOUD.unsub();}catch(e){}CLOUD.unsub=null;}
+  if(CLOUD.unsubMeta){try{CLOUD.unsubMeta();}catch(e){}CLOUD.unsubMeta=null;}
+  verbindingVergeten();
   CLOUD.on=false;CLOUD.status='uit';CLOUD.klokBaas=null;CLOUD.klok=null;cloudSaveSettings();klokNaarTimer(null);
   document.body.classList.remove('viewer');
   cloudUpdateCard();
@@ -3616,6 +3636,17 @@ function beschrijfWijziging(vorigJSON,nu){
 }
 function cloudListen(){
   if(CLOUD.unsub){try{CLOUD.unsub();}catch(e){}}
+  // Een tweede luisteraar, alleen voor de verbinding. Met includeMetadataChanges komt
+  // er ook een melding als alleen 'komt dit van de server?' verandert. Dat hoort niet
+  // in de hoofdluisteraar: die past bij elke melding de stand toe en herkent botsingen,
+  // en een melding zonder nieuwe inhoud zou daar ruis geven. Firestore deelt de
+  // verbinding van beide luisteraars, dus dit kost geen extra verkeer.
+  if(CLOUD.unsubMeta){try{CLOUD.unsubMeta();}catch(e){}}
+  try{
+    CLOUD.unsubMeta=CLOUD.ref.onSnapshot({includeMetadataChanges:true},
+      s=>verbindingZet(!s.metadata.fromCache),
+      e=>{ onthoudFout('verbinding volgen',e); verbindingZet(false); });
+  }catch(e){ onthoudFout('verbinding volgen',e); }
   CLOUD.unsub=CLOUD.ref.onSnapshot(snap=>{
     if(!snap.exists){ if(CLOUD.role==='editor')cloudPush(true); return; }
     const d=snap.data(); if(!d)return;
@@ -5099,18 +5130,82 @@ function klokBalkHTML(){
   // dan een balk die er niet uitziet alsof hij iets doet, dus in de kijkstand is hij
   // geen knop.
   const tik=!isKijker();
-  return `<div class="card klokbalk${k.loopt?'':' pauze'}${tik?' tikbaar':''}" id="klokbalk"${tik?` role="button" tabindex="0" title="${U('Naar de timer','To the timer')}"`:''}>
+  return `<div class="card klokbalk${k.loopt?'':' pauze'}${tik?' tikbaar':''}${verbindingStand()==='weg'?' verbroken':''}" id="klokbalk"${tik?` role="button" tabindex="0" title="${U('Naar de timer','To the timer')}"`:''}>
     <div class="kb-tijd" id="gkTijd">${k.tijd}</div>
     <div class="kb-rechts">
-      <div class="kb-sub" id="gkSub">${k.kwart}${k.loopt?'':' \u00b7 '+U('pauze','paused')}</div>
+      <div class="kb-sub"><span id="gkSub">${k.kwart}${k.loopt?'':' \u00b7 '+U('pauze','paused')}</span><span class="kb-verb${verbindingStand()?' '+verbindingStand():''}" id="kbVerb">${verbindingLabel(verbindingStand())}</span></div>
       <div class="kb-rest" id="gkRest">${klokRestTekst()}</div>
       <div class="kb-baan"><div class="kb-voort${laatst?' laat':''}" id="gkVoort" style="width:${Math.round(deel*100)}%"></div></div>
     </div>
   </div>`;
 }
+// ── Is dit scherm nog verbonden met de gedeelde stand? ──
+// Valt de wifi op het sportpark weg, dan loopt de klok op een kijkscherm gewoon door:
+// hij rekent vanaf het laatste ankerpunt. Dat is goed zolang er niets verandert. Zet
+// de coach de klok op pauze, schuift hij een minuut of verandert hij een wissel, dan
+// komt dat niet meer aan — en niemand ziet dat het scherm achterloopt. Stil verouderen
+// is erger dan een melding, dus die komt er.
+//
+// De bron is Firestore zelf: een snapshot met metadata.fromCache betekent 'dit komt
+// uit het eigen geheugen, niet van de server'. Daarnaast het offline-bericht van de
+// browser, dat er eerder is dan Firestore het doorheeft. 'Weer online' van de browser
+// telt bewust niet: wifi kan terug zijn zonder dat de server bereikbaar is, dus pas
+// een snapshot van de server zelf zet de stand terug op live.
+//
+// Vijf seconden speling voordat de melding verschijnt. Bij het wakker worden van de
+// iPad of een korte hapering schakelt Firestore even naar zijn geheugen en weer terug;
+// een melding die heen en weer knippert went snel en wordt dan ook niet meer gelezen
+// als hij wél klopt.
+const VERBINDING_SPELING=5000;
+let _verb={bekend:false,live:false,weg:0,terugTot:0}, _verbT=null;
+function verbindingZet(live){
+  const v=_verb, eerste=!v.bekend;
+  v.bekend=true;
+  if(!eerste && live===v.live)return;
+  if(!live)v.weg=Date.now();
+  // 'Weer verbonden' alleen als 'geen verbinding' ook echt in beeld heeft gestaan.
+  // Na een hapering binnen de speling zou het een melding zijn over iets wat niemand
+  // heeft gezien.
+  else if(!eerste && Date.now()-v.weg>=VERBINDING_SPELING)v.terugTot=Date.now()+3000;
+  v.live=live;
+  clearTimeout(_verbT);
+  // Het scherm moet ook bijwerken als de klok stilstaat: dan komt er geen tik die
+  // het doet. Eén keer na de speling, of na de drie tellen 'weer verbonden'.
+  _verbT=setTimeout(verbindingTonen, live?3100:VERBINDING_SPELING+100);
+  verbindingTonen();
+}
+function verbindingVergeten(){ _verb={bekend:false,live:false,weg:0,terugTot:0}; clearTimeout(_verbT); verbindingTonen(); }
+// 'live', 'weg', 'terug', of null als er niets te melden valt (geen samenwerken,
+// of nog geen eerste antwoord van de server).
+function verbindingStand(){
+  if(!CLOUD.on||!_verb.bekend)return null;
+  if(!_verb.live)return (Date.now()-_verb.weg>=VERBINDING_SPELING)?'weg':'live';
+  return _verb.terugTot>Date.now()?'terug':'live';
+}
+function verbindingLabel(s){
+  return s==='weg'?U('geen verbinding','offline'):s==='terug'?U('weer verbonden','reconnected'):s==='live'?U('live','live'):'';
+}
+function verbindingTonen(){
+  const s=verbindingStand();
+  const b=document.getElementById('klokbalk');
+  if(b)b.classList.toggle('verbroken',s==='weg');
+  const el=document.getElementById('kbVerb');
+  if(el){ el.className='kb-verb'+(s?' '+s:''); el.textContent=verbindingLabel(s); }
+  const r=document.getElementById('gkRest');
+  if(r)r.textContent=klokRestTekst();
+}
+addEventListener('offline',()=>{ if(CLOUD.on)verbindingZet(false); });
 // 'nog 11,3 minuten in dit kwart'. Bewust de resterende tijd en niet de verstreken:
 // op de bank is de vraag altijd hoe lang het nog duurt.
+// Is de verbinding weg, dan staat daar sinds wanneer: dat is op dat moment belangrijker
+// dan de resterende tijd, en die is dan juist niet meer te vertrouwen. 'Geen
+// verbinding' zelf staat al in het label ernaast; twee keer hetzelfde leest als ruis.
 function klokRestTekst(){
+  if(verbindingStand()==='weg'){
+    const t=new Date(_verb.weg);
+    return Tf('sinds {0} — tijd kan afwijken',
+      String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0'));
+  }
   if(klok.q==null)return U('nog niet begonnen','not started yet');
   const over=Math.max(0,17.5*60-Math.min(klok.sec,17.5*60));
   if(over<=0)return U('kwart is vol','quarter is full');
@@ -8662,8 +8757,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=270;
-const VERSIE_LABEL='26.9.111';
+const APP_VERSION=271;
+const VERSIE_LABEL='26.9.112';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
