@@ -428,6 +428,16 @@ body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,
   }
   .twocol .klokbalk.tikbaar{cursor:pointer}
   body.sun .twocol .klokbalk{background:#ffffff;box-shadow:0 8px 14px -10px rgba(15,32,64,.35)}
+  /* Rechte hoeken, geen tussenruimte. De balk plakt bovenaan en de wisselkaart schuift
+     eronder door; met afgeronde hoeken bleef er in elke hoek een stukje van die kaart
+     zichtbaar — een randje hier, een letter daar. Recht dekt hij de kaart eronder
+     precies af, want ze zijn even breed.
+     Staat de pagina nog bovenaan, dan sluit de eerste kaart er direct op aan en
+     vormen ze samen één blok: de klok als kop, de wissels eronder. Daarom verliest die
+     kaart zijn bovenste hoeken en rand; anders stonden er twee lijnen op elkaar en
+     twee kleine inkepingen waar de ronding van de kaart onder de rechte balk uitkwam. */
+  .twocol .klokbalk{border-radius:0;margin-bottom:0}
+  .twocol .klokbalk + .card{border-top-left-radius:0;border-top-right-radius:0;border-top:0}
   .twocol .klokbalk .kb-tijd{
     /* Op de breedte van het scherm en niet van de kolom: een containervraag zou het
        netter doen, maar dit is voorspelbaar en werkt op elke iOS-versie. Op een
@@ -5451,11 +5461,35 @@ function volgWisselTekst(){
   _volgtMoment=merk;
   // Eerst de eerder bijgezette ruimte weghalen, anders stapelt die zich op.
   raster.style.paddingBottom='';
-  // De afstand van de bovenkant van de inhoud tot dit kader. scrollTop erbij optellen
-  // maakt hem onafhankelijk van waar we nu staan, ook als de browser tijdens het
-  // wegnemen van de ruimte hierboven zelf al is bijgeschoven.
-  const doel=Math.max(0, v.scrollTop + (el.getBoundingClientRect().top
-             - v.getBoundingClientRect().top) - volgMarge());
+  // Waar moet de kolom heen? Met de klokbalk erbij hoort het kader van het volgende
+  // wisselmoment er precies tegenaan te staan: niets ertussen. Eerder stond er een
+  // marge op, en daarin bleef de staart van het vórige moment zichtbaar — 'Wissels
+  // daarna: …' — een regel die op dat moment niets meer betekent.
+  //
+  // Voorspellen waar de plakkende balk uitkomt gaat net mis: of hij al plakt hangt
+  // af van hoe ver er gescrold wordt, en dat is juist wat we uitrekenen. Nagemeten
+  // week de voorspelling twintig pixels af. Dus: één keer proefspringen, meten hoe
+  // ver het kader van de onderrand van de balk af staat, en dat verschil verrekenen.
+  // Alles in één stap JavaScript, dus de browser tekent die proefsprong nooit.
+  // Tijdens het meten staat er tijdelijk ruimte onder de kolom, anders kan de
+  // proefsprong bij het laatste moment niet ver genoeg en meet je een verkeerde fout.
+  const balk=document.getElementById('klokbalk');
+  let doel;
+  if(balk){
+    const start=v.scrollTop;
+    raster.style.paddingBottom=v.clientHeight+'px';
+    v.scrollTop=Math.max(0, start + (el.getBoundingClientRect().top
+               - v.getBoundingClientRect().top) - balk.offsetHeight);
+    const fout=el.getBoundingClientRect().top - balk.getBoundingClientRect().bottom;
+    doel=Math.max(0, Math.round(v.scrollTop + fout));
+    raster.style.paddingBottom='';
+    v.scrollTop=start;
+  }else{
+    // De afstand van de bovenkant van de inhoud tot dit kader. scrollTop erbij
+    // optellen maakt hem onafhankelijk van waar we nu staan.
+    doel=Math.max(0, v.scrollTop + (el.getBoundingClientRect().top
+         - v.getBoundingClientRect().top) - VOLG_MARGE);
+  }
   // Het laatste moment van een kwart heeft soms te weinig onder zich om nog tot
   // bovenaan te kunnen klimmen. Dan zetten we er precies genoeg ruimte bij; meestal
   // is dat niets, want de speeltijdenkaart staat er nog onder.
@@ -8555,8 +8589,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=267;
-const VERSIE_LABEL='26.9.108';
+const APP_VERSION=268;
+const VERSIE_LABEL='26.9.109';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
