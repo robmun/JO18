@@ -409,8 +409,13 @@ body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,
        scheef naar links. Nu is het rechterdeel begrensd en staan cijfers en balk
        samen in het midden. */
     display:flex;align-items:center;justify-content:center;
-    gap:clamp(18px,3.2%,32px);
-    padding:8px clamp(20px,5%,56px);margin-bottom:10px;
+    gap:clamp(14px,2.6%,28px);
+    /* Dikker dan hij was (8px lucht boven en onder, nu 13) en met grotere cijfers.
+       Die hoogte gaat af van de wisselteksten eronder — dat is een bewuste ruil: de
+       tijd wordt van de bank af gelezen, de wisseltekst van dichtbij. De lucht links
+       en rechts binnen de balk is juist kleiner geworden (5% → 3,6%), want die ruimte
+       heeft alleen de cijfers zelf nodig. */
+    padding:13px clamp(16px,3.6%,44px);margin-bottom:10px;
     -webkit-tap-highlight-color:transparent;
     /* Dekkend, en zonder de vervaging van een gewone kaart. Een plakkende kaart met
        een doorzichtige achtergrond laat de wisselteksten er dwars doorheen lopen:
@@ -469,10 +474,13 @@ body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,
   .twocol .klokbalk + .card{border-top-left-radius:0;border-top-right-radius:0;border-top:0}
   .twocol .klokbalk .kb-tijd{
     /* Op de breedte van het scherm en niet van de kolom: een containervraag zou het
-       netter doen, maar dit is voorspelbaar en werkt op elke iOS-versie. Op een
-       9,7 inch komt hij op 76, op een 12,9 inch op 101 — overal ruim boven de 74
-       van de ronde klok. */
-    font-size:clamp(64px,7.4vw,104px);
+       netter doen, maar dit is voorspelbaar en werkt op elke iOS-versie.
+       Nagemeten was er op alle iPad-maten nog lucht over in de balk: op een 9,7 inch
+       bleef er 68 pixels onbenut naast de cijfers, op een 12,9 inch 78. Die gaat nu
+       naar de cijfers. Ze komen op 96 pixels op een 9,7 inch (was 76) en op 118 op
+       een 12,9 inch (was 101). De bovengrens houdt de balk op de grootste iPad heel:
+       daar loopt 9,4vw tegen de breedte van de kolom aan. */
+    font-size:clamp(76px,9.4vw,118px);
     font-weight:800;line-height:.92;
     font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;
     letter-spacing:-1px;color:#ff6a52;flex:0 0 auto;
@@ -685,6 +693,16 @@ body.sun .qbar{background:#eef3fb;border-bottom-color:#c9d6ea}
   #qbarSlot .qpill{width:40px;height:40px;font-size:14.5px}
   #qbarSlot .qpill.loopt::after{margin:26px 0 0 26px;width:8px;height:8px}
   #qbarSlot .qlbl{font-size:9px;letter-spacing:.6px}
+  /* Lucht tussen de bolletjes en de knoppen rechts. Ze stonden op 7 pixels van de
+     zonknop — de afstand die overal in de balk geldt — en daardoor leken ze bij die
+     knoppen te horen in plaats van bij de wedstrijd. Meeschalend met het scherm, want
+     op een grotere iPad valt een vast gat juist weer weg. */
+  #qbarSlot:not(:empty){margin-right:clamp(26px,5.5vw,72px)}
+  /* Printen hoort niet op een tablet aan de lijn: je print het wisselschema thuis,
+     en tijdens de wedstrijd is het een knop waar je alleen per ongeluk op tikt.
+     Alleen in deze weergave weg — zet je de iPad rechtop, dan staat hij er weer,
+     en op de telefoon verandert er niets. */
+  #printBtn{display:none}
 }
 body.sun .qgroep{background:#fff;border-color:#c9d6ea}
 body.sun .qpill{background:#eef3fb;color:#4a5568;border-color:#c9d6ea}
@@ -8757,8 +8775,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=271;
-const VERSIE_LABEL='26.9.112';
+const APP_VERSION=272;
+const VERSIE_LABEL='26.9.113';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
