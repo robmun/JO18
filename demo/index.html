@@ -672,20 +672,33 @@ body.sun .qbar{background:#eef3fb;border-bottom-color:#c9d6ea}
 .qbar .qlbl{font-size:8px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;
   color:var(--dim);line-height:1.2;white-space:normal;text-align:left;flex:0 1 auto}
 .qpill{position:relative}
-/* ── Kwartbolletjes in de titelbalk (alleen tablet, liggend) ──
-   Op een tablet stond de kwartbalk als eigen strook boven het veld, terwijl de
-   titelbalk half leeg was. Die strook kostte zo'n 55px hoogte die het veld goed
-   kan gebruiken. Hier verhuizen de bolletjes naar de lege ruimte in de titelbalk
-   en worden ze een maatje kleiner. De strook zelf verdwijnt dan.
-   Buiten deze media-query is de plek leeg en dus onzichtbaar; op telefoon blijft
-   alles zoals het was. */
+/* ── Kwartbolletjes in de titelbalk ──
+   Ze stonden op een telefoon in de pagina zelf, bovenaan het schuifgebied, en bleven
+   daar met 'sticky' plakken. Dat ging mis: iOS schuift zo'n pagina soms als geheel
+   een stukje omhoog — na het toetsenbord, bij terugkomen uit de achtergrond, of na
+   een draaiing. De titelbalk blijft dan staan waar hij staat, maar alles eronder
+   schuift eronderdoor, en de bovenste strook verdwijnt achter die balk. Op het veld
+   merk je dat niet, want daar is nog van alles te zien; de kwartbolletjes waren
+   gehalveerd of helemaal weg. Zelf terugscrollen kan niet: het is de pagina die
+   verschoven is, niet het schuifgebied.
+   Nu horen de bolletjes bij de titelbalk. Die staat vást bovenin en kan dus niet
+   onder zichzelf wegschuiven. Op een telefoon komen ze als tweede regel onder de
+   titel, op een liggende tablet naast de titel in de lege ruimte (dat scheelt daar
+   zo'n 55px hoogte die het veld goed kan gebruiken).
+   Dit haalt meteen de keuze weg die er eerst per hertekening gemaakt moest worden —
+   'in de pagina of in de balk?' — en dus ook de kans dat die keuze één keer verkeerd
+   uitvalt. Er is nog maar één plek. */
 #qbarSlot{display:none}
+#qbarSlot:not(:empty){display:block;flex:0 0 100%;order:5;margin:9px 0 0}
+#qbarSlot .qbar{position:static;margin:0;padding:0;background:none;border:0;
+  backdrop-filter:none;-webkit-backdrop-filter:none;gap:8px}
+/* De titelbalk mag afbreken, anders komt de tweede regel er niet onder. */
+.appbar{flex-wrap:wrap}
 @media (orientation:landscape) and (min-width:820px) and (min-height:600px) and (pointer:coarse){
-  #qbarSlot:not(:empty){display:block;flex:0 0 auto}
-  /* De kwartbalk mag hier geen eigen achtergrond of kleefgedrag hebben: hij zit al
-     in de titelbalk, die dat zelf regelt. */
-  #qbarSlot .qbar{position:static;margin:0;padding:0;background:none;border:0;
-    backdrop-filter:none;-webkit-backdrop-filter:none;gap:9px}
+  /* Naast de titel in plaats van eronder: op een liggende tablet is daar ruimte zat,
+     en de balk blijft zo even hoog als hij was. */
+  #qbarSlot:not(:empty){display:block;flex:0 0 auto;order:0;margin:0}
+  #qbarSlot .qbar{gap:9px}
   #qbarSlot .qgroep{flex:0 0 auto;padding:3px 11px;gap:8px}
   /* 40px: het grootste formaat dat past zonder de titelbalk hoger te maken — die
      blijft op 71px, en dus blijft de 60px ruimtewinst voor het veld intact. Ruimer
@@ -7772,12 +7785,10 @@ function zetQbarSlot(html){
   if(html)bindQpills(el);
 }
 function renderWedstrijd(){
-  const bolletjes=renderQuarterPills();
-  // Op een tablet in liggende stand naar de titelbalk, daar is ruimte zat. Op een
-  // telefoon blijft de kwartbalk staan waar hij stond.
-  const inBalk=isWide();
-  zetQbarSlot(inBalk?bolletjes:'');
-  return (inBalk?'':bolletjes)+renderQuarter(huidigQ());
+  // Altijd naar de titelbalk. Waar ze daarbinnen terechtkomen — naast de titel of
+  // eronder — regelt de opmaak zelf, en die weet altijd hoe breed het scherm is.
+  zetQbarSlot(renderQuarterPills());
+  return renderQuarter(huidigQ());
 }
 function renderQuarter(q){
   let html='';
@@ -8168,9 +8179,19 @@ function _render(){
 let _bolHerstel=0, _bolPogingen=0, _bolT=null, _bolGemeld=0;
 function bolletjesNakijken(){
   try{
+    // De pagina terugzetten als iOS hem heeft opgeschoven. Zie pagBoven().
+    pagBoven();
+    // Twee dingen die na het opbouwen waar moeten zijn:
+    //  1. de kwartbolletjes staan op een plek die in deze indeling te zien is;
+    //  2. de opbouw past bij de breedte van het scherm — een tweekolomsindeling
+    //     hoort bij een liggende tablet en nergens anders. Staat die er terwijl het
+    //     scherm smal is (of andersom), dan is er tijdens het opbouwen een verkeerde
+    //     maat gebruikt. Dat is precies de fout die de bolletjes liet verdwijnen, en
+    //     hij kan ook de rest van het scherm scheef zetten.
     const slot=document.getElementById('qbarSlot');
-    if(!slot||!slot.firstElementChild){_bolPogingen=0;return;}          // niets in de titelbalk: goed
-    if(getComputedStyle(slot).display!=='none'){_bolPogingen=0;return;} // staat er en is zichtbaar: goed
+    const bolWeg = slot && slot.firstElementChild && getComputedStyle(slot).display==='none';
+    const scheef = isQTab(activeTab) && !!document.querySelector('#view .col-field')!==isWide();
+    if(!bolWeg && !scheef){_bolPogingen=0;return;}
     if(_bolPogingen>=5)return;
     const wacht=800-(Date.now()-_bolHerstel);
     if(wacht>0){ clearTimeout(_bolT); _bolT=setTimeout(bolletjesNakijken,wacht+50); return; }
@@ -8178,11 +8199,38 @@ function bolletjesNakijken(){
     // Eén regel per voorval, niet per poging: een reeks pogingen vlak na elkaar hoort
     // bij hetzelfde voorval en zou het diagnoseblok anders volschrijven.
     if(Date.now()-_bolGemeld>5000){ _bolGemeld=Date.now();
-      onthoudFout('kwartbolletjes',new Error('stonden op de verborgen plek in de titelbalk')); }
+      onthoudFout('indeling hersteld',new Error(bolWeg?'kwartbolletjes stonden op een verborgen plek':'opbouw paste niet bij de schermbreedte')); }
     _bolPogingen++;
     render();
   }catch(e){}
 }
+// ── De pagina zelf mag nooit verschoven blijven staan ──
+// De app is één scherm hoog en schuift alleen vanbinnen; de pagina eromheen hoort
+// dus altijd op nul te staan. iOS schuift hem toch weleens op: als het toetsenbord
+// verschijnt, als een veld in beeld wordt gehaald, of bij terugkomen uit de
+// achtergrond. En omdat de pagina zelf geen schuifbalk heeft, kun je hem niet
+// terugslepen — de titelbalk blijft staan en alles eronder is dan blijvend een
+// stuk omhoog geschoven. Precies wat er gebeurde: de bovenste strook verdween
+// achter de balk en bleef weg tot de app opnieuw werd opgestart.
+// Zetten we hem meteen terug, dan is er niets aan de hand. Het wordt één keer
+// onthouden, zodat in Diagnose te zien is of dit op een toestel werkelijk gebeurt.
+let _pagGemeld=0;
+function pagBoven(){
+  try{
+    const el=document.scrollingElement||document.documentElement;
+    const y=el.scrollTop||window.pageYOffset||0;
+    if(!y)return;
+    el.scrollTop=0; if(window.scrollTo)window.scrollTo(0,0);
+    if(Date.now()-_pagGemeld>5000){ _pagGemeld=Date.now();
+      onthoudFout('pagina verschoven',new Error(Math.round(y)+' pixels omhoog, teruggezet')); }
+  }catch(e){}
+}
+// Zodra het gebeurt, en niet pas bij de volgende hertekening.
+addEventListener('scroll',pagBoven,{passive:true});
+// Het toetsenbord is de bekendste veroorzaker: bij het sluiten blijft de verschuiving
+// staan. focusout komt ook als het veld op een andere manier wordt verlaten.
+addEventListener('focusout',()=>setTimeout(pagBoven,120),true);
+if(window.visualViewport)window.visualViewport.addEventListener('resize',()=>setTimeout(pagBoven,80));
 // Terug uit de achtergrond is het moment waarop iOS met verouderde maten komt. Meten
 // en zo nodig herstellen; hertekenen hoeft alleen als er iets mis blijkt.
 document.addEventListener('visibilitychange',()=>{
@@ -8836,8 +8884,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=273;
-const VERSIE_LABEL='26.9.114';
+const APP_VERSION=274;
+const VERSIE_LABEL='26.9.115';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
