@@ -5073,7 +5073,23 @@ document.addEventListener('visibilitychange',()=>{
 });
 // Brede stand: tablet in liggende stand (zelfde voorwaarden als de media-query).
 const WIDE_MQ='(orientation:landscape) and (min-width:820px) and (min-height:600px) and (pointer:coarse)';
-const isWide=()=>window.matchMedia&&window.matchMedia(WIDE_MQ).matches;
+function breedGemeten(){ return !!(window.matchMedia&&window.matchMedia(WIDE_MQ).matches); }
+// Tijdens één hertekening werd deze vraag zeventien keer opnieuw gesteld: voor de kop
+// in de titelbalk, voor de plek van de kwartbolletjes, voor de klok op het veld, en
+// voor het openen én het sluiten van elke kolomindeling. Dat gaat goed zolang het
+// antwoord hetzelfde blijft — maar het is een méting, en iOS geeft rond een draaiing
+// of bij het terugkomen uit de achtergrond soms één keer een maat van net daarvoor.
+// Eén afwijkend antwoord halverwege is genoeg om de kwartbolletjes in de plek in de
+// titelbalk te zetten, en die plek is op een telefoon verborgen: de bolletjes zijn dan
+// weg. Er verandert daarbij niets écht aan het scherm, dus de melding 'de indeling is
+// gewisseld' komt nooit, en niets zet het terug. Alleen een hertekening om een andere
+// reden — van tabblad wisselen, een nieuw wisselmoment — haalt ze terug; scrollen niet.
+// Precies wat er tijdens een wedstrijd gebeurde, en na de rust weer.
+// Daarom staat het antwoord tijdens een hertekening vast: één meting aan het begin,
+// die de hele opbouw gebruikt. Buiten een hertekening (bij het scrollen, meten) wordt
+// gewoon opnieuw gekeken.
+let _breedVast=null;
+const isWide=()=>_breedVast!==null?_breedVast:breedGemeten();
 let pendingQTab=null; // kwartindex (0-3) die de timer doorgaf terwijl de coach elders keek
 // Stand van de wedstrijdklok, doorgegeven door de timer. Hiermee loopt de
 // veldweergave mee met de wedstrijd: na een wisselmoment zie je de nieuwe opstelling.
@@ -8050,7 +8066,16 @@ function wisselLines(d){
 /* ============ Renderen + events ============ */
 let _lastTab=null;
 let zelftestModus=false;
+// De schil om de hertekening: hier wordt de breedte één keer gemeten en daarna
+// vastgehouden. 'finally' zodat de vastgezette waarde ook loslaat als het opbouwen
+// halverwege misgaat — anders zou de app blijven denken dat hij breed of smal is.
 function render(){
+  const eerste=_breedVast===null;
+  if(eerste)_breedVast=breedGemeten();
+  try{ _render(); }
+  finally{ if(eerste)_breedVast=null; }
+}
+function _render(){
   if(zelftestModus)return;   // de uitslag mag niet worden overschreven door een late hertekening
   // Knoppen dimmen wanneer er niets te wijzigen valt: in de kijkstand, en bij een
   // demo waarvan de termijn voorbij is. Stond eerder alleen in de cloudverbinding
@@ -8126,8 +8151,44 @@ function render(){
   // Bij her-renderen op hetzelfde tabblad: scrollpositie behouden
   // (iOS springt anders naar boven zodra de inhoud even inklapt).
   if(_keepY!==null&&_sc&&Math.abs(_sc.scrollTop-_keepY)>2)_sc.scrollTop=_keepY;
-  requestAnimationFrame(()=>{updateScrollUI();fitNames();zwevendeKlokBijwerken();meetKijkbalk();meetGroteKlok();volgWisselTekst();});
+  requestAnimationFrame(()=>{updateScrollUI();fitNames();zwevendeKlokBijwerken();meetKijkbalk();meetGroteKlok();volgWisselTekst();bolletjesNakijken();});
 }
+// Vangnet achter de vorige oplossing. De kwartbolletjes staan op een telefoon in de
+// pagina en op een liggende tablet in de titelbalk; belanden ze ooit toch op de plek
+// die in déze indeling verborgen is, dan zijn ze onbedienbaar zonder dat er iets te
+// zien is wat erop wijst. Na elke hertekening wordt daarom gekeken of ze ook echt
+// staan waar ze te zien zijn, en zo niet: nog één keer opbouwen.
+// Met een rem erop, want een hertekening die het probleem niet oplost zou anders
+// meteen de volgende oproepen. De rem stelt uit in plaats van over te slaan — anders
+// blijft het staan zoals het stond en komt er niets meer langs dat het nog probeert.
+// Vijf pogingen achter elkaar is genoeg; blijft het daarna mis, dan ligt het niet aan
+// een losse verkeerde meting en heeft doorgaan geen zin. De teller gaat op nul zodra
+// alles in orde is, zodat elk nieuw voorval opnieuw vijf kansen krijgt. Het eerste
+// voorval wordt onthouden, zodat het in Diagnose terug te vinden is.
+let _bolHerstel=0, _bolPogingen=0, _bolT=null, _bolGemeld=0;
+function bolletjesNakijken(){
+  try{
+    const slot=document.getElementById('qbarSlot');
+    if(!slot||!slot.firstElementChild){_bolPogingen=0;return;}          // niets in de titelbalk: goed
+    if(getComputedStyle(slot).display!=='none'){_bolPogingen=0;return;} // staat er en is zichtbaar: goed
+    if(_bolPogingen>=5)return;
+    const wacht=800-(Date.now()-_bolHerstel);
+    if(wacht>0){ clearTimeout(_bolT); _bolT=setTimeout(bolletjesNakijken,wacht+50); return; }
+    _bolHerstel=Date.now();
+    // Eén regel per voorval, niet per poging: een reeks pogingen vlak na elkaar hoort
+    // bij hetzelfde voorval en zou het diagnoseblok anders volschrijven.
+    if(Date.now()-_bolGemeld>5000){ _bolGemeld=Date.now();
+      onthoudFout('kwartbolletjes',new Error('stonden op de verborgen plek in de titelbalk')); }
+    _bolPogingen++;
+    render();
+  }catch(e){}
+}
+// Terug uit de achtergrond is het moment waarop iOS met verouderde maten komt. Meten
+// en zo nodig herstellen; hertekenen hoeft alleen als er iets mis blijkt.
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible')setTimeout(bolletjesNakijken,150);
+});
+addEventListener('orientationchange',()=>setTimeout(bolletjesNakijken,400));
 // Kwartbolletjes. Een eigen keuze gaat voor op de klok, en gaat mee naar de timer
 // zodat beide hetzelfde kwart tonen. Aparte functie omdat de bolletjes op een
 // tablet in de titelbalk staan, buiten #view, en dus niet door bind(v) worden
@@ -8775,8 +8836,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=272;
-const VERSIE_LABEL='26.9.113';
+const APP_VERSION=273;
+const VERSIE_LABEL='26.9.114';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
