@@ -689,7 +689,11 @@ body.sun .qbar{background:#eef3fb;border-bottom-color:#c9d6ea}
    'in de pagina of in de balk?' — en dus ook de kans dat die keuze één keer verkeerd
    uitvalt. Er is nog maar één plek. */
 #qbarSlot{display:none}
-#qbarSlot:not(:empty){display:block;flex:0 0 100%;order:5;margin:9px 0 0}
+/* Geen eigen marge: de balk heeft zelf al 7px tussen zijn onderdelen, en dat is hier
+   ook de afstand tussen de titelregel en de bolletjes. Met een marge erbovenop stond
+   er 16px lucht boven de bolletjes tegen 11px eronder — meer boven dan onder, en dat
+   valt op als scheef. */
+#qbarSlot:not(:empty){display:block;flex:0 0 100%;order:5;margin:0}
 #qbarSlot .qbar{position:static;margin:0;padding:0;background:none;border:0;
   backdrop-filter:none;-webkit-backdrop-filter:none;gap:8px}
 /* De titelbalk mag afbreken, anders komt de tweede regel er niet onder. */
@@ -8884,8 +8888,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=274;
-const VERSIE_LABEL='26.9.115';
+const APP_VERSION=275;
+const VERSIE_LABEL='26.9.116';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
