@@ -5349,6 +5349,25 @@ function stilVideoUit(){
 }
 // Wat is de stand van zaken? Staat in Diagnose, zodat op het toestel zelf te zien is
 // of het slot er is — en zo niet, waarom niet.
+// Rechtstreeks vragen, vanuit de tik van de gebruiker. wakeLockAan() doet er van
+// alles omheen (bewaking, noodoplossing, boekhouding) en dat kost tijd; sommige
+// browsers geven zulke toestemmingen alleen zolang de tik 'vers' is. Deze weg is
+// daarom zo kort mogelijk, en vertelt meteen wat eruit kwam.
+async function wakeLockNuProberen(){
+  if(!wakeLockKan()){ toast(U('Deze browser kent het schermslot niet','This browser has no screen wake lock')); render(); return; }
+  try{
+    _wlAanvragen++;
+    const s=await navigator.wakeLock.request('screen');
+    _wl=s; _wlFout=''; _wlSinds=Date.now();
+    s.addEventListener('release',()=>{ if(_wl===s)_wl=null; if(wakeLockGewenst())setTimeout(wakeLockAan,300); });
+    stilVideoUit();
+    toast(U('Gelukt \u2014 het scherm blijft nu aan','Done \u2014 the screen will stay on now'));
+  }catch(e){
+    _wl=null; _wlFout=((e&&e.name)||'fout')+((e&&e.message)?': '+e.message:'');
+    toast(U('Het toestel weigert het nog steeds','The device still refuses it'));
+  }
+  render();
+}
 // De kaart op Meer als iOS het schermslot weigert. Twee knoppen zijn er niet: een
 // app kan de instellingen van het toestel niet openen of wijzigen. Wat er wel kan is
 // precies zeggen waar het staat.
@@ -5359,6 +5378,8 @@ function schermSlotKaart(){
     <p class="hint" style="margin:0 0 6px"><b>${U('Wat helpt','What helps')}:</b></p>
     <p class="hint" style="margin:0 0 4px">1. ${U('Zet de batterijspaarstand uit: Instellingen &rarr; Batterij. In die stand weigert iOS dit altijd, en houdt hij ook de noodoplossing tegen.','Turn off Low Power Mode: Settings &rarr; Battery. In that mode iOS always refuses this, and it blocks the fallback too.')}</p>
     <p class="hint" style="margin:0 0 10px">2. ${U('Helpt dat niet, zet dan op dit toestel Instellingen &rarr; Beeldscherm en helderheid &rarr; Automatisch slot op <b>Nooit</b>. Voor een tablet die alleen als kijkscherm langs de lijn hangt is dat de zekerste weg.','If that does not help, set Settings &rarr; Display &amp; Brightness &rarr; Auto-Lock to <b>Never</b> on this device. For a tablet used only as a touchline screen that is the surest route.')}</p>
+    <button class="btn ghost full" id="wlProbeer" style="margin-bottom:10px">${U('Probeer het nu opnieuw','Try again now')}</button>
+    <p class="hint" style="margin:0 0 10px;opacity:.85">${U('Die knop vraagt het rechtstreeks vanuit jouw tik. Sommige browsers geven zoiets alleen op dat moment; lukt het zo wél, dan weten we dat het daaraan lag.','That button asks for it straight from your tap. Some browsers only allow it at that moment; if it works this way, we know that was the reason.')}</p>
     <p class="hint" style="margin:0;opacity:.75">${esc(wakeLockStand())}</p></div>`;
 }
 function wakeLockStand(){
@@ -8660,6 +8681,8 @@ function bind(v){
     const y=document.getElementById('view').scrollTop;
     render(); document.getElementById('view').scrollTop=y;
   });
+  const _wlKnop=v.querySelector('#wlProbeer');
+  if(_wlKnop)_wlKnop.onclick=()=>wakeLockNuProberen();
   v.querySelectorAll('[data-regen]').forEach(b=>b.onclick=regenerate);
   const vnb=v.querySelector('#verwerkNuBtn');
   // vanafVolgende: het blok dat nu op het veld staat blijft staan; de herverdeling
@@ -9282,8 +9305,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=283;
-const VERSIE_LABEL='26.9.124';
+const APP_VERSION=284;
+const VERSIE_LABEL='26.9.125';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
