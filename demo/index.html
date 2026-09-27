@@ -5291,6 +5291,7 @@ _wlT=setInterval(()=>{
   if(!_wl)wakeLockAan();
   // Is het slot geweigerd en loopt de klok, dan neemt de noodoplossing het over.
   stilVideoBijwerken();
+  wakeLockTip();
 },15000);
 document.addEventListener('visibilitychange',()=>{
   // Terug in beeld: iOS heeft het slot bij het wegdraaien losgelaten, dus opnieuw
@@ -5299,9 +5300,45 @@ document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible'){ wakeLockBijwerken(); }
   else { _wl=null; stilVideoUit(); }
 });
-// Eén aanraking is voor sommige browsers de voorwaarde om zoiets toe te staan. Deze
-// luisteraar kost niets: hij vraagt alleen opnieuw als het slot er niet is.
-addEventListener('pointerdown',()=>{ if(wakeLockGewenst()&&!_wl)wakeLockAan(); },{passive:true});
+// ── Waarom dit aan een tik hangt ──
+// Op de iPad werd het schermslot twaalf keer achter elkaar geweigerd met 'Permission
+// was denied' — ook met de batterijspaarstand uit. Dezelfde aanvraag, gedaan vanuit
+// een knop waar de coach op tikt, werd meteen toegekend en het scherm bleef aan.
+// iPadOS geeft dit dus alleen als de aanvraag hoort bij een handeling van de
+// gebruiker. Hier stond 'pointerdown', en dat is precies de gebeurtenis die in Safari
+// níét als zo'n handeling telt: daar tellen 'click' en 'touchend', ofwel het moment
+// dat je je vinger optilt. Vandaar dat het nooit lukte.
+// Capture-fase, zodat het ook meetelt als de tik ergens onderweg wordt afgevangen,
+// en zo kort mogelijk: de aanvraag moet nog binnen dezelfde handeling vallen.
+function wakeLockUitTik(){
+  if(!wakeLockGewenst()||_wl||_wlBezig||!wakeLockKan())return;
+  _wlBezig=true;
+  _wlAanvragen++;
+  navigator.wakeLock.request('screen').then(s=>{
+    _wl=s; _wlFout=''; _wlSinds=Date.now(); _wlBezig=false;
+    s.addEventListener('release',()=>{ if(_wl===s)_wl=null; if(wakeLockGewenst())setTimeout(wakeLockAan,300); });
+    stilVideoUit();
+  }).catch(e=>{
+    _wl=null; _wlBezig=false;
+    _wlFout=((e&&e.name)||'fout')+((e&&e.message)?': '+e.message:'');
+    stilVideoBijwerken();
+  });
+}
+addEventListener('click',wakeLockUitTik,{capture:true,passive:true});
+addEventListener('touchend',wakeLockUitTik,{capture:true,passive:true});
+// ── En zeggen dat één tik genoeg is ──
+// Een kijkscherm langs de lijn wordt niet aangeraakt: je hangt hem op en loopt weg.
+// Zonder die ene tik komt het slot er dus nooit. Daarom één melding, kort na het
+// openen, en daarna niet meer — zeuren over een scherm dat aanstaat is erger dan het
+// probleem.
+let _wlTipGehad=false;
+function wakeLockTip(){
+  if(_wlTipGehad||_wl||!wakeLockGewenst()||!wakeLockKan())return;
+  if(!_wlFout)return;                       // nog niets misgegaan: niets te melden
+  _wlTipGehad=true;
+  toast(U('Tik \u00e9\u00e9n keer op het scherm, dan blijft het aan tijdens de wedstrijd',
+          'Tap the screen once and it will stay on during the match'));
+}
 // ── De noodoplossing: een stil filmpje ──
 // Weigert iOS het schermslot — dat gebeurt onder andere in de batterijspaarstand —
 // dan is er nog één weg die al bestond voordat er een schermslot-API was: een
@@ -5374,10 +5411,11 @@ async function wakeLockNuProberen(){
 function schermSlotKaart(){
   const spaar=/NotAllowed|denied|power/i.test(_wlFout);
   return `<div class="card"><h2>${ico('waarschuwing')}${U('Het scherm blijft niet vanzelf aan','The screen will not stay on')}</h2>
-    <p class="hint" style="margin:0 0 10px">${U('Dit toestel geeft de app geen toestemming om het scherm aan te houden, dus het gaat uit na de tijd die bij Automatisch slot staat. De app probeert het elke vijftien seconden opnieuw.','This device does not allow the app to keep the screen awake, so it turns off after the Auto-Lock time. The app keeps retrying every fifteen seconds.')}</p>
+    <p class="hint" style="margin:0 0 10px">${U('iOS staat dit alleen toe als de aanvraag bij een tik van jou hoort. Zolang niemand het scherm aanraakt blijft het dus geweigerd, en gaat het scherm uit na de tijd die bij Automatisch slot staat.','iOS only allows this when the request belongs to a tap of yours. As long as nobody touches the screen it stays refused, and the screen turns off after the Auto-Lock time.')}</p>
     <p class="hint" style="margin:0 0 6px"><b>${U('Wat helpt','What helps')}:</b></p>
-    <p class="hint" style="margin:0 0 4px">1. ${U('Zet de batterijspaarstand uit: Instellingen &rarr; Batterij. In die stand weigert iOS dit altijd, en houdt hij ook de noodoplossing tegen.','Turn off Low Power Mode: Settings &rarr; Battery. In that mode iOS always refuses this, and it blocks the fallback too.')}</p>
-    <p class="hint" style="margin:0 0 10px">2. ${U('Helpt dat niet, zet dan op dit toestel Instellingen &rarr; Beeldscherm en helderheid &rarr; Automatisch slot op <b>Nooit</b>. Voor een tablet die alleen als kijkscherm langs de lijn hangt is dat de zekerste weg.','If that does not help, set Settings &rarr; Display &amp; Brightness &rarr; Auto-Lock to <b>Never</b> on this device. For a tablet used only as a touchline screen that is the surest route.')}</p>
+    <p class="hint" style="margin:0 0 4px">1. ${U('Tik &eacute;&eacute;n keer ergens op het scherm &mdash; of op de knop hieronder. Daarna blijft het aan zolang de app in beeld staat. Ga je naar een andere app en terug, dan is er weer &eacute;&eacute;n tik nodig.','Tap anywhere on the screen once &mdash; or the button below. After that it stays on as long as the app is in view. Switch to another app and back, and one more tap is needed.')}</p>
+    <p class="hint" style="margin:0 0 4px">2. ${U('Staat de batterijspaarstand aan, zet die dan uit: Instellingen &rarr; Batterij. In die stand weigert iOS het hoe dan ook.','If Low Power Mode is on, turn it off: Settings &rarr; Battery. In that mode iOS refuses it regardless.')}</p>
+    <p class="hint" style="margin:0 0 10px">3. ${U('Hangt de tablet als kijkscherm langs de lijn en raakt niemand hem aan, zet dan Instellingen &rarr; Beeldscherm en helderheid &rarr; Automatisch slot op <b>Nooit</b>. Dan hoeft er niets getikt te worden.','If the tablet hangs as a touchline screen and nobody touches it, set Settings &rarr; Display &amp; Brightness &rarr; Auto-Lock to <b>Never</b>. Then no tap is needed.')}</p>
     <button class="btn ghost full" id="wlProbeer" style="margin-bottom:10px">${U('Probeer het nu opnieuw','Try again now')}</button>
     <p class="hint" style="margin:0 0 10px;opacity:.85">${U('Die knop vraagt het rechtstreeks vanuit jouw tik. Sommige browsers geven zoiets alleen op dat moment; lukt het zo wél, dan weten we dat het daaraan lag.','That button asks for it straight from your tap. Some browsers only allow it at that moment; if it works this way, we know that was the reason.')}</p>
     <p class="hint" style="margin:0;opacity:.75">${esc(wakeLockStand())}</p></div>`;
@@ -9305,8 +9343,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=284;
-const VERSIE_LABEL='26.9.125';
+const APP_VERSION=285;
+const VERSIE_LABEL='26.9.126';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
