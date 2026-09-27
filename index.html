@@ -5313,6 +5313,13 @@ addEventListener('pointerdown',()=>{ if(wakeLockGewenst()&&!_wl)wakeLockAan(); }
 // slot er wel is of de klok stilstaat.
 const STIL_MP4='data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMsbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAB9AAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAlZ0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAEAAAABAAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAfQAAAAAAABAAAAAAHObWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAgABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABeW1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAATlzdGJsAAAAuXN0c2QAAAAAAAAAAQAAAKlhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAEAAQABIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAAL2F2Y0MBQsAe/+EAF2dCwB7ZBCbARAAAAwAEAAADAAg8WLkgAQAFaMuDyyAAAAAQcGFzcAAAAAEAAAABAAAAFGJ0cnQAAAAAAAAKcAAACnAAAAAYc3R0cwAAAAAAAAABAAAAAgAAQAAAAAAUc3RzcwAAAAAAAAABAAAAAQAAABxzdHNjAAAAAAAAAAEAAAABAAAAAgAAAAEAAAAcc3RzegAAAAAAAAAAAAAAAgAAApIAAAAKAAAAFHN0Y28AAAAAAAAAAQAAA1wAAABidWR0YQAAAFptZXRhAAAAAAAAACFoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAAAC1pbHN0AAAAJal0b28AAAAdZGF0YQAAAAEAAAAATGF2ZjYwLjE2LjEwMAAAAAhmcmVlAAACpG1kYXQAAAJwBgX//2zcRem95tlIt5Ys2CDZI+7veDI2NCAtIGNvcmUgMTY0IHIzMTA4IDMxZTE5ZjkgLSBILjI2NC9NUEVHLTQgQVZDIGNvZGVjIC0gQ29weWxlZnQgMjAwMy0yMDIzIC0gaHR0cDovL3d3dy52aWRlb2xhbi5vcmcveDI2NC5odG1sIC0gb3B0aW9uczogY2FiYWM9MCByZWY9MyBkZWJsb2NrPTE6MDowIGFuYWx5c2U9MHgxOjB4MTExIG1lPWhleCBzdWJtZT03IHBzeT0xIHBzeV9yZD0xLjAwOjAuMDAgbWl4ZWRfcmVmPTEgbWVfcmFuZ2U9MTYgY2hyb21hX21lPTEgdHJlbGxpcz0xIDh4OGRjdD0wIGNxbT0wIGRlYWR6b25lPTIxLDExIGZhc3RfcHNraXA9MSBjaHJvbWFfcXBfb2Zmc2V0PS0yIHRocmVhZHM9MiBsb29rYWhlYWRfdGhyZWFkcz0xIHNsaWNlZF90aHJlYWRzPTAgbnI9MCBkZWNpbWF0ZT0xIGludGVybGFjZWQ9MCBibHVyYXlfY29tcGF0PTAgY29uc3RyYWluZWRfaW50cmE9MCBiZnJhbWVzPTAgd2VpZ2h0cD0wIGtleWludD0yNTAga2V5aW50X21pbj0xIHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAAGmWIhAW///8PRQABT38nJyddddddddddddeAAAAABkGaOAr4Rg==';
 const STIL_WEBM='data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAIIEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHYTbuMU6uEElTDZ1OsggEeTbuMU6uEHFO7a1OsggHy7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsirXsYMPQkBNgI1MYXZmNjAuMTYuMTAwV0GNTGF2ZjYwLjE2LjEwMESJiECfQAAAAAAAFlSua8GuAQAAAAAAADjXgQFzxYgjhwj87n0sQpyBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhDuaygDgibCBQLqBQJqBAhJUw2f8c3OgY8CAZ8iaRaOHRU5DT0RFUkSHjUxhdmY2MC4xNi4xMDBzc9ZjwItjxYgjhwj87n0sQmfIoUWjh0VOQ09ERVJEh5RMYXZjNjAuMzEuMTAyIGxpYnZweGfIoUWjiERVUkFUSU9ORIeTMDA6MDA6MDIuMDAwMDAwMDAwAB9DtnXO54EAo6qBAACA8AIAnQEqQABAAADHCIWFiJmEiASCAAZwPEJgCrIg9zAA/v7trgCjnYED6AAxAgADEBAAGAAZ1/QMAAEsBgCmAP7/q1CAHFO7a5G7j7OBALeK94EB8YIBn/CBAw==';
+// Het filmpje draait alleen op het wedstrijd- of timertabblad, en de diagnose lees je
+// op Meer. Wat er op dat tabblad gebeurde was daardoor niet af te lezen: tegen de tijd
+// dat je kijkt, is het filmpje alweer gestopt. Vandaar dat het wordt bijgehouden —
+// hoe vaak het aansloeg, hoeveel seconden het werkelijk speelde, en of het werd
+// tegengehouden. Zonder die boekhouding is 'het scherm gaat nog steeds uit' niet te
+// onderscheiden van 'de noodoplossing komt niet eens op gang'.
+let _vidStarts=0, _vidSec=0, _vidVanaf=0, _vidFout='', _vidLaatst=0, _vidSpeelde=false;
 function stilVideoAan(){
   try{
     if(_wlVid){ if(_wlVid.paused)_wlVid.play().catch(()=>{}); return; }
@@ -5326,21 +5333,44 @@ function stilVideoAan(){
     const wb=document.createElement('source'); wb.src=STIL_WEBM; wb.type='video/webm';
     v.appendChild(m); v.appendChild(wb);
     document.body.appendChild(v); _wlVid=v;
-    v.play().catch(e=>{ onthoudFout('scherm aanhouden',e); });
+    _vidStarts++; _vidVanaf=Date.now(); _vidLaatst=Date.now(); _vidFout='';
+    v.play().then(()=>{ _vidSpeelde=true; })
+      .catch(e=>{ _vidFout=((e&&e.name)||'fout')+((e&&e.message)?': '+e.message:'');
+                  onthoudFout('scherm aanhouden',e); });
   }catch(e){}
 }
 function stilVideoUit(){
-  try{ if(_wlVid){ _wlVid.pause(); _wlVid.remove(); _wlVid=null; } }catch(e){}
+  try{
+    if(!_wlVid)return;
+    if(_vidVanaf){ _vidSec+=Math.round((Date.now()-_vidVanaf)/1000); _vidVanaf=0; }
+    if(_wlVid.currentTime>0.2)_vidSpeelde=true;   // hij is echt gaan lopen
+    _wlVid.pause(); _wlVid.remove(); _wlVid=null;
+  }catch(e){}
 }
 // Wat is de stand van zaken? Staat in Diagnose, zodat op het toestel zelf te zien is
 // of het slot er is — en zo niet, waarom niet.
+// De kaart op Meer als iOS het schermslot weigert. Twee knoppen zijn er niet: een
+// app kan de instellingen van het toestel niet openen of wijzigen. Wat er wel kan is
+// precies zeggen waar het staat.
+function schermSlotKaart(){
+  const spaar=/NotAllowed|denied|power/i.test(_wlFout);
+  return `<div class="card"><h2>${ico('waarschuwing')}${U('Het scherm blijft niet vanzelf aan','The screen will not stay on')}</h2>
+    <p class="hint" style="margin:0 0 10px">${U('Dit toestel geeft de app geen toestemming om het scherm aan te houden, dus het gaat uit na de tijd die bij Automatisch slot staat. De app probeert het elke vijftien seconden opnieuw.','This device does not allow the app to keep the screen awake, so it turns off after the Auto-Lock time. The app keeps retrying every fifteen seconds.')}</p>
+    <p class="hint" style="margin:0 0 6px"><b>${U('Wat helpt','What helps')}:</b></p>
+    <p class="hint" style="margin:0 0 4px">1. ${U('Zet de batterijspaarstand uit: Instellingen &rarr; Batterij. In die stand weigert iOS dit altijd, en houdt hij ook de noodoplossing tegen.','Turn off Low Power Mode: Settings &rarr; Battery. In that mode iOS always refuses this, and it blocks the fallback too.')}</p>
+    <p class="hint" style="margin:0 0 10px">2. ${U('Helpt dat niet, zet dan op dit toestel Instellingen &rarr; Beeldscherm en helderheid &rarr; Automatisch slot op <b>Nooit</b>. Voor een tablet die alleen als kijkscherm langs de lijn hangt is dat de zekerste weg.','If that does not help, set Settings &rarr; Display &amp; Brightness &rarr; Auto-Lock to <b>Never</b> on this device. For a tablet used only as a touchline screen that is the surest route.')}</p>
+    <p class="hint" style="margin:0;opacity:.75">${esc(wakeLockStand())}</p></div>`;
+}
 function wakeLockStand(){
   if(!wakeLockKan())return 'niet ondersteund door deze browser';
   const t=_wlSinds?(' sinds '+String(new Date(_wlSinds).getHours()).padStart(2,'0')+':'+String(new Date(_wlSinds).getMinutes()).padStart(2,'0')):'';
-  // Niet 'staat het er', maar 'speelt het': een filmpje dat door de browser wordt
-  // tegengehouden houdt het scherm ook niet aan, en dat moet je kunnen zien.
-  const vid=_wlVid ? (_wlVid.paused ? ' · stil filmpje GEBLOKKEERD'
-      : ' · stil filmpje speelt ('+Math.round(_wlVid.currentTime)+'s)') : '';
+  // Niet alleen hoe het er nú voor staat, maar ook wat het stille filmpje gedaan
+  // heeft: dat draait op een ander tabblad dan waar je deze regel leest.
+  const sec=_vidSec+(_vidVanaf?Math.round((Date.now()-_vidVanaf)/1000):0);
+  const vid = !_vidStarts ? ' · filmpje niet nodig geweest'
+    : _vidFout ? ' · filmpje GEBLOKKEERD ('+_vidFout+')'
+    : ' · filmpje '+_vidStarts+'\u00d7 aan, '+sec+'s'+(_vidSpeelde?' gespeeld':' maar niet gaan lopen')
+      +(_vidLaatst?', laatst '+String(new Date(_vidLaatst).getHours()).padStart(2,'0')+':'+String(new Date(_vidLaatst).getMinutes()).padStart(2,'0'):'');
   const extra=' · '+_wlAanvragen+' aanvragen'+vid;
   if(_wl)return 'actief'+t+extra;
   if(_wlFout)return 'GEWEIGERD ('+_wlFout+')'+extra;
@@ -7960,6 +7990,10 @@ function renderUitleg(){
   if(CLOUD.on&&CLOUD.role==='viewer')
     h+=`<div class="card"><h2>${U('Je kunt nu alleen meekijken','You can only follow along')}</h2>
       <div class="hint" style="margin:0">${CLOUD.geweigerd?geweigerdUitleg():kijkerUitleg()}</div></div>`;
+  // Houdt iOS het scherm niet aan, dan hoort de coach dat te weten vóórdat het scherm
+  // zaterdag halverwege Q2 op zwart gaat. De app kan het besturingssysteem niet
+  // overrulen; wat hij wél kan is zeggen wat eraan te doen is.
+  if(_wlFout)h+=schermSlotKaart();
   h+=`<h2 class="sectiekop">${U('Instellingen','Settings')}</h2>`;
   h+=taalKaart();
   h+=klokRichtingKaart();
@@ -9248,8 +9282,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=282;
-const VERSIE_LABEL='26.9.123';
+const APP_VERSION=283;
+const VERSIE_LABEL='26.9.124';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
