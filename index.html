@@ -1383,7 +1383,9 @@ body.viewer.kijkbalk-weg .appbar{top:0}
 <div id="zwevendeKlok" class="zwklok" role="button" tabindex="0" title="Naar de timer">
   <span class="zw-tijd" id="zwTijd">00:00</span><span class="zw-sub" id="zwSub">Q1</span>
 </div>
-<div id="timerHost"><iframe title="GHC Wedstrijdtimer"></iframe></div>
+<!-- allow: zonder deze toestemming mag een ingesloten pagina het schermslot niet
+     aanvragen, en de timer deed dat wel — die aanvraag werd dus altijd geweigerd. -->
+<div id="timerHost"><iframe title="GHC Wedstrijdtimer" allow="screen-wake-lock"></iframe></div>
 <!-- Het pictogram staat hier uitgeschreven in plaats van als aanroep van ico():
      dit is gewone HTML en geen sjabloonstring, dus zo'n aanroep kwam letterlijk
      in beeld te staan boven de opstelling. -->
@@ -4865,6 +4867,7 @@ function diagnoseTekst(){
   r.push('spelers '+state.players.filter(p=>p.present).length+' aanwezig · '+(state.schedule?('schema '+state.schedule.perQ*4+' blokken'):'geen schema'));
   // De opmaakmeting: altijd de stand van nu, en als hij ooit afweek de slechtste
   // meting erbij. 'balk / inhoud = verschil' hoort 0 te zijn.
+  r.push('scherm aanhouden: '+wakeLockStand());
   r.push('opmaak: '+opmaakRegel(opmaakMeten()));
   if(_opmAfw)r.push('opmaak AFWIJKING: '+opmaakRegel(_opmAfw));
   r.push(_fouten.length?('laatste fouten:'):'geen fouten geregistreerd');
@@ -5209,24 +5212,132 @@ const isQTab=t=>t==='wedstrijd';
 // De timer deed dit al voor zichzelf, maar alleen terwijl de klok liep en alleen
 // in zijn eigen venster. Langs de lijn kijk je juist naar de opstelling, dus doen
 // we het hier ook: zolang een kwart-tabblad of de timer in beeld is.
-let _wakeLock=null;
+// ── Het scherm aan houden ──
+// Dit is geen 'zet één keer aan en klaar'. iOS geeft het slot niet altijd, en geeft
+// het ook weer terug: bij een hapering, bij het even wegdraaien van de app, en in de
+// batterijspaarstand weigert het zelfs helemaal. Eerder werd er precies één keer om
+// gevraagd, en zodra iOS het teruggaf stond er niets meer tegenover: het scherm ging
+// dan na de ingestelde tijd gewoon op slot, midden in een wedstrijd, zonder dat er
+// iets te zien was wat dat verklaarde.
+// Nu vier dingen tegelijk:
+//  1. er wordt om gevraagd zodra het nodig is, en opnieuw zodra iOS het teruggeeft;
+//  2. een bewaker kijkt elke vijftien seconden of het er nog is;
+//  3. de eerste aanraking van het scherm is ook een aanleiding — sommige browsers
+//     geven zulke dingen alleen na een handeling van de gebruiker;
+//  4. lukt het niet én loopt de klok, dan gaat er een tweede weg open (zie stilVideo).
+// En het resultaat is af te lezen in Diagnose, zodat er niet meer geraden hoeft te
+// worden of het slot er nu wel of niet is.
+let _wl=null, _wlBezig=false, _wlFout='', _wlAanvragen=0, _wlSinds=0, _wlT=null, _wlVid=null;
+// Niet alleen 'bestaat het', maar ook 'is het bruikbaar': er zijn browsers waar de
+// eigenschap er wel is maar leeg blijft.
+const wakeLockKan=()=>!!(navigator.wakeLock&&navigator.wakeLock.request);
+// Wanneer hoort het scherm aan te blijven? Zolang de klok loopt — ook als de coach
+// even naar Spelers kijkt, want de wedstrijd loopt dan gewoon door — en verder zolang
+// het wedstrijd- of timertabblad in beeld staat.
+function wakeLockGewenst(){
+  if(document.visibilityState!=='visible')return false;
+  if(klokLoopt())return true;
+  return isQTab(activeTab)||activeTab==='timer';
+}
 async function wakeLockAan(){
+  // De bewaking op '_wl' stond vóór de await, waardoor twee aanvragen vlak na elkaar
+  // er allebei langs konden: de eerste raakte dan zoek terwijl hij wel actief bleef.
+  // Vandaar een aparte vlag die meteen staat.
+  if(_wl||_wlBezig)return;
+  // Kent de browser het schermslot helemaal niet — een oudere iPad — dan is de
+  // noodoplossing meteen de enige weg.
+  if(!wakeLockKan()){ stilVideoBijwerken(); return; }
+  _wlBezig=true;
   try{
-    if(!('wakeLock' in navigator)||_wakeLock)return;
-    _wakeLock=await navigator.wakeLock.request('screen');
-    _wakeLock.addEventListener('release',()=>{_wakeLock=null;});
-  }catch(e){_wakeLock=null;}
+    _wlAanvragen++;
+    const s=await navigator.wakeLock.request('screen');
+    _wl=s; _wlFout=''; _wlSinds=Date.now();
+    s.addEventListener('release',()=>{
+      if(_wl===s)_wl=null;                 // alleen loslaten als het nog om dít slot gaat
+      if(wakeLockGewenst())setTimeout(wakeLockAan,300);
+    });
+    stilVideoUit();                        // het echte slot is er: de noodoplossing kan weg
+  }catch(e){
+    _wl=null;
+    _wlFout=((e&&e.name)||'fout')+((e&&e.message)?': '+e.message:'');
+    stilVideoBijwerken();
+  }finally{ _wlBezig=false; }
 }
 async function wakeLockUit(){
-  try{ if(_wakeLock){await _wakeLock.release(); _wakeLock=null;} }catch(e){}
+  const s=_wl; _wl=null; stilVideoUit();
+  try{ if(s)await s.release(); }catch(e){}
 }
 function wakeLockBijwerken(){
-  if(document.visibilityState!=='visible'){return;}
-  if(isQTab(activeTab)||activeTab==='timer')wakeLockAan(); else wakeLockUit();
+  if(wakeLockGewenst())wakeLockAan(); else wakeLockUit();
+  stilVideoBijwerken();
 }
+// Eén plek die bepaalt of het stille filmpje aan hoort te staan: alleen als de klok
+// loopt, het echte slot er niet is, en er een reden is om aan te nemen dat het er ook
+// niet komt. Eén plek, want anders blijft hij ergens staan of gaat hij ergens niet uit.
+function stilVideoBijwerken(){
+  const nodig = document.visibilityState==='visible' && klokLoopt() && !_wl
+    && (!!_wlFout || !wakeLockKan());
+  if(nodig)stilVideoAan(); else stilVideoUit();
+}
+// De bewaker. Vijftien seconden is kort genoeg om een stil verloren slot binnen één
+// wisselblok terug te hebben, en lang genoeg om niets te kosten.
+clearInterval(_wlT);
+_wlT=setInterval(()=>{
+  if(!wakeLockGewenst()){ wakeLockUit(); return; }
+  if(!_wl)wakeLockAan();
+  // Is het slot geweigerd en loopt de klok, dan neemt de noodoplossing het over.
+  stilVideoBijwerken();
+},15000);
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible')wakeLockBijwerken(); else _wakeLock=null;
+  // Terug in beeld: iOS heeft het slot bij het wegdraaien losgelaten, dus opnieuw
+  // vragen. Weg uit beeld: de verwijzing loslaten zonder release — het systeem heeft
+  // hem dan zelf al ingetrokken.
+  if(document.visibilityState==='visible'){ wakeLockBijwerken(); }
+  else { _wl=null; stilVideoUit(); }
 });
+// Eén aanraking is voor sommige browsers de voorwaarde om zoiets toe te staan. Deze
+// luisteraar kost niets: hij vraagt alleen opnieuw als het slot er niet is.
+addEventListener('pointerdown',()=>{ if(wakeLockGewenst()&&!_wl)wakeLockAan(); },{passive:true});
+// ── De noodoplossing: een stil filmpje ──
+// Weigert iOS het schermslot — dat gebeurt onder andere in de batterijspaarstand —
+// dan is er nog één weg die al bestond voordat er een schermslot-API was: een
+// filmpje dat speelt. Zolang er video speelt, dooft iOS het scherm niet. Het is
+// daarom twee bij twee pixels groot, vrijwel doorzichtig, zonder geluid, en het
+// staat helemaal onderaan buiten de weg. Het duurt twee seconden en herhaalt zich.
+// Netjes is anders, en daarom is het ook echt een noodoplossing: hij gaat alleen aan
+// als het echte slot geweigerd is én de klok loopt, en meteen weer uit zodra het
+// slot er wel is of de klok stilstaat.
+const STIL_MP4='data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMsbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAB9AAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAlZ0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAEAAAABAAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAfQAAAAAAABAAAAAAHObWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAgABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABeW1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAATlzdGJsAAAAuXN0c2QAAAAAAAAAAQAAAKlhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAEAAQABIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAAL2F2Y0MBQsAe/+EAF2dCwB7ZBCbARAAAAwAEAAADAAg8WLkgAQAFaMuDyyAAAAAQcGFzcAAAAAEAAAABAAAAFGJ0cnQAAAAAAAAKcAAACnAAAAAYc3R0cwAAAAAAAAABAAAAAgAAQAAAAAAUc3RzcwAAAAAAAAABAAAAAQAAABxzdHNjAAAAAAAAAAEAAAABAAAAAgAAAAEAAAAcc3RzegAAAAAAAAAAAAAAAgAAApIAAAAKAAAAFHN0Y28AAAAAAAAAAQAAA1wAAABidWR0YQAAAFptZXRhAAAAAAAAACFoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAAAC1pbHN0AAAAJal0b28AAAAdZGF0YQAAAAEAAAAATGF2ZjYwLjE2LjEwMAAAAAhmcmVlAAACpG1kYXQAAAJwBgX//2zcRem95tlIt5Ys2CDZI+7veDI2NCAtIGNvcmUgMTY0IHIzMTA4IDMxZTE5ZjkgLSBILjI2NC9NUEVHLTQgQVZDIGNvZGVjIC0gQ29weWxlZnQgMjAwMy0yMDIzIC0gaHR0cDovL3d3dy52aWRlb2xhbi5vcmcveDI2NC5odG1sIC0gb3B0aW9uczogY2FiYWM9MCByZWY9MyBkZWJsb2NrPTE6MDowIGFuYWx5c2U9MHgxOjB4MTExIG1lPWhleCBzdWJtZT03IHBzeT0xIHBzeV9yZD0xLjAwOjAuMDAgbWl4ZWRfcmVmPTEgbWVfcmFuZ2U9MTYgY2hyb21hX21lPTEgdHJlbGxpcz0xIDh4OGRjdD0wIGNxbT0wIGRlYWR6b25lPTIxLDExIGZhc3RfcHNraXA9MSBjaHJvbWFfcXBfb2Zmc2V0PS0yIHRocmVhZHM9MiBsb29rYWhlYWRfdGhyZWFkcz0xIHNsaWNlZF90aHJlYWRzPTAgbnI9MCBkZWNpbWF0ZT0xIGludGVybGFjZWQ9MCBibHVyYXlfY29tcGF0PTAgY29uc3RyYWluZWRfaW50cmE9MCBiZnJhbWVzPTAgd2VpZ2h0cD0wIGtleWludD0yNTAga2V5aW50X21pbj0xIHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAAGmWIhAW///8PRQABT38nJyddddddddddddeAAAAABkGaOAr4Rg==';
+const STIL_WEBM='data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAIIEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHYTbuMU6uEElTDZ1OsggEeTbuMU6uEHFO7a1OsggHy7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsirXsYMPQkBNgI1MYXZmNjAuMTYuMTAwV0GNTGF2ZjYwLjE2LjEwMESJiECfQAAAAAAAFlSua8GuAQAAAAAAADjXgQFzxYgjhwj87n0sQpyBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhDuaygDgibCBQLqBQJqBAhJUw2f8c3OgY8CAZ8iaRaOHRU5DT0RFUkSHjUxhdmY2MC4xNi4xMDBzc9ZjwItjxYgjhwj87n0sQmfIoUWjh0VOQ09ERVJEh5RMYXZjNjAuMzEuMTAyIGxpYnZweGfIoUWjiERVUkFUSU9ORIeTMDA6MDA6MDIuMDAwMDAwMDAwAB9DtnXO54EAo6qBAACA8AIAnQEqQABAAADHCIWFiJmEiASCAAZwPEJgCrIg9zAA/v7trgCjnYED6AAxAgADEBAAGAAZ1/QMAAEsBgCmAP7/q1CAHFO7a5G7j7OBALeK94EB8YIBn/CBAw==';
+function stilVideoAan(){
+  try{
+    if(_wlVid){ if(_wlVid.paused)_wlVid.play().catch(()=>{}); return; }
+    const v=document.createElement('video');
+    v.muted=true; v.defaultMuted=true; v.loop=true; v.playsInline=true;
+    v.setAttribute('playsinline',''); v.setAttribute('muted',''); v.setAttribute('aria-hidden','true');
+    v.style.cssText='position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:-3';
+    // Twee formaten: iOS speelt de mp4, Android en de meeste desktopbrowsers de webm.
+    // De browser kiest zelf de eerste die hij aankan.
+    const m=document.createElement('source'); m.src=STIL_MP4; m.type='video/mp4';
+    const wb=document.createElement('source'); wb.src=STIL_WEBM; wb.type='video/webm';
+    v.appendChild(m); v.appendChild(wb);
+    document.body.appendChild(v); _wlVid=v;
+    v.play().catch(e=>{ onthoudFout('scherm aanhouden',e); });
+  }catch(e){}
+}
+function stilVideoUit(){
+  try{ if(_wlVid){ _wlVid.pause(); _wlVid.remove(); _wlVid=null; } }catch(e){}
+}
+// Wat is de stand van zaken? Staat in Diagnose, zodat op het toestel zelf te zien is
+// of het slot er is — en zo niet, waarom niet.
+function wakeLockStand(){
+  if(!wakeLockKan())return 'niet ondersteund door deze browser';
+  const t=_wlSinds?(' sinds '+String(new Date(_wlSinds).getHours()).padStart(2,'0')+':'+String(new Date(_wlSinds).getMinutes()).padStart(2,'0')):'';
+  const extra=' · '+_wlAanvragen+' aanvragen'+(_wlVid?' · stil filmpje aan':'');
+  if(_wl)return 'actief'+t+extra;
+  if(_wlFout)return 'GEWEIGERD ('+_wlFout+')'+extra;
+  return (wakeLockGewenst()?'nog niet toegekend':'uit (niet nodig)')+extra;
+}
 // Brede stand: tablet in liggende stand (zelfde voorwaarden als de media-query).
 const WIDE_MQ='(orientation:landscape) and (min-width:820px) and (min-height:600px) and (pointer:coarse)';
 function breedGemeten(){ return !!(window.matchMedia&&window.matchMedia(WIDE_MQ).matches); }
@@ -9129,8 +9240,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=280;
-const VERSIE_LABEL='26.9.121';
+const APP_VERSION=281;
+const VERSIE_LABEL='26.9.122';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
