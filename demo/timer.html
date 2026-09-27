@@ -635,7 +635,6 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // ---- State ----
     let audioCtx = null;
-    let wakeLock = null;
 
     // ── sessionStorage: herstel toestand na page refresh ──
     // ── Bewaren en terugvinden van de wedstrijdstand ──
@@ -1269,7 +1268,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 288;
+    var TIMER_VERSION = 290;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
@@ -1294,7 +1293,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     var MAX_OVERTIME = 10 * 60;
     function zetKlok(k) {
       _klokVanBuiten = true;
-      if (running) { running = false; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } releaseWakeLock(); }
+      if (running) { running = false; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } }
       if (k.q >= 1 && k.q <= 4 && k.q !== currentQuarter) { currentQuarter = k.q; bekekenQuarter = k.q; buildTicks(); }
       var basis = k.basis || 0;
       var verstreken = basis;
@@ -1311,7 +1310,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       setQuarterElapsed(currentQuarter, verstreken);
       if (k.loopt && !verdacht) {
         running = true; runBaseElapsed = basis; runStartedAt = k.sinds || Date.now();
-        ensureAudio(); requestWakeLock(); rafId = requestAnimationFrame(tick);
+        ensureAudio(); rafId = requestAnimationFrame(tick);
       }
       _saveState(); updateUI();
       _klokVanBuiten = false;
@@ -1388,19 +1387,13 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
         });
     }
 
-    async function requestWakeLock() {
-      try {
-        if (!('wakeLock' in navigator)) return;
-        wakeLock = await navigator.wakeLock.request('screen');
-        wakeLock.addEventListener('release', () => { wakeLock = null; });
-      } catch (err) { wakeLock = null; }
-    }
-
-    async function releaseWakeLock() {
-      try {
-        if (wakeLock) { await wakeLock.release(); wakeLock = null; }
-      } catch (err) {}
-    }
+    // Hier stond het schermslot van de timer zelf: aanvragen bij de startknop,
+    // loslaten bij pauze. Dat leek de logische plek en was het niet. De knop zit in
+    // deze iframe, dus de handeling van de gebruiker telt alleen hier en niet in de
+    // app eromheen; een kijkscherm drukt nooit op start; en loslaten bij elke pauze
+    // kost op iOS een nieuwe tik om het terug te krijgen, wat in de rust niemand
+    // doet. De app houdt het slot nu zelf vast, over alle tabbladen heen en de hele
+    // wedstrijd door — zie 'Het scherm aan houden' in index.html.
 
     function syncRunningTime() {
       if (!running || runStartedAt == null) return;
@@ -1415,7 +1408,6 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       runStartedAt = null;
       runBaseElapsed = 0;
       if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-      releaseWakeLock();
       _saveState();
       updateUI();
     }
@@ -1472,7 +1464,6 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       runBaseElapsed = quarterElapsed(currentQuarter);
       runStartedAt = Date.now();
       ensureAudio();
-      await requestWakeLock();
       rafId = requestAnimationFrame(tick);
       updateUI();
     }
@@ -1511,7 +1502,6 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
       runStartedAt = null;
       runBaseElapsed = 0;
       if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-      releaseWakeLock();
       setQuarterElapsed(currentQuarter, 0);
       resetBeepState(currentQuarter);
       _saveState();
@@ -1702,7 +1692,6 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     // punt bestaan startTimer en de knoppen.
     if (_herstelLiep) {
       running = true;
-      requestWakeLock();
       rafId = requestAnimationFrame(tick);
       updateUI();
       meldKlok();
@@ -1711,7 +1700,6 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && running) {
         syncRunningTime();
-        requestWakeLock();
         updateUI();
         if (!rafId) rafId = requestAnimationFrame(tick);
       }

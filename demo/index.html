@@ -1393,7 +1393,7 @@ body.viewer.kijkbalk-weg .appbar{top:0}
 </div>
 <!-- allow: zonder deze toestemming mag een ingesloten pagina het schermslot niet
      aanvragen, en de timer deed dat wel — die aanvraag werd dus altijd geweigerd. -->
-<div id="timerHost"><iframe title="GHC Wedstrijdtimer" allow="screen-wake-lock"></iframe></div>
+<div id="timerHost"><iframe title="GHC Wedstrijdtimer"></iframe></div>
 <!-- Het pictogram staat hier uitgeschreven in plaats van als aanroep van ico():
      dit is gewone HTML en geen sjabloonstring, dus zo'n aanroep kwam letterlijk
      in beeld te staan boven de opstelling. -->
@@ -5212,73 +5212,92 @@ function ruleSentence(r){
 // De naam blijft, zodat alle bestaande controles (wakelock, klokbalk, kijkstand)
 // ongewijzigd blijven werken.
 const isQTab=t=>t==='wedstrijd';
-// ── Scherm aan houden ──
-// De timer deed dit al voor zichzelf, maar alleen terwijl de klok liep en alleen
-// in zijn eigen venster. Langs de lijn kijk je juist naar de opstelling, dus doen
-// we het hier ook: zolang een kwart-tabblad of de timer in beeld is.
 // ── Het scherm aan houden ──
 // iPadOS geeft het schermslot alleen als de aanvraag hoort bij een handeling van de
 // gebruiker. Nagemeten op een iPad: twaalf aanvragen vanuit de achtergrond werden
-// allemaal geweigerd met 'Permission was denied', óók met de batterijspaarstand uit;
+// allemaal geweigerd met 'Permission was denied', ook met de batterijspaarstand uit;
 // dezelfde aanvraag vanuit een tik werd meteen toegekend en het scherm bleef aan.
-// Daarom hangt het hier aan 'click' en 'touchend' — het moment dat je je vinger
-// optilt. Dat is in Safari de gebeurtenis die als handeling telt; 'pointerdown', het
-// moment dat je het glas ráákt, telt er niet als zodanig, en daar hing het eerst aan.
-// Verder wordt het opnieuw gevraagd zodra iOS het teruggeeft, en kijkt een bewaker
-// elke vijftien seconden of het er nog is (op Android en op een desktop lukt het
-// namelijk wél zonder tik).
-let _wl=null, _wlBezig=false, _wlFout='', _wlSinds=0, _wlT=null;
+// Daarom hangt het aan 'click' en 'touchend' — het moment dat je je vinger optilt.
+// Dat is in Safari de gebeurtenis die als handeling telt; 'pointerdown', het moment
+// dat je het glas ráákt, telt er niet als zodanig, en daar hing het eerst aan.
+//
+// De timer vroeg dit vroeger ook voor zichzelf aan, vanuit de startknop. Dat leek
+// logisch en werkte niet, om drie redenen die alle drie in deze app voorkomen: de
+// startknop staat in de iframe, dus de handeling telt alleen dáár en niet in de
+// hoofdapp; een kijkscherm drukt nooit op start; en wie de app halverwege opnieuw
+// opent evenmin — de klok loopt dan al via de cloud. Daarom is er nu één eigenaar:
+// deze app vraagt het slot aan, de timer bemoeit zich er niet meer mee.
+let _wl=null, _wlBezig=false, _wlFout='', _wlSinds=0, _wlGeweigerd=false;
 const wakeLockKan=()=>!!(navigator.wakeLock&&navigator.wakeLock.request);
-// Wanneer hoort het scherm aan te blijven? Zolang de klok loopt — ook als de coach
-// even naar Spelers kijkt, want de wedstrijd loopt dan door — en verder zolang het
-// wedstrijd- of timertabblad in beeld staat.
+// Loopt de wedstrijd nog? Niet 'staat de klok aan' — het scherm hoort ook in de rust
+// aan te blijven, en op elk tabblad. Op iOS is dat geen luxe maar noodzaak: elke keer
+// dat het slot wordt losgelaten kost het terugkrijgen weer een tik, en in de rust
+// tikt niemand. Dus: aan vanaf de aftrap, uit als Q4 is uitgespeeld en de klok stil
+// staat, of als er een nieuwe wedstrijd wordt opgezet (dan gaat wedstrijdGestart af).
+function wedstrijdLooptNog(){
+  if(!wedstrijdGestart())return false;
+  return !(klok.q===4 && !klok.loopt && klok.sec>=17.5*60);
+}
 function wakeLockGewenst(){
   if(document.visibilityState!=='visible')return false;
-  if(klokLoopt())return true;
+  if(wedstrijdLooptNog())return true;
+  // Vóór de aftrap: zolang je naar de opstelling of de timer kijkt.
   return isQTab(activeTab)||activeTab==='timer';
 }
 // Het slot vasthouden en, als iOS het teruggeeft, meteen opnieuw vragen.
 function wakeLockHoud(s){
-  _wl=s; _wlFout=''; _wlSinds=Date.now();
+  _wl=s; _wlFout=''; _wlSinds=Date.now(); _wlGeweigerd=false;
   s.addEventListener('release',()=>{
     if(_wl===s)_wl=null;                 // alleen loslaten als het nog om dít slot gaat
+    _wlGeweigerd=false;                  // teruggegeven is iets anders dan geweigerd
     if(wakeLockGewenst())setTimeout(wakeLockAan,300);
   });
 }
 async function wakeLockAan(){
-  // De bewaking op '_wl' stond vóór de await, waardoor twee aanvragen vlak na elkaar
-  // er allebei langs konden: de eerste raakte dan zoek terwijl hij wel actief bleef.
-  // Vandaar een aparte vlag die meteen staat.
-  if(_wl||_wlBezig||!wakeLockKan())return;
+  // De bewaking op '_wl' stond vroeger vóór de await, waardoor twee aanvragen vlak na
+  // elkaar er allebei langs konden: de eerste raakte dan zoek terwijl hij wel actief
+  // bleef. Vandaar een aparte vlag die meteen staat.
+  // '_wlGeweigerd' voorkomt het doorrammen: is de aanvraag één keer afgewezen omdat er
+  // geen handeling aan vastzat, dan wordt hij op iOS ook de tweede en de honderdste
+  // keer afgewezen. Opnieuw proberen heeft alleen zin na een tik of na terugkeer in
+  // de app, en dat zijn precies de twee plekken waar de vlag weer afgaat.
+  if(_wl||_wlBezig||_wlGeweigerd||!wakeLockKan())return;
   _wlBezig=true;
   try{ wakeLockHoud(await navigator.wakeLock.request('screen')); }
-  catch(e){ _wl=null; _wlFout=((e&&e.name)||'fout')+((e&&e.message)?': '+e.message:''); }
+  catch(e){ _wl=null; _wlGeweigerd=true;
+    _wlFout=((e&&e.name)||'fout')+((e&&e.message)?': '+e.message:''); }
   finally{ _wlBezig=false; }
 }
 async function wakeLockUit(){
   const s=_wl; _wl=null;
   try{ if(s)await s.release(); }catch(e){}
 }
-function wakeLockBijwerken(){ if(wakeLockGewenst())wakeLockAan(); else wakeLockUit(); }
-// De bewaker. Vijftien seconden is kort genoeg om een stil verloren slot binnen één
-// wisselblok terug te hebben, en lang genoeg om niets te kosten.
-clearInterval(_wlT);
-_wlT=setInterval(()=>{ if(wakeLockGewenst()){ if(!_wl)wakeLockAan(); } else wakeLockUit(); wakeLockTip(); },15000);
+// Loopt mee met het hertekenen en met elke klokstand die van de timer binnenkomt, dus
+// er is geen aparte tijdklok meer nodig die elke vijftien seconden gaat kijken.
+function wakeLockBijwerken(){
+  if(wakeLockGewenst()){ wakeLockAan(); wakeLockTip(); } else wakeLockUit();
+}
 document.addEventListener('visibilitychange',()=>{
-  // Terug in beeld: iOS heeft het slot bij het wegdraaien losgelaten, dus opnieuw
-  // vragen. Weg uit beeld: de verwijzing loslaten zonder release — het systeem heeft
-  // hem dan zelf al ingetrokken.
-  if(document.visibilityState==='visible')wakeLockBijwerken(); else _wl=null;
+  // Terug in beeld: iOS heeft het slot bij het wegdraaien losgelaten. Terugkeren naar
+  // een app telt daar zelf als handeling, dus hier mag het opnieuw geprobeerd worden
+  // — vandaar dat de weigervlag eerst afgaat. Weg uit beeld: alleen de verwijzing
+  // loslaten, zonder release; het systeem heeft hem dan zelf al ingetrokken.
+  if(document.visibilityState==='visible'){ _wlGeweigerd=false; wakeLockBijwerken(); }
+  else _wl=null;
 });
 // De aanvraag vanuit de tik zelf, zo kort mogelijk: hij moet nog binnen dezelfde
-// handeling vallen. Capture-fase, zodat het ook meetelt als de tik onderweg wordt
-// afgevangen door een knop.
+// handeling vallen, dus geen await ervoor. Capture-fase, zodat het ook meetelt als de
+// tik onderweg wordt afgevangen door een knop.
+// Twee gebeurtenissen, omdat ze verschillende dingen vangen: 'click' mist een gebaar
+// dat op scrollen uitloopt, en juist dat doe je tijdens een wedstrijd het vaakst.
+// Bij één aanraking gaan ze allebei af — eerst touchend, dan click — maar de tweede
+// ziet '_wlBezig' al staan en doet niets, dus er komt nooit een dubbele aanvraag.
 function wakeLockUitTik(){
   if(!wakeLockGewenst()||_wl||_wlBezig||!wakeLockKan())return;
   _wlBezig=true;
   navigator.wakeLock.request('screen')
     .then(s=>{ _wlBezig=false; wakeLockHoud(s); })
-    .catch(e=>{ _wlBezig=false; _wl=null;
+    .catch(e=>{ _wlBezig=false; _wl=null; _wlGeweigerd=true;
       _wlFout=((e&&e.name)||'fout')+((e&&e.message)?': '+e.message:''); });
 }
 addEventListener('click',wakeLockUitTik,{capture:true,passive:true});
@@ -8413,6 +8432,18 @@ function _render(){
       // Eerste keer laden: timer meet zijn ruimte soms te vroeg.
       // Na het laden enkele resize-seintjes sturen zodat hij zich opnieuw uitlijnt.
       ifr.addEventListener('load',()=>{
+        // Op het timertabblad vult de iframe het hele scherm: tik je daar op Start,
+        // dan gebeurt dat in het venster van de timer en merkt deze app er niets van.
+        // Terwijl juist dán het schermslot moet komen. De timer staat op hetzelfde
+        // adres, dus deze app mag er gewoon meeluisteren — en de aanvraag valt dan
+        // nog binnen dezelfde handeling van de gebruiker.
+        try{
+          const doc=ifr.contentDocument;
+          if(doc){
+            doc.addEventListener('click',wakeLockUitTik,{capture:true,passive:true});
+            doc.addEventListener('touchend',wakeLockUitTik,{capture:true,passive:true});
+          }
+        }catch(e){}
         const kick=()=>{try{ifr.contentWindow.dispatchEvent(new Event('resize'));}catch(e){}};
         requestAnimationFrame(kick);
         setTimeout(kick,300);
@@ -9166,8 +9197,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=288;
-const VERSIE_LABEL='26.9.129';
+const APP_VERSION=290;
+const VERSIE_LABEL='26.9.131';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
@@ -9954,6 +9985,10 @@ window.addEventListener('message',e=>{
     if(klok.q!==st.q)toonQ=null;
     klok={q:st.q,sec:st.sec,loopt:st.loopt};
     veldKlokBijwerken();
+    // Hier ligt de goedkoopste hartslag die de app heeft: de timer stuurt elke seconde
+    // een stand. Daar hangt het schermslot aan, in plaats van aan een eigen tijdklok.
+    // Kost niets — zolang het slot er is, of één keer geweigerd is, doet dit niets.
+    wakeLockBijwerken();
     // Niet elke seconde hertekenen, maar wel zodra het beeld niet meer klopt met de klok.
     // We vergelijken met wat er echt getekend is, niet met de vorige klokstand — zo
     // herstelt de app zichzelf ook als hij een blokwissel gemist heeft.
