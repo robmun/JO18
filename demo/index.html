@@ -90,7 +90,20 @@ body{
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
   background:#091e48;
   color:var(--txt);
+  /* 100vh is op iOS niet de hoogte die je ziet: het is de hoogte alsof alle balken
+     weg zijn. Staat er toch een balk, of houdt iOS ruimte vrij voor de streep onderaan,
+     dan is de app een stuk langer dan het venster. Die overlengte kun je niet zien —
+     de pagina heeft geen schuifbalk — maar iOS kán er wel naartoe schuiven, bij het
+     toetsenbord of bij een veeg die net naast het schuifgebied begint. Alles zakt dan
+     omhoog onder de titelbalk, die blijft staan waar hij staat, en terugslepen kan
+     niet. Op een schermafdruk van een iPhone was dat 31 pixels: precies het verschil
+     tussen 100vh en het zichtbare venster dat hier na te meten is.
+     100dvh is wél de hoogte die je ziet, en verandert mee als er een balk bij komt of
+     weggaat. Dan is er niets om naartoe te schuiven en kan de app niet verschuiven.
+     De regel met 100vh blijft eronder staan als terugval voor oudere browsers, die de
+     tweede regel simpelweg overslaan. */
   height:100vh;
+  height:100dvh;
   overflow:hidden;
   display:flex;flex-direction:column;
   -webkit-font-smoothing:antialiased;
@@ -3683,6 +3696,10 @@ function cloudListen(){
       e=>{ onthoudFout('verbinding volgen',e); verbindingZet(false); });
   }catch(e){ onthoudFout('verbinding volgen',e); }
   CLOUD.unsub=CLOUD.ref.onSnapshot(snap=>{
+    // Er komt weer iets binnen: de verbinding leeft. De teller voor opnieuw proberen
+    // gaat terug naar nul en een eerdere foutmelding op de kaart verdwijnt.
+    _herverbindN=0;
+    if(CLOUD.status==='fout'){ CLOUD.status='verbonden'; cloudUpdateCard(); }
     if(!snap.exists){ if(CLOUD.role==='editor')cloudPush(true); return; }
     const d=snap.data(); if(!d)return;
     CLOUD.koppelTot=Number(d.koppelTot||0);
@@ -3695,6 +3712,7 @@ function cloudListen(){
     }
     // Gedeelde klok: alleen toepassen als een ánder toestel hem bedient.
     if(d.klok){
+      klokVerschilMeten(d.klok);
       CLOUD.klok=d.klok;
       CLOUD.klokBaas=d.klok.baas||null;
       const vanAnder=!d.klok.baas||d.klok.baas.id!==DEVICE_ID;
@@ -3739,8 +3757,37 @@ function cloudListen(){
       CLOUD.applying=false;
       render();
     }catch(e){CLOUD.applying=false;}
-  }, err=>{ CLOUD.status='fout'; toast('Sync-fout: '+(err.message||err)); cloudUpdateCard(); });
+  }, err=>{
+    CLOUD.status='fout'; cloudUpdateCard();
+    onthoudFout('samenwerken',err);
+    // Eén melding per halve minuut. Bij een aanhoudende storing kwam dezelfde toast
+    // anders bij elke poging terug, precies wanneer je naar het veld wilt kijken.
+    if(Date.now()-_syncGemeld>30000){ _syncGemeld=Date.now(); toast('Sync-fout: '+(err.message||err)); }
+    cloudHerverbind();
+  });
 }
+// ── Opnieuw verbinden na een fout ──
+// Firestore beëindigt de luisteraar bij een fout en komt daar uit zichzelf niet op
+// terug. Er werd alleen 'verbindingsfout' op de kaart gezet en verder niets: wie
+// tijdens een wedstrijd even geen rechten had — of wiens verbinding lang genoeg
+// wegviel — bleef daarna dood, ook als het netwerk een uur later perfect was. Alleen
+// handmatig verbreken en opnieuw verbinden hielp, of de app herstarten.
+// Nu wordt het opnieuw geprobeerd met oplopende tussenpozen: 5, 10, 20, 40 en dan
+// elke 60 seconden. Oplopend, want als het aan de rechten ligt heeft snel opnieuw
+// proberen geen zin en kost het alleen batterij. Zodra er weer iets binnenkomt gaat
+// de teller terug naar nul.
+let _herverbindT=null, _herverbindN=0, _syncGemeld=0;
+function cloudHerverbind(){
+  if(!CLOUD.on||!CLOUD.ref)return;
+  clearTimeout(_herverbindT);
+  const wacht=Math.min(60000, 5000*Math.pow(2,Math.min(_herverbindN,4)));
+  _herverbindN++;
+  _herverbindT=setTimeout(()=>{ if(CLOUD.on&&CLOUD.ref)cloudListen(); }, wacht);
+}
+// Meldt de browser dat het netwerk terug is, dan hoeft er niet op de tussenpoos te
+// worden gewacht. 'online' betekent niet dat de server bereikbaar is, dus het is een
+// extra poging en geen garantie — mislukt hij, dan loopt het gewone ritme door.
+addEventListener('online',()=>{ if(CLOUD.on&&CLOUD.status==='fout'){ _herverbindN=0; cloudHerverbind(); } });
 function cloudPush(force){
   if(opslagFout==='codefout')return;         // draait op de standaardselectie: niets delen
   if(CLOUD.on&&CLOUD.rol==='wacht')return;   // nog niet gekoppeld: niets wegschrijven
@@ -4351,6 +4398,13 @@ function serializeState(){
     rules:state.rules,
     schedule:state.schedule,
     genHash:state.genHash,
+    // Of de wedstrijd al begonnen is. Dit stond er niet in, terwijl een binnenkomende
+    // stand de hele toestand vervangt — dus bij de eerste wijziging van een mede-coach
+    // wist het toestel niet meer dat er gespeeld werd. In de rust stond er dan ineens
+    // de rode knop 'Opstelling opnieuw genereren', en die slaat de vraag 'nieuwe
+    // wedstrijd beginnen?' over omdat die vraag aan dezelfde vlag hangt: één tik en
+    // het schema, de blessures, de kaarten en de gebeurtenissen waren weg.
+    wedstrijdGestart:!!state.wedstrijdGestart,
     gebeurtenissen:state.gebeurtenissen||[],
     // Meldingen die de coach heeft weggetikt. Ze worden bij elke tekening opnieuw
     // uit het schema afgeleid, dus zonder dit veld staan ze op het grote scherm
@@ -4676,7 +4730,33 @@ function schemaKlopt(sch,st){
     const q=Math.floor(b/perQ);
     const nodig=positionsOfQ(q,st.rules).length;
     const ids=Object.values(a);
-    if(Object.keys(a).length!==nodig)return 'in Q'+(q+1)+' staan '+Object.keys(a).length+' spelers in plaats van '+nodig;
+    // Te véél spelers op het veld is altijd fout: dan klopt er iets niet met de
+    // gegevens. Te weinig is dat niet. De planner vult zoveel plekken als hij
+    // verantwoord kan vullen, en laat er bewust één open als de enige overgebleven
+    // speler alleen in een linie mag die al vol is — daar hoort een aparte melding
+    // bij die vertelt wat er is ingeleverd. En bij elf aanwezigen met een blessure
+    // erbij zijn er simpelweg geen tien veldspelers meer; het team speelt dan
+    // terecht met een man minder.
+    // Dat werd allebei gemeld als 'het wisselschema is beschadigd', met als
+    // aangeboden uitweg de knop die het hele schema, de blessures en de kaarten
+    // wist — precies het tegendeel van wat er nodig was.
+    //
+    // Wat een lege plek wél verraadt, is of hij alléén staat. Een tekort aan spelers
+    // en een gebroken linie duren een heel kwart: dan zijn alle blokken van dat kwart
+    // even dun. Een plek die in één blok ontbreekt terwijl de andere blokken van
+    // hetzelfde kwart wél vol staan, kan geen bedoeling van de planner zijn — dat is
+    // het gat dat op beschadiging wijst, en dat wordt nog steeds gemeld. Net als een
+    // ontbrekend blok, een dubbele speler, een onbekende naam of een verkeerd aantal
+    // blokken; die controles staan hieronder en hierboven.
+    if(Object.keys(a).length>nodig)
+      return 'in Q'+(q+1)+' staan '+Object.keys(a).length+' spelers in plaats van '+nodig;
+    let volst=0;
+    for(let i=q*perQ;i<q*perQ+perQ;i++){
+      const x=sch.assignments[i];
+      if(x&&typeof x==='object')volst=Math.max(volst,Object.keys(x).length);
+    }
+    if(Object.keys(a).length<volst)
+      return 'in Q'+(q+1)+' is blok '+(b-q*perQ+1)+' niet vol terwijl de andere blokken van dat kwart dat wel zijn';
     if(new Set(ids).size!==ids.length){
       const dubbel=ids.find((x,i)=>ids.indexOf(x)!==i);
       const p=st.players.find(y=>y.id===dubbel);
@@ -4728,6 +4808,10 @@ function diagnoseTekst(){
   r.push('samenwerken: '+(CLOUD.on?(CLOUD.status+' · '+(CLOUD.rol||CLOUD.role)+' · team '+(CLOUD.team||'?')):'uit'));
   r.push('opslag: '+(opslagFout?('PROBLEEM ('+opslagFout+')'):'in orde')+' · schema: '+(schemaFout||'in orde'));
   r.push('spelers '+state.players.filter(p=>p.present).length+' aanwezig · '+(state.schedule?('schema '+state.schedule.perQ*4+' blokken'):'geen schema'));
+  // De opmaakmeting: altijd de stand van nu, en als hij ooit afweek de slechtste
+  // meting erbij. 'balk / inhoud = verschil' hoort 0 te zijn.
+  r.push('opmaak: '+opmaakRegel(opmaakMeten()));
+  if(_opmAfw)r.push('opmaak AFWIJKING: '+opmaakRegel(_opmAfw));
   r.push(_fouten.length?('laatste fouten:'):'geen fouten geregistreerd');
   _fouten.forEach(f=>r.push('  '+f.t+' · '+f.waar+' · '+f.wat));
   return r.join('\n');
@@ -5324,7 +5408,16 @@ function beeldBijwerken(){
   const lb=levendBlok(q), moet=lb==null?0:lb;
   if(_getoond.q===q && _getoond.blok===moet)return;
   const v=document.getElementById('view'), y=v?v.scrollTop:0;
+  const voor=_getoond.q+'/'+_getoond.blok;
   render();
+  // De opbouw houdt zelf bij wat er op het scherm staat, maar pas onderaan. Komt hij
+  // daar niet — bij minder dan elf aanwezige spelers staat er een oproep in plaats van
+  // een opstelling, en bij een fout onderweg een melding — dan blijft die notitie op
+  // de oude waarde staan. De volgende kloktik vergelijkt dan weer, vindt weer verschil,
+  // en tekent weer. Gemeten: vijf van de vijf tikken bouwden het hele scherm opnieuw
+  // op, een seconde lang, de hele wedstrijd. Onzichtbaar, maar de telefoon wordt warm
+  // en de batterij loopt leeg. Daarom hier vastleggen wat er gevraagd wás.
+  if(_getoond.q+'/'+_getoond.blok===voor)_getoond={q:q,blok:moet};
   if(v)document.getElementById('view').scrollTop=y;
 }
 // Werkt alleen het klokje op de veldtekening bij, zonder de rest te hertekenen.
@@ -5480,6 +5573,17 @@ function huidigQ(){
   if(toonQ!=null)return toonQ;
   return klok.q?klok.q-1:0;   // klok stil of niet gestart: Q1
 }
+// Welk kwart is de wédstrijd in? Dat is iets anders dan welk kwart je bekijkt, en
+// dat verschil is belangrijk zodra er ingegrepen wordt. Bladert de coach in Q3 even
+// terug naar Q1 om te zien wie daar linksachter stond, en meldt zich op dat moment
+// iemand geblesseerd, dan rekende het herplannen vanaf Q1: de al gespeelde kwarten
+// werden opnieuw verdeeld en de opstelling die op dat moment op het veld stond
+// veranderde mee, midden in het spel. Nagemeten begon het schema dan bij blok 0 in
+// plaats van bij blok 7.
+// Bekijken mag overal; ingrijpen hoort altijd bij het kwart waar de klok staat.
+// Vóór de aftrap is er geen lopend kwart en blijft het bekeken kwart leidend — daar
+// is nog niets gespeeld, dus daar kan het geen kwaad.
+function actiefQ(){ return klok.q?klok.q-1:huidigQ(); }
 // ── De grote klok op een liggende tablet ──
 // Zo groot mogelijk, maar nooit over de wisselspelers of over de kolom met de
 // wisselteksten. Die band is niet met vaste percentages te vangen: op een 9,7 inch
@@ -6665,7 +6769,7 @@ function inzetZin(inz){
 // het veld verschijnen in plaats van op de bank.
 function haalUitHuidigBlok(pid){
   const sch=state.schedule; if(!sch)return;
-  const q=huidigQ();
+  const q=actiefQ();
   const b=q*sch.perQ+huidigBlok(q);
   const asg=sch.assignments[b]; if(!asg)return;
   const pos=Object.keys(asg).find(k=>asg[k]===pid); if(!pos)return;
@@ -6842,7 +6946,7 @@ function kiesNoodvervanger(blokAsg,pos,gespeeld){
 }
 function noodwissel(pid){
   const sch=state.schedule; if(!sch)return null;
-  const perQ=sch.perQ, q=huidigQ(), blok=q*perQ+huidigBlok(q);
+  const perQ=sch.perQ, q=actiefQ(), blok=q*perQ+huidigBlok(q);
   const asg=sch.assignments[blok]; if(!asg)return null;
   const pos=Object.keys(asg).find(k=>asg[k]===pid);
   if(!pos)return null;                       // stond niet op het veld: niets te doen
@@ -6872,7 +6976,7 @@ function herplanVanafNu(label,vanafVolgende,gebeurtenis,nood){
       + 'als het hele schema opnieuw wordt gemaakt, en dat kan pas als de klok op nul staat. '
       + 'Je regel vraagt om ' + _subsN + '.'
     : '';
-  const q=huidigQ();
+  const q=actiefQ();
   let vanaf=q*perQ+huidigBlok(q);
   if(vanafVolgende)vanaf++;
   if(vanaf>=B){                       // laatste blok loopt al: niets meer te plannen
@@ -6901,12 +7005,16 @@ function herplanVanafNu(label,vanafVolgende,gebeurtenis,nood){
   const wanneer=(blokIndex>=perQ)
     ? 'Q'+(Math.floor(vanaf/perQ)+1)+' vanaf de start'
     : 'Q'+(q+1)+(min?' na '+min+' min':' vanaf de start');
+  // Keek de coach naar een ander kwart, dan is het resultaat niet wat hij voor zich
+  // ziet. Dat hoort erbij te staan, anders zoekt hij de wijziging op het verkeerde
+  // scherm.
+  const _elders = (huidigQ()!==q) ? ' Je keek naar Q'+(huidigQ()+1)+'; herplannen hoort bij Q'+(q+1)+', waar de wedstrijd staat.' : '';
   planInfo=[(nood
       ? label+' \u2014 nu meteen alleen '+pKort(nood.in)+' erin op '
         +(POSMAP[nood.pos]?PNz(nood.pos):'zijn plek')
         +'; de rest van het veld blijft staan. Vanaf '+wanneer+' is de verdeling bijgewerkt. '
       : label+' \u2014 schema aangepast vanaf '+wanneer+'. ')
-    +beschrijfHerplan(oudAssign,fresh.assignments,vanaf,perQ,!!vanafVolgende)];
+    +beschrijfHerplan(oudAssign,fresh.assignments,vanaf,perQ,!!vanafVolgende)+_elders];
   if(_subsWacht)planInfo.push(_subsWacht);
   if(gebeurtenis){
     const kern=kernVanGebeurtenis(gebeurtenis,oudAssign,fresh.assignments,vanaf,nood);
@@ -6987,6 +7095,32 @@ function klokNaarTimer(stand){
     }},location.origin);
   }catch(e){}
 }
+// ── Het klokverschil tussen twee toestellen ──
+// De klok van een kijkscherm rekent vanaf een ankerpunt: 'de klok liep op tijdstip T
+// en stond toen op S'. Dat tijdstip komt van het toestel dat de klok bedient, maar de
+// vergelijking gebeurt met de klok van dít toestel. Staan die twee niet gelijk — en
+// een tablet die zelden online is loopt zo een minuut mis — dan loopt de hele
+// weergave dat verschil voor of achter: wissels komen te vroeg of te laat bovenaan,
+// en niemand ziet waaraan het ligt.
+// Bij elke melding schrijft de bedienende kant ook zijn eigen tijdstip mee (ts). Het
+// verschil tussen dat tijdstip en de klok van dit toestel op het moment van
+// binnenkomst is het klokverschil, plus de reistijd van het bericht — en die is klein
+// genoeg om te verwaarlozen naast het probleem dat het oplost.
+// Begrensd op een kwartier: is het verschil groter, dan klopt er iets anders niet
+// (een melding uit het geheugen bijvoorbeeld) en is meerekenen erger dan niets doen.
+// Onder de twee seconden blijft het ook op nul; daaronder is het ruis.
+let _klokVerschil=0;
+function klokVerschilMeten(k){
+  try{
+    if(!k||!k.ts)return;
+    if(k.baas&&k.baas.id===DEVICE_ID){_klokVerschil=0;return;}   // eigen klok: niets te corrigeren
+    const v=Number(k.ts)-Date.now();
+    if(!isFinite(v)||Math.abs(v)>900000)return;
+    _klokVerschil=Math.abs(v)<2000?0:v;
+  }catch(e){}
+}
+// De tijd zoals het toestel dat de klok bedient hem nu zou aflezen.
+function klokNu(){ return Date.now()+_klokVerschil; }
 // Schrijft het ankerpunt van de klok weg. Alleen bij een actie, niet elke seconde.
 // Bedient een ander toestel de klok en heb je zelf de timer nog niet geopend, dan
 // komen er geen tijdmeldingen binnen en staat je veldklok stil. Dit laat hem toch
@@ -7006,7 +7140,7 @@ function volgKlokVanAnder(){
     const eigenTimer=th&&th.querySelector('iframe')&&th.querySelector('iframe').src;
     if(eigenTimer){clearInterval(_volgT);return;}  // eigen timer is leidend
     let sec=k.basis||0, loopt=!!k.loopt;
-    if(k.loopt&&k.sinds)sec+=Math.max(0,(Date.now()-k.sinds)/1000);
+    if(k.loopt&&k.sinds)sec+=Math.max(0,(klokNu()-k.sinds)/1000);
     if(sec>17.5*60+600){ sec=Math.min(k.basis||0,17.5*60+600); loopt=false; }  // achtergelaten ankerpunt
     // Springt de klok naar een ander kwart, dan volgt het wedstrijdtabblad weer vanzelf.
     // Diezelfde regel stond al bij de berichten van de eigen timer, maar niet hier — en
@@ -8183,8 +8317,8 @@ function _render(){
 let _bolHerstel=0, _bolPogingen=0, _bolT=null, _bolGemeld=0;
 function bolletjesNakijken(){
   try{
-    // De pagina terugzetten als iOS hem heeft opgeschoven. Zie pagBoven().
-    pagBoven();
+    // Hoe staat de opmaak erbij? Alleen meten, niet ingrijpen.
+    opmaakMeten();
     // Twee dingen die na het opbouwen waar moeten zijn:
     //  1. de kwartbolletjes staan op een plek die in deze indeling te zien is;
     //  2. de opbouw past bij de breedte van het scherm — een tweekolomsindeling
@@ -8208,37 +8342,79 @@ function bolletjesNakijken(){
     render();
   }catch(e){}
 }
-// ── De pagina zelf mag nooit verschoven blijven staan ──
-// De app is één scherm hoog en schuift alleen vanbinnen; de pagina eromheen hoort
-// dus altijd op nul te staan. iOS schuift hem toch weleens op: als het toetsenbord
-// verschijnt, als een veld in beeld wordt gehaald, of bij terugkomen uit de
-// achtergrond. En omdat de pagina zelf geen schuifbalk heeft, kun je hem niet
-// terugslepen — de titelbalk blijft staan en alles eronder is dan blijvend een
-// stuk omhoog geschoven. Precies wat er gebeurde: de bovenste strook verdween
-// achter de balk en bleef weg tot de app opnieuw werd opgestart.
-// Zetten we hem meteen terug, dan is er niets aan de hand. Het wordt één keer
-// onthouden, zodat in Diagnose te zien is of dit op een toestel werkelijk gebeurt.
-let _pagGemeld=0;
-function pagBoven(){
+// ── Meten hoe de opmaak erbij staat ──
+// Hier stond code die de pagina terugschoof als hij omhoog was gegaan. Die kwam uit
+// een vermoeden en niet uit een meting, en na het nalopen van de opmaak kán dat
+// vermoeden bijna niet kloppen: alles buiten het schuifgebied staat vast (tabbalk,
+// timer, meldingen, kijkbalk), en het schuifgebied zelf kan niet buiten de pagina
+// uitsteken. Een pagina die niet langer is dan het scherm kan ook niet schuiven.
+// Repareren wat vermoedelijk niet gebeurt is geen oplossing maar ruis, dus het is
+// eruit. In plaats daarvan wordt er gemeten.
+//
+// De vraag die open bleef: op een schermafdruk van een iPhone verdween 31 pixel van
+// de kwartbalk achter de titelbalk, terwijl de plakregel er 13 voorschreef. Dertien
+// zijn verklaard, achttien niet. Dat kan liggen aan de manier waarop Safari een
+// negatieve plakrand met een negatieve marge verrekent, of er was tóch een
+// verschuiving. Van een afstand is dat niet uit te maken — dus legt de app nu op het
+// toestel zelf vast wat er gemeten wordt.
+//
+// De regel die waar hoort te zijn: de bovenkant van het schuifgebied ligt precies op
+// de onderkant van de titelbalk. Wijkt dat af, dan wordt de grootste afwijking
+// bewaard met alles erbij wat de mogelijkheden uit elkaar houdt: de schuifstand van
+// de pagina, de hoogte ervan tegenover het venster, en wat het zichtbare venster zegt
+// (dat verschuift bij het toetsenbord en bij inzoomen). Alles staat in Diagnose, ook
+// als er niets aan de hand is — dan is er tenminste een ijkpunt om mee te vergelijken.
+let _opmNu=null, _opmAfw=null;
+function opmaakMeten(){
   try{
-    const el=document.scrollingElement||document.documentElement;
-    const y=el.scrollTop||window.pageYOffset||0;
-    if(!y)return;
-    el.scrollTop=0; if(window.scrollTo)window.scrollTo(0,0);
-    if(Date.now()-_pagGemeld>5000){ _pagGemeld=Date.now();
-      onthoudFout('pagina verschoven',new Error(Math.round(y)+' pixels omhoog, teruggezet')); }
-  }catch(e){}
+    const bar=document.querySelector('.appbar'), v=document.getElementById('view');
+    if(!bar||!v)return null;
+    const b=bar.getBoundingClientRect(), m=v.getBoundingClientRect();
+    const vv=window.visualViewport, el=document.scrollingElement||document.documentElement;
+    const kaart=v.querySelector('.card,.klokbalk');
+    const m2={
+      tijd:new Date(),
+      balk:Math.round(b.bottom), inhoud:Math.round(m.top),
+      verschil:Math.round(b.bottom-m.top),
+      eerste:kaart?Math.round(kaart.getBoundingClientRect().top-b.bottom):null,
+      pagina:Math.round(el.scrollTop||window.pageYOffset||0),
+      pagHoog:Math.round(el.scrollHeight||0), vensterHoog:Math.round(el.clientHeight||0),
+      binnen:Math.round(window.innerHeight||0),
+      app:Math.round(document.body.getBoundingClientRect().height),
+      zicht:vv?Math.round(vv.height):0, zichtOff:vv?Math.round(vv.offsetTop):0,
+      schaal:vv?Math.round(vv.scale*100)/100:1
+    };
+    _opmNu=m2;
+    if(Math.abs(m2.verschil)>1 && (!_opmAfw||Math.abs(m2.verschil)>Math.abs(_opmAfw.verschil)))_opmAfw=m2;
+    return m2;
+  }catch(e){ return null; }
 }
-// Zodra het gebeurt, en niet pas bij de volgende hertekening.
-addEventListener('scroll',pagBoven,{passive:true});
-// Het toetsenbord is de bekendste veroorzaker: bij het sluiten blijft de verschuiving
-// staan. focusout komt ook als het veld op een andere manier wordt verlaten.
-addEventListener('focusout',()=>setTimeout(pagBoven,120),true);
-if(window.visualViewport)window.visualViewport.addEventListener('resize',()=>setTimeout(pagBoven,80));
-// Terug uit de achtergrond is het moment waarop iOS met verouderde maten komt. Meten
-// en zo nodig herstellen; hertekenen hoeft alleen als er iets mis blijkt.
+function opmaakRegel(m){
+  if(!m)return 'niet gemeten';
+  const t=String(m.tijd.getHours()).padStart(2,'0')+':'+String(m.tijd.getMinutes()).padStart(2,'0');
+  return 'balk '+m.balk+' / inhoud '+m.inhoud+' = '+m.verschil
+    +' · 1e kaart +'+(m.eerste==null?'?':m.eerste)
+    +' · pagina '+m.pagina+' ('+m.pagHoog+'/'+m.vensterHoog+')'
+    +' · app '+m.app+' venster '+m.binnen+' zicht '+m.zicht+'+'+m.zichtOff+' ×'+m.schaal
+    +' · '+t;
+}
+// Terug uit de achtergrond en na het draaien is het moment waarop iOS met verouderde
+// maten komt. Meten, en alleen hertekenen als er iets mis blijkt.
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible')setTimeout(bolletjesNakijken,150);
+});
+// Bedien je de klok, dan slaat de hartslag over zolang de app niet in beeld staat —
+// en na honderd seconden zonder teken van leven geldt de klok voor de anderen als
+// verlaten en kan iemand hem zonder bevestiging overnemen. Telefoon in de jastas
+// tijdens de rust is daar genoeg voor. Meteen bij terugkomst een teken van leven
+// geven maakt dat venster zo klein mogelijk; wachten op de volgende ronde zou er nog
+// eens dertig seconden bij doen.
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible')return;
+  try{
+    if(CLOUD.on&&CLOUD.ref&&CLOUD.klokBaas&&CLOUD.klokBaas.id===DEVICE_ID)
+      CLOUD.ref.set({klok:{...(CLOUD.klok||{}),baas:CLOUD.klokBaas,ts:Date.now()}},{merge:true}).catch(()=>{});
+  }catch(e){}
 });
 addEventListener('orientationchange',()=>setTimeout(bolletjesNakijken,400));
 // Kwartbolletjes. Een eigen keuze gaat voor op de klok, en gaat mee naar de timer
@@ -8340,10 +8516,19 @@ function bind(v){
   v.querySelectorAll('[data-act="expand"]').forEach(el=>el.onclick=()=>{expandedPlayer=expandedPlayer===el.dataset.id?null:el.dataset.id;render();});
   v.querySelectorAll('[data-act="delguest"]').forEach(el=>el.onclick=()=>{
     if(wijzigenGeblokkeerd())return;
+    // Drie dingen die bij een vaste speler wél gebeurden en hier niet: niet tijdens
+    // de wedstrijd (dan meld je iemand af, je gooit hem niet uit de selectie), een
+    // momentopname zodat het terug te draaien is, en de keeper losmaken. Stond de
+    // gastspeler op doel, dan bleef de app naar een speler wijzen die niet meer
+    // bestond: hij verdween van de veldtekening zonder melding, en herplannen
+    // weigerde daarna met 'geen keeper voor Q1, Q2, Q3, Q4'.
+    if(wedstrijdBezig()){ toast(T('Kan niet tijdens een wedstrijd \u2014 meld hem af op Spelers')); return; }
     const p=byId(el.dataset.id);
     confirmDialog({title:'Gastspeler verwijderen?',body:(p?esc(p.name):'Deze speler')+' wordt uit de selectie gehaald. Eventuele regels voor deze speler vervallen ook.',okLabel:'Verwijderen',danger:true,onOk:()=>{
+      snapshot('gastspeler verwijderd');
       state.players=state.players.filter(x=>x.id!==el.dataset.id);
       state.rules=state.rules.filter(r=>!regelGaatOver(r,el.dataset.id));
+      if(state.keeperId===el.dataset.id)state.keeperId=null;
       save();render();toast(T('Gastspeler verwijderd'));
     }});
   });
@@ -8888,8 +9073,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=275;
-const VERSIE_LABEL='26.9.116';
+const APP_VERSION=278;
+const VERSIE_LABEL='26.9.119';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
