@@ -1066,10 +1066,18 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     function nudgeMinute(delta) {
       if (!magBedienen()) { vraagOvernemen(); return; }
       syncRunningTime();
-      var nieuw = Math.max(0, Math.min(QLEN, quarterElapsed(currentQuarter) + delta));
+      // De klok mag na 17:30 doorlopen voor blessuretijd — dat doet hij overal
+      // behalve hier. Stond hij op 18:20 en drukte je op +1, dan klemde Math.min hem
+      // terug naar 17:30 en waren er vijftig gespeelde seconden weg, meteen ook bij
+      // alle andere toestellen. De grens blijft gelden zolang je er nog onder zit
+      // (zodat +1 je niet ongemerkt het kwart uit tilt), maar ben je er al voorbij,
+      // dan telt hij gewoon door.
+      var huidig = quarterElapsed(currentQuarter);
+      var nieuw = Math.max(0, huidig + delta);
+      if (nieuw > QLEN && huidig <= QLEN) nieuw = QLEN;
       setQuarterElapsed(currentQuarter, nieuw);
       if (running) { runBaseElapsed = nieuw; runStartedAt = Date.now(); }
-      swapDone[currentQuarter] = (swapTimes[currentQuarter] || []).filter(function (t) { return t <= nieuw; });
+      swapDone[currentQuarter] = _gedaanTot(currentQuarter, nieuw);
       _saveState(); updateUI(); meldKlok();
       if ('vibrate' in navigator) navigator.vibrate(12);
     }
@@ -1109,6 +1117,18 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
     // ── Wisselmoment-melding (tril + geluid + banner) ──
     let swapTimes = { 1: [], 2: [], 3: [], 4: [] };   // wisselmomenten in seconden per kwart
     let swapDone  = { 1: [], 2: [], 3: [], 4: [] };
+    // Welke wisselmomenten zijn op 'sec' al geweest? De lopende klok schrijft hier
+    // de plaats in de rij in (0, 1, 2) en controleert daar ook op. Op twee plekken
+    // werden er secónden in gezet — bij ±1 minuut en bij het terugdraaien van een
+    // reset — en die matchen nooit met een plaats in de rij. Gevolg: verzet je de
+    // klok terug over een wisselmoment heen, dan gaat datzelfde signaal een tweede
+    // keer af, terwijl het toestel van de mede-coach zwijgt.
+    function _gedaanTot(q, sec){
+      const st = swapTimes[q] || [];
+      const uit = [];
+      for (let i = 0; i < st.length; i++) if (st[i] <= sec) uit.push(i);
+      return uit;
+    }
     // Al gepasseerde wisselmomenten terugzetten, anders gaat het signaal na een
     // herstart alsnog af voor een moment van tien minuten geleden.
     if (_savedState && _savedState.swapDone) {
@@ -1249,7 +1269,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 275;
+    var TIMER_VERSION = 278;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
@@ -1637,8 +1657,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
         if (!_vorigeReset) return;
         setQuarterElapsed(_vorigeReset.q, _vorigeReset.sec);
         resetBeepState(_vorigeReset.q);
-        swapDone[_vorigeReset.q] = (swapTimes[_vorigeReset.q] || [])
-          .filter(function (t) { return t <= _vorigeReset.sec; });
+        swapDone[_vorigeReset.q] = _gedaanTot(_vorigeReset.q, _vorigeReset.sec);
         _vorigeReset = null; el.hidden = true;
         _saveState(); updateUI(); meldKlok();
       };
