@@ -397,9 +397,17 @@ body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
 .wmoment.nu .wbench{font-size:var(--fs-sm);margin-top:7px}
 body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,.25)}
 @media (orientation:landscape) and (min-width:820px) and (min-height:600px) and (pointer:coarse){
-  .twocol .wmoment.nu{margin:14px 0;padding:12px 12px 10px}
-  .twocol .wmoment.nu .wtime{font-size:var(--fs-lg);margin-bottom:8px}
-  .twocol .wmoment.nu .wline{font-size:var(--fs-xl);padding:5px 0;line-height:1.28}
+  /* Het moment dat eraan komt: de enige regels die je vanaf de bank moet kunnen
+     lezen. Ze stonden op de grootste maat uit de lettermaatladder (21px), en die
+     ladder is gemaakt voor tekst die je van dichtbij leest. Hier gaat het om een
+     meter of meer afstand, dus staat er nu een eigen maat boven: 24 voor de
+     wisselregels, 19 voor de kop erboven. Dat is de grootste stap die past zonder
+     dat de langste regel ('… daardoor schuift X van A naar B') een vierde regel
+     nodig heeft op de smalste iPad. */
+  .twocol .wmoment.nu{margin:14px 0;padding:13px 13px 11px}
+  .twocol .wmoment.nu .wtime{font-size:19px;margin-bottom:9px}
+  .twocol .wmoment.nu .wline{font-size:24px;padding:6px 0;line-height:1.26}
+  .twocol .wmoment.nu .wbench{font-size:var(--fs-base);margin-top:9px}
   /* De kolom is breder geworden, dus de regels buiten het eerstvolgende moment
      kunnen een maat omhoog. Die stonden op de telefoonmaat en dat las in de dug-out
      op een meter afstand niet lekker. Het moment dat eraan komt blijft op --fs-xl:
@@ -4865,11 +4873,7 @@ function diagnoseTekst(){
   r.push('samenwerken: '+(CLOUD.on?(CLOUD.status+' · '+(CLOUD.rol||CLOUD.role)+' · team '+(CLOUD.team||'?')):'uit'));
   r.push('opslag: '+(opslagFout?('PROBLEEM ('+opslagFout+')'):'in orde')+' · schema: '+(schemaFout||'in orde'));
   r.push('spelers '+state.players.filter(p=>p.present).length+' aanwezig · '+(state.schedule?('schema '+state.schedule.perQ*4+' blokken'):'geen schema'));
-  // De opmaakmeting: altijd de stand van nu, en als hij ooit afweek de slechtste
-  // meting erbij. 'balk / inhoud = verschil' hoort 0 te zijn.
   r.push('scherm aanhouden: '+wakeLockStand());
-  r.push('opmaak: '+opmaakRegel(opmaakMeten()));
-  if(_opmAfw)r.push('opmaak AFWIJKING: '+opmaakRegel(_opmAfw));
   r.push(_fouten.length?('laatste fouten:'):'geen fouten geregistreerd');
   _fouten.forEach(f=>r.push('  '+f.t+' · '+f.waar+' · '+f.wat));
   return r.join('\n');
@@ -5213,197 +5217,81 @@ const isQTab=t=>t==='wedstrijd';
 // in zijn eigen venster. Langs de lijn kijk je juist naar de opstelling, dus doen
 // we het hier ook: zolang een kwart-tabblad of de timer in beeld is.
 // ── Het scherm aan houden ──
-// Dit is geen 'zet één keer aan en klaar'. iOS geeft het slot niet altijd, en geeft
-// het ook weer terug: bij een hapering, bij het even wegdraaien van de app, en in de
-// batterijspaarstand weigert het zelfs helemaal. Eerder werd er precies één keer om
-// gevraagd, en zodra iOS het teruggaf stond er niets meer tegenover: het scherm ging
-// dan na de ingestelde tijd gewoon op slot, midden in een wedstrijd, zonder dat er
-// iets te zien was wat dat verklaarde.
-// Nu vier dingen tegelijk:
-//  1. er wordt om gevraagd zodra het nodig is, en opnieuw zodra iOS het teruggeeft;
-//  2. een bewaker kijkt elke vijftien seconden of het er nog is;
-//  3. de eerste aanraking van het scherm is ook een aanleiding — sommige browsers
-//     geven zulke dingen alleen na een handeling van de gebruiker;
-//  4. lukt het niet én loopt de klok, dan gaat er een tweede weg open (zie stilVideo).
-// En het resultaat is af te lezen in Diagnose, zodat er niet meer geraden hoeft te
-// worden of het slot er nu wel of niet is.
-let _wl=null, _wlBezig=false, _wlFout='', _wlAanvragen=0, _wlSinds=0, _wlT=null, _wlVid=null;
-// Niet alleen 'bestaat het', maar ook 'is het bruikbaar': er zijn browsers waar de
-// eigenschap er wel is maar leeg blijft.
+// iPadOS geeft het schermslot alleen als de aanvraag hoort bij een handeling van de
+// gebruiker. Nagemeten op een iPad: twaalf aanvragen vanuit de achtergrond werden
+// allemaal geweigerd met 'Permission was denied', óók met de batterijspaarstand uit;
+// dezelfde aanvraag vanuit een tik werd meteen toegekend en het scherm bleef aan.
+// Daarom hangt het hier aan 'click' en 'touchend' — het moment dat je je vinger
+// optilt. Dat is in Safari de gebeurtenis die als handeling telt; 'pointerdown', het
+// moment dat je het glas ráákt, telt er niet als zodanig, en daar hing het eerst aan.
+// Verder wordt het opnieuw gevraagd zodra iOS het teruggeeft, en kijkt een bewaker
+// elke vijftien seconden of het er nog is (op Android en op een desktop lukt het
+// namelijk wél zonder tik).
+let _wl=null, _wlBezig=false, _wlFout='', _wlSinds=0, _wlT=null;
 const wakeLockKan=()=>!!(navigator.wakeLock&&navigator.wakeLock.request);
 // Wanneer hoort het scherm aan te blijven? Zolang de klok loopt — ook als de coach
-// even naar Spelers kijkt, want de wedstrijd loopt dan gewoon door — en verder zolang
-// het wedstrijd- of timertabblad in beeld staat.
+// even naar Spelers kijkt, want de wedstrijd loopt dan door — en verder zolang het
+// wedstrijd- of timertabblad in beeld staat.
 function wakeLockGewenst(){
   if(document.visibilityState!=='visible')return false;
   if(klokLoopt())return true;
   return isQTab(activeTab)||activeTab==='timer';
 }
+// Het slot vasthouden en, als iOS het teruggeeft, meteen opnieuw vragen.
+function wakeLockHoud(s){
+  _wl=s; _wlFout=''; _wlSinds=Date.now();
+  s.addEventListener('release',()=>{
+    if(_wl===s)_wl=null;                 // alleen loslaten als het nog om dít slot gaat
+    if(wakeLockGewenst())setTimeout(wakeLockAan,300);
+  });
+}
 async function wakeLockAan(){
   // De bewaking op '_wl' stond vóór de await, waardoor twee aanvragen vlak na elkaar
   // er allebei langs konden: de eerste raakte dan zoek terwijl hij wel actief bleef.
   // Vandaar een aparte vlag die meteen staat.
-  if(_wl||_wlBezig)return;
-  // Kent de browser het schermslot helemaal niet — een oudere iPad — dan is de
-  // noodoplossing meteen de enige weg.
-  if(!wakeLockKan()){ stilVideoBijwerken(); return; }
+  if(_wl||_wlBezig||!wakeLockKan())return;
   _wlBezig=true;
-  try{
-    _wlAanvragen++;
-    const s=await navigator.wakeLock.request('screen');
-    _wl=s; _wlFout=''; _wlSinds=Date.now();
-    s.addEventListener('release',()=>{
-      if(_wl===s)_wl=null;                 // alleen loslaten als het nog om dít slot gaat
-      if(wakeLockGewenst())setTimeout(wakeLockAan,300);
-    });
-    stilVideoUit();                        // het echte slot is er: de noodoplossing kan weg
-  }catch(e){
-    _wl=null;
-    _wlFout=((e&&e.name)||'fout')+((e&&e.message)?': '+e.message:'');
-    stilVideoBijwerken();
-  }finally{ _wlBezig=false; }
+  try{ wakeLockHoud(await navigator.wakeLock.request('screen')); }
+  catch(e){ _wl=null; _wlFout=((e&&e.name)||'fout')+((e&&e.message)?': '+e.message:''); }
+  finally{ _wlBezig=false; }
 }
 async function wakeLockUit(){
-  const s=_wl; _wl=null; stilVideoUit();
+  const s=_wl; _wl=null;
   try{ if(s)await s.release(); }catch(e){}
 }
-function wakeLockBijwerken(){
-  if(wakeLockGewenst())wakeLockAan(); else wakeLockUit();
-  stilVideoBijwerken();
-}
-// Eén plek die bepaalt of het stille filmpje aan hoort te staan: als het scherm aan
-// hoort te blijven, het echte slot er niet is, en er een reden is om aan te nemen dat
-// het er ook niet komt. Eén plek, want anders blijft hij ergens staan of gaat hij
-// ergens niet uit.
-// Dit hing eerst aan 'de klok loopt'. Op een kijkscherm langs de lijn staat die klok
-// tussen de kwarten stil, en in de rust helemaal — en juist dan ging het scherm uit.
-// De voorwaarde is nu dezelfde als voor het echte slot: het wedstrijd- of
-// timertabblad staat in beeld, of de klok loopt.
-function stilVideoBijwerken(){
-  const nodig = wakeLockGewenst() && !_wl && (!!_wlFout || !wakeLockKan());
-  if(nodig)stilVideoAan(); else stilVideoUit();
-}
+function wakeLockBijwerken(){ if(wakeLockGewenst())wakeLockAan(); else wakeLockUit(); }
 // De bewaker. Vijftien seconden is kort genoeg om een stil verloren slot binnen één
 // wisselblok terug te hebben, en lang genoeg om niets te kosten.
 clearInterval(_wlT);
-_wlT=setInterval(()=>{
-  if(!wakeLockGewenst()){ wakeLockUit(); return; }
-  if(!_wl)wakeLockAan();
-  // Is het slot geweigerd en loopt de klok, dan neemt de noodoplossing het over.
-  stilVideoBijwerken();
-  wakeLockTip();
-},15000);
+_wlT=setInterval(()=>{ if(wakeLockGewenst()){ if(!_wl)wakeLockAan(); } else wakeLockUit(); wakeLockTip(); },15000);
 document.addEventListener('visibilitychange',()=>{
   // Terug in beeld: iOS heeft het slot bij het wegdraaien losgelaten, dus opnieuw
   // vragen. Weg uit beeld: de verwijzing loslaten zonder release — het systeem heeft
   // hem dan zelf al ingetrokken.
-  if(document.visibilityState==='visible'){ wakeLockBijwerken(); }
-  else { _wl=null; stilVideoUit(); }
+  if(document.visibilityState==='visible')wakeLockBijwerken(); else _wl=null;
 });
-// ── Waarom dit aan een tik hangt ──
-// Op de iPad werd het schermslot twaalf keer achter elkaar geweigerd met 'Permission
-// was denied' — ook met de batterijspaarstand uit. Dezelfde aanvraag, gedaan vanuit
-// een knop waar de coach op tikt, werd meteen toegekend en het scherm bleef aan.
-// iPadOS geeft dit dus alleen als de aanvraag hoort bij een handeling van de
-// gebruiker. Hier stond 'pointerdown', en dat is precies de gebeurtenis die in Safari
-// níét als zo'n handeling telt: daar tellen 'click' en 'touchend', ofwel het moment
-// dat je je vinger optilt. Vandaar dat het nooit lukte.
-// Capture-fase, zodat het ook meetelt als de tik ergens onderweg wordt afgevangen,
-// en zo kort mogelijk: de aanvraag moet nog binnen dezelfde handeling vallen.
+// De aanvraag vanuit de tik zelf, zo kort mogelijk: hij moet nog binnen dezelfde
+// handeling vallen. Capture-fase, zodat het ook meetelt als de tik onderweg wordt
+// afgevangen door een knop.
 function wakeLockUitTik(){
   if(!wakeLockGewenst()||_wl||_wlBezig||!wakeLockKan())return;
   _wlBezig=true;
-  _wlAanvragen++;
-  navigator.wakeLock.request('screen').then(s=>{
-    _wl=s; _wlFout=''; _wlSinds=Date.now(); _wlBezig=false;
-    s.addEventListener('release',()=>{ if(_wl===s)_wl=null; if(wakeLockGewenst())setTimeout(wakeLockAan,300); });
-    stilVideoUit();
-  }).catch(e=>{
-    _wl=null; _wlBezig=false;
-    _wlFout=((e&&e.name)||'fout')+((e&&e.message)?': '+e.message:'');
-    stilVideoBijwerken();
-  });
+  navigator.wakeLock.request('screen')
+    .then(s=>{ _wlBezig=false; wakeLockHoud(s); })
+    .catch(e=>{ _wlBezig=false; _wl=null;
+      _wlFout=((e&&e.name)||'fout')+((e&&e.message)?': '+e.message:''); });
 }
 addEventListener('click',wakeLockUitTik,{capture:true,passive:true});
 addEventListener('touchend',wakeLockUitTik,{capture:true,passive:true});
-// ── En zeggen dat één tik genoeg is ──
 // Een kijkscherm langs de lijn wordt niet aangeraakt: je hangt hem op en loopt weg.
-// Zonder die ene tik komt het slot er dus nooit. Daarom één melding, kort na het
-// openen, en daarna niet meer — zeuren over een scherm dat aanstaat is erger dan het
-// probleem.
+// Zonder die ene tik komt het slot er dus nooit. Daarom één melding, en daarna niet
+// meer — zeuren over een scherm dat aanstaat is erger dan het probleem.
 let _wlTipGehad=false;
 function wakeLockTip(){
-  if(_wlTipGehad||_wl||!wakeLockGewenst()||!wakeLockKan())return;
-  if(!_wlFout)return;                       // nog niets misgegaan: niets te melden
+  if(_wlTipGehad||_wl||!_wlFout||!wakeLockGewenst()||!wakeLockKan())return;
   _wlTipGehad=true;
   toast(U('Tik \u00e9\u00e9n keer op het scherm, dan blijft het aan tijdens de wedstrijd',
           'Tap the screen once and it will stay on during the match'));
-}
-// ── De noodoplossing: een stil filmpje ──
-// Weigert iOS het schermslot — dat gebeurt onder andere in de batterijspaarstand —
-// dan is er nog één weg die al bestond voordat er een schermslot-API was: een
-// filmpje dat speelt. Zolang er video speelt, dooft iOS het scherm niet. Het is
-// daarom twee bij twee pixels groot, vrijwel doorzichtig, zonder geluid, en het
-// staat helemaal onderaan buiten de weg. Het duurt twee seconden en herhaalt zich.
-// Netjes is anders, en daarom is het ook echt een noodoplossing: hij gaat alleen aan
-// als het echte slot geweigerd is én de klok loopt, en meteen weer uit zodra het
-// slot er wel is of de klok stilstaat.
-const STIL_MP4='data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMsbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAB9AAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAlZ0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAEAAAABAAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAfQAAAAAAABAAAAAAHObWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAgABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABeW1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAATlzdGJsAAAAuXN0c2QAAAAAAAAAAQAAAKlhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAEAAQABIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAAL2F2Y0MBQsAe/+EAF2dCwB7ZBCbARAAAAwAEAAADAAg8WLkgAQAFaMuDyyAAAAAQcGFzcAAAAAEAAAABAAAAFGJ0cnQAAAAAAAAKcAAACnAAAAAYc3R0cwAAAAAAAAABAAAAAgAAQAAAAAAUc3RzcwAAAAAAAAABAAAAAQAAABxzdHNjAAAAAAAAAAEAAAABAAAAAgAAAAEAAAAcc3RzegAAAAAAAAAAAAAAAgAAApIAAAAKAAAAFHN0Y28AAAAAAAAAAQAAA1wAAABidWR0YQAAAFptZXRhAAAAAAAAACFoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAAAC1pbHN0AAAAJal0b28AAAAdZGF0YQAAAAEAAAAATGF2ZjYwLjE2LjEwMAAAAAhmcmVlAAACpG1kYXQAAAJwBgX//2zcRem95tlIt5Ys2CDZI+7veDI2NCAtIGNvcmUgMTY0IHIzMTA4IDMxZTE5ZjkgLSBILjI2NC9NUEVHLTQgQVZDIGNvZGVjIC0gQ29weWxlZnQgMjAwMy0yMDIzIC0gaHR0cDovL3d3dy52aWRlb2xhbi5vcmcveDI2NC5odG1sIC0gb3B0aW9uczogY2FiYWM9MCByZWY9MyBkZWJsb2NrPTE6MDowIGFuYWx5c2U9MHgxOjB4MTExIG1lPWhleCBzdWJtZT03IHBzeT0xIHBzeV9yZD0xLjAwOjAuMDAgbWl4ZWRfcmVmPTEgbWVfcmFuZ2U9MTYgY2hyb21hX21lPTEgdHJlbGxpcz0xIDh4OGRjdD0wIGNxbT0wIGRlYWR6b25lPTIxLDExIGZhc3RfcHNraXA9MSBjaHJvbWFfcXBfb2Zmc2V0PS0yIHRocmVhZHM9MiBsb29rYWhlYWRfdGhyZWFkcz0xIHNsaWNlZF90aHJlYWRzPTAgbnI9MCBkZWNpbWF0ZT0xIGludGVybGFjZWQ9MCBibHVyYXlfY29tcGF0PTAgY29uc3RyYWluZWRfaW50cmE9MCBiZnJhbWVzPTAgd2VpZ2h0cD0wIGtleWludD0yNTAga2V5aW50X21pbj0xIHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAAGmWIhAW///8PRQABT38nJyddddddddddddeAAAAABkGaOAr4Rg==';
-const STIL_WEBM='data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAIIEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHYTbuMU6uEElTDZ1OsggEeTbuMU6uEHFO7a1OsggHy7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsirXsYMPQkBNgI1MYXZmNjAuMTYuMTAwV0GNTGF2ZjYwLjE2LjEwMESJiECfQAAAAAAAFlSua8GuAQAAAAAAADjXgQFzxYgjhwj87n0sQpyBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhDuaygDgibCBQLqBQJqBAhJUw2f8c3OgY8CAZ8iaRaOHRU5DT0RFUkSHjUxhdmY2MC4xNi4xMDBzc9ZjwItjxYgjhwj87n0sQmfIoUWjh0VOQ09ERVJEh5RMYXZjNjAuMzEuMTAyIGxpYnZweGfIoUWjiERVUkFUSU9ORIeTMDA6MDA6MDIuMDAwMDAwMDAwAB9DtnXO54EAo6qBAACA8AIAnQEqQABAAADHCIWFiJmEiASCAAZwPEJgCrIg9zAA/v7trgCjnYED6AAxAgADEBAAGAAZ1/QMAAEsBgCmAP7/q1CAHFO7a5G7j7OBALeK94EB8YIBn/CBAw==';
-// Het filmpje draait alleen op het wedstrijd- of timertabblad, en de diagnose lees je
-// op Meer. Wat er op dat tabblad gebeurde was daardoor niet af te lezen: tegen de tijd
-// dat je kijkt, is het filmpje alweer gestopt. Vandaar dat het wordt bijgehouden —
-// hoe vaak het aansloeg, hoeveel seconden het werkelijk speelde, en of het werd
-// tegengehouden. Zonder die boekhouding is 'het scherm gaat nog steeds uit' niet te
-// onderscheiden van 'de noodoplossing komt niet eens op gang'.
-let _vidStarts=0, _vidSec=0, _vidVanaf=0, _vidFout='', _vidLaatst=0, _vidSpeelde=false;
-function stilVideoAan(){
-  try{
-    if(_wlVid){ if(_wlVid.paused)_wlVid.play().catch(()=>{}); return; }
-    const v=document.createElement('video');
-    v.muted=true; v.defaultMuted=true; v.loop=true; v.playsInline=true;
-    v.setAttribute('playsinline',''); v.setAttribute('muted',''); v.setAttribute('aria-hidden','true');
-    v.style.cssText='position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:-3';
-    // Twee formaten: iOS speelt de mp4, Android en de meeste desktopbrowsers de webm.
-    // De browser kiest zelf de eerste die hij aankan.
-    const m=document.createElement('source'); m.src=STIL_MP4; m.type='video/mp4';
-    const wb=document.createElement('source'); wb.src=STIL_WEBM; wb.type='video/webm';
-    v.appendChild(m); v.appendChild(wb);
-    document.body.appendChild(v); _wlVid=v;
-    _vidStarts++; _vidVanaf=Date.now(); _vidLaatst=Date.now(); _vidFout='';
-    v.play().then(()=>{ _vidSpeelde=true; })
-      .catch(e=>{ _vidFout=((e&&e.name)||'fout')+((e&&e.message)?': '+e.message:'');
-                  onthoudFout('scherm aanhouden',e); });
-  }catch(e){}
-}
-function stilVideoUit(){
-  try{
-    if(!_wlVid)return;
-    if(_vidVanaf){ _vidSec+=Math.round((Date.now()-_vidVanaf)/1000); _vidVanaf=0; }
-    if(_wlVid.currentTime>0.2)_vidSpeelde=true;   // hij is echt gaan lopen
-    _wlVid.pause(); _wlVid.remove(); _wlVid=null;
-  }catch(e){}
-}
-// Wat is de stand van zaken? Staat in Diagnose, zodat op het toestel zelf te zien is
-// of het slot er is — en zo niet, waarom niet.
-// Rechtstreeks vragen, vanuit de tik van de gebruiker. wakeLockAan() doet er van
-// alles omheen (bewaking, noodoplossing, boekhouding) en dat kost tijd; sommige
-// browsers geven zulke toestemmingen alleen zolang de tik 'vers' is. Deze weg is
-// daarom zo kort mogelijk, en vertelt meteen wat eruit kwam.
-async function wakeLockNuProberen(){
-  if(!wakeLockKan()){ toast(U('Deze browser kent het schermslot niet','This browser has no screen wake lock')); render(); return; }
-  try{
-    _wlAanvragen++;
-    const s=await navigator.wakeLock.request('screen');
-    _wl=s; _wlFout=''; _wlSinds=Date.now();
-    s.addEventListener('release',()=>{ if(_wl===s)_wl=null; if(wakeLockGewenst())setTimeout(wakeLockAan,300); });
-    stilVideoUit();
-    toast(U('Gelukt \u2014 het scherm blijft nu aan','Done \u2014 the screen will stay on now'));
-  }catch(e){
-    _wl=null; _wlFout=((e&&e.name)||'fout')+((e&&e.message)?': '+e.message:'');
-    toast(U('Het toestel weigert het nog steeds','The device still refuses it'));
-  }
-  render();
 }
 // De kaart op Meer als iOS het schermslot weigert. Twee knoppen zijn er niet: een
 // app kan de instellingen van het toestel niet openen of wijzigen. Wat er wel kan is
@@ -5413,27 +5301,16 @@ function schermSlotKaart(){
   return `<div class="card"><h2>${ico('waarschuwing')}${U('Het scherm blijft niet vanzelf aan','The screen will not stay on')}</h2>
     <p class="hint" style="margin:0 0 10px">${U('iOS staat dit alleen toe als de aanvraag bij een tik van jou hoort. Zolang niemand het scherm aanraakt blijft het dus geweigerd, en gaat het scherm uit na de tijd die bij Automatisch slot staat.','iOS only allows this when the request belongs to a tap of yours. As long as nobody touches the screen it stays refused, and the screen turns off after the Auto-Lock time.')}</p>
     <p class="hint" style="margin:0 0 6px"><b>${U('Wat helpt','What helps')}:</b></p>
-    <p class="hint" style="margin:0 0 4px">1. ${U('Tik &eacute;&eacute;n keer ergens op het scherm &mdash; of op de knop hieronder. Daarna blijft het aan zolang de app in beeld staat. Ga je naar een andere app en terug, dan is er weer &eacute;&eacute;n tik nodig.','Tap anywhere on the screen once &mdash; or the button below. After that it stays on as long as the app is in view. Switch to another app and back, and one more tap is needed.')}</p>
+    <p class="hint" style="margin:0 0 4px">1. ${U('Tik &eacute;&eacute;n keer ergens op het scherm &mdash; deze kaart mag ook. Daarna blijft het aan zolang de app in beeld staat. Ga je naar een andere app en terug, dan is er weer &eacute;&eacute;n tik nodig.','Tap anywhere on the screen once &mdash; this card will do. After that it stays on as long as the app is in view. Switch to another app and back, and one more tap is needed.')}</p>
     <p class="hint" style="margin:0 0 4px">2. ${U('Staat de batterijspaarstand aan, zet die dan uit: Instellingen &rarr; Batterij. In die stand weigert iOS het hoe dan ook.','If Low Power Mode is on, turn it off: Settings &rarr; Battery. In that mode iOS refuses it regardless.')}</p>
     <p class="hint" style="margin:0 0 10px">3. ${U('Hangt de tablet als kijkscherm langs de lijn en raakt niemand hem aan, zet dan Instellingen &rarr; Beeldscherm en helderheid &rarr; Automatisch slot op <b>Nooit</b>. Dan hoeft er niets getikt te worden.','If the tablet hangs as a touchline screen and nobody touches it, set Settings &rarr; Display &amp; Brightness &rarr; Auto-Lock to <b>Never</b>. Then no tap is needed.')}</p>
-    <button class="btn ghost full" id="wlProbeer" style="margin-bottom:10px">${U('Probeer het nu opnieuw','Try again now')}</button>
-    <p class="hint" style="margin:0 0 10px;opacity:.85">${U('Die knop vraagt het rechtstreeks vanuit jouw tik. Sommige browsers geven zoiets alleen op dat moment; lukt het zo wél, dan weten we dat het daaraan lag.','That button asks for it straight from your tap. Some browsers only allow it at that moment; if it works this way, we know that was the reason.')}</p>
     <p class="hint" style="margin:0;opacity:.75">${esc(wakeLockStand())}</p></div>`;
 }
 function wakeLockStand(){
   if(!wakeLockKan())return 'niet ondersteund door deze browser';
-  const t=_wlSinds?(' sinds '+String(new Date(_wlSinds).getHours()).padStart(2,'0')+':'+String(new Date(_wlSinds).getMinutes()).padStart(2,'0')):'';
-  // Niet alleen hoe het er nú voor staat, maar ook wat het stille filmpje gedaan
-  // heeft: dat draait op een ander tabblad dan waar je deze regel leest.
-  const sec=_vidSec+(_vidVanaf?Math.round((Date.now()-_vidVanaf)/1000):0);
-  const vid = !_vidStarts ? ' · filmpje niet nodig geweest'
-    : _vidFout ? ' · filmpje GEBLOKKEERD ('+_vidFout+')'
-    : ' · filmpje '+_vidStarts+'\u00d7 aan, '+sec+'s'+(_vidSpeelde?' gespeeld':' maar niet gaan lopen')
-      +(_vidLaatst?', laatst '+String(new Date(_vidLaatst).getHours()).padStart(2,'0')+':'+String(new Date(_vidLaatst).getMinutes()).padStart(2,'0'):'');
-  const extra=' · '+_wlAanvragen+' aanvragen'+vid;
-  if(_wl)return 'actief'+t+extra;
-  if(_wlFout)return 'GEWEIGERD ('+_wlFout+')'+extra;
-  return (wakeLockGewenst()?'nog niet toegekend':'uit (niet nodig)')+extra;
+  if(_wl)return 'actief sinds '+String(new Date(_wlSinds).getHours()).padStart(2,'0')+':'+String(new Date(_wlSinds).getMinutes()).padStart(2,'0');
+  if(_wlFout)return 'nog niet toegekend ('+_wlFout+') \u2014 \u00e9\u00e9n tik op het scherm is genoeg';
+  return wakeLockGewenst()?'wordt aangevraagd':'uit (niet nodig)';
 }
 // Brede stand: tablet in liggende stand (zelfde voorwaarden als de media-query).
 const WIDE_MQ='(orientation:landscape) and (min-width:820px) and (min-height:600px) and (pointer:coarse)';
@@ -8046,9 +7923,15 @@ function renderUitleg(){
   let h='';
   // Bovenaan en niet ingeklapt: dit is het enige tabblad dat een afgewezen coach nog
   // heeft, en het is ook het enige wat hij op dat moment wil weten.
+  // Ingeklapt: de uitleg is lang en je hebt hem één keer nodig, niet elke keer dat je
+  // dit tabblad opent. De titel zegt waar het over gaat, zodat je hem terugvindt
+  // wanneer je hem wél zoekt. Is een toestel geweigerd, dan staat hij wél open: dan
+  // is dit het enige wat de coach op dat moment wil weten.
   if(CLOUD.on&&CLOUD.role==='viewer')
-    h+=`<div class="card"><h2>${U('Je kunt nu alleen meekijken','You can only follow along')}</h2>
-      <div class="hint" style="margin:0">${CLOUD.geweigerd?geweigerdUitleg():kijkerUitleg()}</div></div>`;
+    h+=klapKaart('kijkstand',U('Alleen kijken of ook wijzigen?','Viewing only, or editing too?'),
+      U('kijkstand','view only'),
+      `<div class="hint" style="margin:0">${CLOUD.geweigerd?geweigerdUitleg():kijkerUitleg()}</div>`,
+      !!CLOUD.geweigerd);
   // Houdt iOS het scherm niet aan, dan hoort de coach dat te weten vóórdat het scherm
   // zaterdag halverwege Q2 op zwart gaat. De app kan het besturingssysteem niet
   // overrulen; wat hij wél kan is zeggen wat eraan te doen is.
@@ -8585,8 +8468,6 @@ function _render(){
 let _bolHerstel=0, _bolPogingen=0, _bolT=null, _bolGemeld=0;
 function bolletjesNakijken(){
   try{
-    // Hoe staat de opmaak erbij? Alleen meten, niet ingrijpen.
-    opmaakMeten();
     // Twee dingen die na het opbouwen waar moeten zijn:
     //  1. de kwartbolletjes staan op een plek die in deze indeling te zien is;
     //  2. de opbouw past bij de breedte van het scherm — een tweekolomsindeling
@@ -8609,62 +8490,6 @@ function bolletjesNakijken(){
     _bolPogingen++;
     render();
   }catch(e){}
-}
-// ── Meten hoe de opmaak erbij staat ──
-// Hier stond code die de pagina terugschoof als hij omhoog was gegaan. Die kwam uit
-// een vermoeden en niet uit een meting, en na het nalopen van de opmaak kán dat
-// vermoeden bijna niet kloppen: alles buiten het schuifgebied staat vast (tabbalk,
-// timer, meldingen, kijkbalk), en het schuifgebied zelf kan niet buiten de pagina
-// uitsteken. Een pagina die niet langer is dan het scherm kan ook niet schuiven.
-// Repareren wat vermoedelijk niet gebeurt is geen oplossing maar ruis, dus het is
-// eruit. In plaats daarvan wordt er gemeten.
-//
-// De vraag die open bleef: op een schermafdruk van een iPhone verdween 31 pixel van
-// de kwartbalk achter de titelbalk, terwijl de plakregel er 13 voorschreef. Dertien
-// zijn verklaard, achttien niet. Dat kan liggen aan de manier waarop Safari een
-// negatieve plakrand met een negatieve marge verrekent, of er was tóch een
-// verschuiving. Van een afstand is dat niet uit te maken — dus legt de app nu op het
-// toestel zelf vast wat er gemeten wordt.
-//
-// De regel die waar hoort te zijn: de bovenkant van het schuifgebied ligt precies op
-// de onderkant van de titelbalk. Wijkt dat af, dan wordt de grootste afwijking
-// bewaard met alles erbij wat de mogelijkheden uit elkaar houdt: de schuifstand van
-// de pagina, de hoogte ervan tegenover het venster, en wat het zichtbare venster zegt
-// (dat verschuift bij het toetsenbord en bij inzoomen). Alles staat in Diagnose, ook
-// als er niets aan de hand is — dan is er tenminste een ijkpunt om mee te vergelijken.
-let _opmNu=null, _opmAfw=null;
-function opmaakMeten(){
-  try{
-    const bar=document.querySelector('.appbar'), v=document.getElementById('view');
-    if(!bar||!v)return null;
-    const b=bar.getBoundingClientRect(), m=v.getBoundingClientRect();
-    const vv=window.visualViewport, el=document.scrollingElement||document.documentElement;
-    const kaart=v.querySelector('.card,.klokbalk');
-    const m2={
-      tijd:new Date(),
-      balk:Math.round(b.bottom), inhoud:Math.round(m.top),
-      verschil:Math.round(b.bottom-m.top),
-      eerste:kaart?Math.round(kaart.getBoundingClientRect().top-b.bottom):null,
-      pagina:Math.round(el.scrollTop||window.pageYOffset||0),
-      pagHoog:Math.round(el.scrollHeight||0), vensterHoog:Math.round(el.clientHeight||0),
-      binnen:Math.round(window.innerHeight||0),
-      app:Math.round(document.body.getBoundingClientRect().height),
-      zicht:vv?Math.round(vv.height):0, zichtOff:vv?Math.round(vv.offsetTop):0,
-      schaal:vv?Math.round(vv.scale*100)/100:1
-    };
-    _opmNu=m2;
-    if(Math.abs(m2.verschil)>1 && (!_opmAfw||Math.abs(m2.verschil)>Math.abs(_opmAfw.verschil)))_opmAfw=m2;
-    return m2;
-  }catch(e){ return null; }
-}
-function opmaakRegel(m){
-  if(!m)return 'niet gemeten';
-  const t=String(m.tijd.getHours()).padStart(2,'0')+':'+String(m.tijd.getMinutes()).padStart(2,'0');
-  return 'balk '+m.balk+' / inhoud '+m.inhoud+' = '+m.verschil
-    +' · 1e kaart +'+(m.eerste==null?'?':m.eerste)
-    +' · pagina '+m.pagina+' ('+m.pagHoog+'/'+m.vensterHoog+')'
-    +' · app '+m.app+' venster '+m.binnen+' zicht '+m.zicht+'+'+m.zichtOff+' ×'+m.schaal
-    +' · '+t;
 }
 // Terug uit de achtergrond en na het draaien is het moment waarop iOS met verouderde
 // maten komt. Meten, en alleen hertekenen als er iets mis blijkt.
@@ -8719,8 +8544,6 @@ function bind(v){
     const y=document.getElementById('view').scrollTop;
     render(); document.getElementById('view').scrollTop=y;
   });
-  const _wlKnop=v.querySelector('#wlProbeer');
-  if(_wlKnop)_wlKnop.onclick=()=>wakeLockNuProberen();
   v.querySelectorAll('[data-regen]').forEach(b=>b.onclick=regenerate);
   const vnb=v.querySelector('#verwerkNuBtn');
   // vanafVolgende: het blok dat nu op het veld staat blijft staan; de herverdeling
@@ -9343,8 +9166,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=285;
-const VERSIE_LABEL='26.9.126';
+const APP_VERSION=288;
+const VERSIE_LABEL='26.9.129';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
