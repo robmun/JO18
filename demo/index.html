@@ -3215,7 +3215,14 @@ function migrateState(s){
   // veld nog steeds als hij van een toestel met oudere code komt.
   if(!Array.isArray(s.wegMeldingen))s.wegMeldingen=[];
   let v=Number(s.v||0);
-  if(v>=STATE_V){s.v=STATE_V;return s;}
+  // Een stand die al even ver of verder is, blijft zoals hij is. Hier werd het
+  // stempel gelijkgetrokken aan de huidige versie — ook als het hóger stond, omdat
+  // de stand van een toestel met een nieuwere app kwam. Dat stempel omlaag zetten
+  // is een leugen over wat er al gebeurd is: draait dit toestel later zelf die
+  // nieuwere versie, dan ziet de migratie een oudere stand en doet stappen nog een
+  // keer die al gedaan zijn. Een hoger nummer laten staan kan geen kwaad — de
+  // stappen hieronder gaan allemaal over lagere nummers.
+  if(v>=STATE_V)return s;
   if(v<2){ s.rules=migrateRules(s.rules); }
   if(v<3){ s.rules=migrateLines(s.players,s.rules); }
   if(v<4){
@@ -3749,6 +3756,16 @@ function cloudListen(){
       // dit toestel niet — en die zou een melding die nu écht opnieuw geldt blijven
       // onderdrukken, precies bij de kijker die er niets aan kan doen.
       const _nieuwSchema=!state||state.genHash!==incoming.genHash;
+      // De stapel met stappen om ongedaan te maken hoort bij de stand zoals die op
+      // dít toestel is opgebouwd. Komt er een stand van een ánder toestel binnen,
+      // dan slaat die stapel nergens meer op: 'ongedaan maken' zou een oudere,
+      // eigen versie terugzetten en die daarna als nieuwste wegschrijven — dus de
+      // wijziging van de mede-coach stilletjes ongedaan maken, terwijl de knop
+      // zegt dat je je eigen laatste actie terugdraait.
+      // Daarom begint de stapel opnieuw zodra er een vreemde stand wordt toegepast.
+      // 'Niets om ongedaan te maken' is dan het eerlijke antwoord; wie het toch wil
+      // terugdraaien, doet dat op het toestel waar de wijziging vandaan komt.
+      if(vanAnderToestel)_undoStack=[];
       CLOUD.applying=true;
       state=incoming;
       standGewijzigd();      // hele stand vervangen: alles opnieuw uitrekenen
@@ -5237,12 +5254,15 @@ function klokTekst(){
 const KLOK_R=86, KLOK_OMTREK=2*Math.PI*KLOK_R;
 // Totale speeltijd van de wedstrijd tot nu toe — dat is wat spelers langs de lijn
 // willen weten, niet alleen de tijd binnen dit kwart.
-function gespeeldTotaal(){
-  if(klok.q==null)return '0:00';
-  const tot=(klok.q-1)*17.5*60+klok.sec;
-  const m=Math.floor(tot/60), s2=Math.floor(tot%60);
-  return m+':'+String(s2).padStart(2,'0');
-}
+// Hier stond gespeeldTotaal(): de totaal gespeelde tijd, gerekend als '(kwart-1)
+// maal 17,5 minuut plus de stand'. Dat klopt alleen als elk eerder kwart precies
+// volgespeeld is, en na een kwart dat vroeg werd afgefloten of gereset dus niet.
+// Belangrijker: het getal werd nergens meer getoond. Het hoorde bij de ronde klok
+// die over het veld hing, en die is vervangen door de klokbalk; het vakje waar het
+// in stond bestaat niet meer. Wat overbleef was een verkeerde berekening zoeken
+// naar een plek om te staan. Wil de tijd over de hele wedstrijd ooit terugkomen,
+// dan hoort hij van de timer te komen: die houdt per kwart bij wat er werkelijk
+// gespeeld is (totalElapsedMatch) en weet het dus wél.
 // Hoeveel van de ring is gekleurd. Loopt de klok af, dan is de ring vol bij de
 // aftrap en leeg aan het eind; de kleur trekt dus weg in plaats van vol te lopen.
 // Anders zou de ring voller worden terwijl de cijfers naar nul zakken.
@@ -5471,8 +5491,6 @@ function veldKlokBijwerken(){
     gt.textContent=k.tijd;
     const gs=document.getElementById('gkSub');
     if(gs)gs.textContent=k.kwart+(k.loopt?'':' \u00b7 '+U('pauze','paused'));
-    const gtot=document.getElementById('gkTot');
-    if(gtot)gtot.textContent=gespeeldTotaal()+' gespeeld';
     const boog=document.getElementById('gkBoog');
     if(boog){
       const QLEN=17.5*60, sec=klok.q==null?0:Math.min(klok.sec,QLEN);
@@ -9073,8 +9091,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=278;
-const VERSIE_LABEL='26.9.119';
+const APP_VERSION=279;
+const VERSIE_LABEL='26.9.120';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
