@@ -5271,12 +5271,16 @@ function wakeLockBijwerken(){
   if(wakeLockGewenst())wakeLockAan(); else wakeLockUit();
   stilVideoBijwerken();
 }
-// Eén plek die bepaalt of het stille filmpje aan hoort te staan: alleen als de klok
-// loopt, het echte slot er niet is, en er een reden is om aan te nemen dat het er ook
-// niet komt. Eén plek, want anders blijft hij ergens staan of gaat hij ergens niet uit.
+// Eén plek die bepaalt of het stille filmpje aan hoort te staan: als het scherm aan
+// hoort te blijven, het echte slot er niet is, en er een reden is om aan te nemen dat
+// het er ook niet komt. Eén plek, want anders blijft hij ergens staan of gaat hij
+// ergens niet uit.
+// Dit hing eerst aan 'de klok loopt'. Op een kijkscherm langs de lijn staat die klok
+// tussen de kwarten stil, en in de rust helemaal — en juist dan ging het scherm uit.
+// De voorwaarde is nu dezelfde als voor het echte slot: het wedstrijd- of
+// timertabblad staat in beeld, of de klok loopt.
 function stilVideoBijwerken(){
-  const nodig = document.visibilityState==='visible' && klokLoopt() && !_wl
-    && (!!_wlFout || !wakeLockKan());
+  const nodig = wakeLockGewenst() && !_wl && (!!_wlFout || !wakeLockKan());
   if(nodig)stilVideoAan(); else stilVideoUit();
 }
 // De bewaker. Vijftien seconden is kort genoeg om een stil verloren slot binnen één
@@ -5333,7 +5337,11 @@ function stilVideoUit(){
 function wakeLockStand(){
   if(!wakeLockKan())return 'niet ondersteund door deze browser';
   const t=_wlSinds?(' sinds '+String(new Date(_wlSinds).getHours()).padStart(2,'0')+':'+String(new Date(_wlSinds).getMinutes()).padStart(2,'0')):'';
-  const extra=' · '+_wlAanvragen+' aanvragen'+(_wlVid?' · stil filmpje aan':'');
+  // Niet 'staat het er', maar 'speelt het': een filmpje dat door de browser wordt
+  // tegengehouden houdt het scherm ook niet aan, en dat moet je kunnen zien.
+  const vid=_wlVid ? (_wlVid.paused ? ' · stil filmpje GEBLOKKEERD'
+      : ' · stil filmpje speelt ('+Math.round(_wlVid.currentTime)+'s)') : '';
+  const extra=' · '+_wlAanvragen+' aanvragen'+vid;
   if(_wl)return 'actief'+t+extra;
   if(_wlFout)return 'GEWEIGERD ('+_wlFout+')'+extra;
   return (wakeLockGewenst()?'nog niet toegekend':'uit (niet nodig)')+extra;
@@ -9240,8 +9248,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=281;
-const VERSIE_LABEL='26.9.122';
+const APP_VERSION=282;
+const VERSIE_LABEL='26.9.123';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
