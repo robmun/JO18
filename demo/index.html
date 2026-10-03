@@ -32,7 +32,16 @@
      hem, en hij stond twaalf versies achter. Er zijn al vier nummers die gelijk
      moeten lopen (APP_VERSION, TIMER_VERSION, version.json en VERSIE_LABEL); een
      vijfde die niemand leest wordt gegarandeerd weer vergeten, en een dood
-     versienummer is erger dan geen, want het ziet eruit alsof het klopt. -->
+     versienummer is erger dan geen, want het ziet eruit alsof het klopt.
+
+     Hoe de twee soorten nummers werken:
+     - VERSIE_LABEL is wat de coach ziet: jaar.maand.hoeveelste-van-die-maand.
+       26.10.1 is dus de eerste versie van oktober 2026. In een nieuwe maand begint
+       het laatste getal weer bij 1. Daarvoor liep dat laatste getal gewoon door —
+       26.9.134 in oktober — en dan zegt het etiket iets wat niet klopt.
+     - APP_VERSION / TIMER_VERSION / version.json zijn één doorlopend getal. Daar
+       hangt de melding 'nieuwe versie beschikbaar' aan, en die vergelijkt groter-dan.
+       Dat getal mag dus nooit teruglopen, ook niet bij een maandwissel. -->
 <style>
 :root{
   --navy:#0a1b36; --navy2:#142c52; --ink:#0f2347;
@@ -9388,8 +9397,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=293;
-const VERSIE_LABEL='26.9.134';
+const APP_VERSION=294;
+const VERSIE_LABEL='26.10.1';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
