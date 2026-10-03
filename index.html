@@ -3134,6 +3134,61 @@ function onthoudFout(waar,e){
   foutRegel(waar,(e&&e.message)||e);
   try{ foutTel(waar); }catch(x){}
 }
+// ── De laatste twintig handelingen ──
+// Bij een vastloper is de eerste vraag: kwam je tik überhaupt bij de app aan? Zonder
+// antwoord daarop blijft het gissen tussen twee heel verschillende oorzaken — er lag
+// iets onzichtbaars overheen dat de tik opving, of de tik kwam netjes binnen en het
+// opbouwen van het scherm struikelde. Dat zijn tegengestelde oplossingen.
+// Daarom per tik drie dingen: waar je op tikte, of er ook een echte klik op volgde
+// (een tik die wel aankomt maar geen klik oplevert, is opgevangen door iets anders),
+// en op welk tabblad de app daarna stond. Staat er 'tab wedstrijd' met daarachter nog
+// steeds 'timer', dan reageerde de app niet — en dat is dan zwart op wit te zien.
+// Twintig regels, bewaard op het toestel zodat ze het wegswipen overleven.
+const TIK_SLEUTEL=SLEUTEL('gw_tikken');
+const _tikken=[];
+try{
+  const _t=JSON.parse(localStorage.getItem(TIK_SLEUTEL)||'[]');
+  if(Array.isArray(_t))_t.slice(0,20).forEach(x=>{ x.eerder=true; _tikken.push(x); });
+}catch(e){}
+function tikkenBewaren(){ try{ localStorage.setItem(TIK_SLEUTEL,JSON.stringify(_tikken.slice(0,20))); }catch(e){} }
+// Waar werd op getikt? Het dichtstbijzijnde element dat iets bétekent, in gewone taal.
+function tikNaam(doel){
+  try{
+    if(!doel||!doel.closest)return 'scherm';
+    const el=doel.closest('[data-tab],[data-q],[data-chip],[data-act2],[data-act],button,summary,label,a,.qpill');
+    if(!el)return 'scherm';
+    const g=el.dataset||{};
+    if(g.tab)return 'tab '+g.tab;
+    if(g.q!=null)return 'kwart Q'+(Number(g.q)+1);
+    if(g.act2)return 'keuzemenu: '+g.act2;
+    if(g.act)return 'speler: '+g.act;
+    if(g.chip)return 'speler op het veld';
+    if(el.id)return '#'+el.id;
+    const k=typeof el.className==='string'?el.className.split(' ')[0]:'';
+    return k||el.tagName.toLowerCase();
+  }catch(e){ return 'scherm'; }
+}
+function huidigeTab(){ try{ return activeTab; }catch(e){ return '?'; } }
+function tikNoteren(e){
+  try{
+    const nu=new Date();
+    const regel={ t:nu.toLocaleTimeString(LOCALE()),
+      d:String(nu.getDate()).padStart(2,'0')+'-'+String(nu.getMonth()+1).padStart(2,'0'),
+      w:tikNaam(e&&e.target), v:huidigeTab(), k:false, n:null };
+    _tikken.unshift(regel);
+    if(_tikken.length>20)_tikken.pop();
+    // Na afloop van de afhandeling kijken waar de app terechtkwam.
+    setTimeout(()=>{ regel.n=huidigeTab(); tikkenBewaren(); },0);
+  }catch(x){}
+}
+function klikNoteren(){
+  // Een tik die geen klik oplevert is ergens blijven hangen: dát is het verschil
+  // waar het om gaat, dus het staat als los kenmerk bij de regel.
+  try{ if(_tikken[0]&&!_tikken[0].eerder)_tikken[0].k=true; }catch(x){}
+}
+addEventListener('pointerdown',tikNoteren,{capture:true,passive:true});
+addEventListener('click',klikNoteren,{capture:true,passive:true});
+
 // ── Niets glipt er nog stil langs ──
 // Een uitzondering in een knopafhandeling of in een losse belofte kwam nergens
 // terecht: niet in dit logboek, niet in Diagnose, nergens. Je zag alleen een app die
@@ -4957,6 +5012,12 @@ function diagnoseTekst(){
   r.push('opslag: '+(opslagFout?('PROBLEEM ('+opslagFout+')'):'in orde')+' · schema: '+(schemaFout||'in orde'));
   r.push('spelers '+state.players.filter(p=>p.present).length+' aanwezig · '+(state.schedule?('schema '+state.schedule.perQ*4+' blokken'):'geen schema'));
   r.push('scherm aanhouden: '+wakeLockStand());
+  if(_tikken.length){
+    r.push('laatste handelingen (nieuwste eerst):');
+    _tikken.forEach(x=>r.push('  '+(x.d?x.d+' ':'')+x.t+(x.eerder?' [vorige sessie]':'')
+      +' · '+x.w+(x.k?'':' · GEEN KLIK')
+      +(x.n&&x.n!==x.v?(' · '+x.v+' \u2192 '+x.n):(' · '+(x.n||x.v)))));
+  }
   r.push(_fouten.length?('laatste fouten:'):'geen fouten geregistreerd');
   _fouten.forEach(f=>r.push('  '+(f.d?f.d+' ':'')+f.t+(f.v?' ('+f.v+')':'')+(f.eerder?' [vorige sessie]':'')
     +' · '+f.waar+' · '+f.wat+(f.c?' · '+f.c:'')));
@@ -8623,6 +8684,16 @@ function _render(){
           if(doc){
             doc.addEventListener('click',wakeLockUitTik,{capture:true,passive:true});
             doc.addEventListener('touchend',wakeLockUitTik,{capture:true,passive:true});
+            // Het timervenster is een eigen document; zonder dit zou een tik op Start
+            // of op een kwartbolletje nergens in het logboek terechtkomen, terwijl
+            // juist dáár de wedstrijd wordt bediend.
+            doc.addEventListener('pointerdown',e=>tikNoteren({target:{closest:()=>null}}),{capture:true,passive:true});
+            doc.addEventListener('click',e=>{
+              try{ const el=e.target&&e.target.closest?e.target.closest('button,[data-q]'):null;
+                   if(_tikken[0]&&!_tikken[0].eerder){ _tikken[0].k=true;
+                     _tikken[0].w='timer: '+(el?(el.dataset&&el.dataset.q!=null?('Q'+el.dataset.q):(el.id||el.textContent.trim().slice(0,14))):'scherm'); }
+              }catch(x){}
+            },{capture:true,passive:true});
           }
         }catch(e){}
         const kick=()=>{try{ifr.contentWindow.dispatchEvent(new Event('resize'));}catch(e){}};
@@ -9393,16 +9464,25 @@ function updateScrollUI(){
 //                 nieuwe versie klaarstaat en of timer.html gelijk loopt. Moet blijven
 //                 stijgen, want er wordt op groter-dan vergeleken.
 //  VERSIE_LABEL — wat de gebruiker ziet: jaar.maand.volgnummer, bijvoorbeeld 26.8.1.
-//  VERSIE_DATUM — de datum onder aan het regeltabblad. Stond daar als losse tekst
-//                 midden in de opbouw van dat tabblad en werd daarom al twee
-//                 releases vergeten. Hier bij de andere twee, zodat je bij elke
-//                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=294;
-const VERSIE_LABEL='26.10.1';
-// Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
-// maandnaam niet met een opzoektabel te doen is.
-const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
-function versieDatum(){ return EN()?VERSIE_DATUM_EN:VERSIE_DATUM_NL; }
+//  De datum onder aan het spelerstabblad stond hier als losse tekst en werd daarom
+//  telkens vergeten: hij bleef op 19 september staan terwijl de app al op 26.10.1
+//  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
+//  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
+//  de maand immers al in — dus er valt niets meer te vergeten.
+const APP_VERSION=295;
+const VERSIE_LABEL='26.10.2';
+// Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
+// die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
+// worden — precies waar het de vorige keer op misging.
+const MAANDEN_NL=['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
+const MAANDEN_EN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+function versieDatum(){
+  const m=/^(\d{2})\.(\d{1,2})\./.exec(VERSIE_LABEL);
+  if(!m)return '';
+  const mnd=Number(m[2]);
+  if(!(mnd>=1&&mnd<=12))return '';
+  return (EN()?MAANDEN_EN:MAANDEN_NL)[mnd-1]+' 20'+m[1];
+}
 let _updDismissed=false;
 // Eenmalige bevestiging na een geslaagde update
 //
