@@ -1190,6 +1190,19 @@ body.sun #a2hs button{background:rgba(255,255,255,.18);color:#fff;border-color:r
 #updBar .upd{flex-shrink:0;border:none;border-radius:var(--r-pill);padding:9px 14px;font-weight:800;font-size:var(--fs-sm);
   background:linear-gradient(160deg,var(--accent2),#2c66b8);color:#fff}
 #updBar .dis{flex-shrink:0;width:30px;height:30px;border-radius:50%;border:1px solid var(--stroke);background:rgba(255,255,255,.10);color:var(--txt);font-size:var(--fs-base)}
+/* Het balkje bij een ingezoomd scherm. Bewust niet met 'top' en 'left' uit de
+   schermranden: zodra er is ingezoomd kijk je door een kleiner venster over de
+   indeling heen, en alles wat aan die indeling vastzit kan buiten beeld liggen —
+   juist ook dit balkje. De plaats komt daarom uit visualViewport, het stukje dat je
+   op dat moment werkelijk ziet. */
+#zoomBar{position:fixed;z-index:70;display:none;align-items:center;gap:10px;
+  padding:10px 12px;border-radius:var(--r-lg);
+  background:rgba(16,42,84,.97);border:1px solid var(--accent2);box-shadow:var(--shadow-lg);
+  font-size:var(--fs-sm);color:var(--txt);line-height:1.35}
+#zoomBar.toon{display:flex}
+#zoomBar .zb-tekst{flex:1;min-width:0}
+#zoomBar .zb-knop{flex-shrink:0;border:none;border-radius:var(--r-pill);padding:8px 13px;font-weight:800;
+  font-size:var(--fs-sm);background:linear-gradient(160deg,var(--accent2),#2c66b8);color:#fff}
 body.with-a2hs main{padding-bottom:calc(230px + env(safe-area-inset-bottom))}
 /* ---------- Wissels ---------- */
 .wmoment{margin-bottom:4px}
@@ -1388,6 +1401,7 @@ body.viewer.kijkbalk-weg .appbar{top:0}
 <main id="view"></main>
 <!-- Blijft hangen zodra de klok op het veld uit beeld scrollt, zodat je bij het
      wisselschema nog steeds ziet hoe laat het is. Alleen op smalle schermen. -->
+<div id="zoomBar"><span class="zb-tekst"></span><button class="zb-knop" type="button"></button></div>
 <div id="zwevendeKlok" class="zwklok" role="button" tabindex="0" title="Naar de timer">
   <span class="zw-tijd" id="zwTijd">00:00</span><span class="zw-sub" id="zwSub">Q1</span>
 </div>
@@ -3064,13 +3078,69 @@ function chainsEmpty(d){return !d.chains.length&&!d.looseOuts.length&&!d.looseMo
 // en gecontroleerd, en een lijst die dan nog niet bestaat slikt die eerste meldingen
 // stil op — precies de meldingen die je het hardst nodig hebt.
 const _fouten=[];
-function onthoudFout(waar,e){
+// ── Het logboek overleeft het wegswipen van de app ──
+// Loopt de app vast, dan is wegswipen en opnieuw opstarten de enige uitweg — en
+// precies daarmee wiste je tot nu toe het bewijs. Een lijst in het geheugen is dan
+// een lijst die er nooit is wanneer je hem nodig hebt. Daarom gaat hij mee de opslag
+// in, met datum en versie erbij, zodat je na een herstart nog kunt nakijken wat er
+// zaterdag om 14:37 gebeurde. Hoogstens twintig regels, dus het blijft klein.
+const FOUT_SLEUTEL=SLEUTEL('gw_fouten');
+function foutenBewaren(){
+  try{ localStorage.setItem(FOUT_SLEUTEL,JSON.stringify(_fouten.slice(0,20))); }catch(x){}
+}
+try{
+  const _oud=JSON.parse(localStorage.getItem(FOUT_SLEUTEL)||'[]');
+  if(Array.isArray(_oud))_oud.slice(0,20).forEach(f=>{ f.eerder=true; _fouten.push(f); });
+}catch(x){}
+// Waar stond de app op dat moment? Juist bij een vastloper is dat de helft van het
+// antwoord: welk tabblad, hoe ver was er gescrold, en stond het scherm ingezoomd —
+// want ingezoomd gedraagt een app die precies één schermhoogte hoog is zich anders.
+function foutContext(){
   try{
-    _fouten.unshift({t:new Date().toLocaleTimeString(LOCALE()),waar,wat:String(e&&e.message||e)});
+    const v=document.getElementById('view');
+    const vv=window.visualViewport;
+    return 'tab '+activeTab
+      +(v?' · scrol '+Math.round(v.scrollTop):'')
+      +(vv?' · zoom '+(Math.round(vv.scale*100)/100):'');
+  }catch(x){ return ''; }
+}
+// VERSIE_LABEL staat verderop in dit bestand. Dit logboek wordt al gebruikt vóórdat
+// die regel is uitgevoerd, en een const die nog niet aan de beurt is geweest laat zich
+// niet eens met typeof bevragen — dat werpt een fout. Vandaar deze omweg.
+function versieNu(){ try{ return VERSIE_LABEL; }catch(x){ return ''; } }
+function foutRegel(waar,wat){
+  try{
+    const nu=new Date();
+    _fouten.unshift({
+      t:nu.toLocaleTimeString(LOCALE()),
+      d:String(nu.getDate()).padStart(2,'0')+'-'+String(nu.getMonth()+1).padStart(2,'0'),
+      v:versieNu(),
+      c:foutContext(),
+      waar,wat:String(wat)});
     if(_fouten.length>20)_fouten.pop();
-    foutTel(waar);
+    foutenBewaren();
   }catch(x){}
 }
+function onthoudFout(waar,e){
+  foutRegel(waar,(e&&e.message)||e);
+  try{ foutTel(waar); }catch(x){}
+}
+// ── Niets glipt er nog stil langs ──
+// Een uitzondering in een knopafhandeling of in een losse belofte kwam nergens
+// terecht: niet in dit logboek, niet in Diagnose, nergens. Je zag alleen een app die
+// niet meer reageerde. Deze twee vangers noteren ook de plek in het bestand, en dát
+// is wat er nodig is om de regel terug te vinden.
+addEventListener('error',e=>{
+  // Een plaatje dat niet laadt geeft hier ook een melding, maar zonder bericht en met
+  // het element erbij. Dat is geen programmafout en hoort er niet in.
+  if(!e||(e.target&&e.target!==window))return;
+  onthoudFout('onverwacht',(e.message||'fout')
+    +(e.filename?' ('+String(e.filename).replace(location.origin,'')+':'+e.lineno+':'+e.colno+')':''));
+});
+addEventListener('unhandledrejection',e=>{
+  const r=e&&e.reason;
+  onthoudFout('belofte',(r&&r.message)||String(r||'afgewezen'));
+});
 
 // ── Techniek- en fouttellers ──
 // Wat er wordt opgeteld staat in emmertjes, nooit als regel per toestel: soort
@@ -3144,9 +3214,10 @@ async function techniekSchrijf(velden){
       }else throw e;
     }
   }catch(e){
-    // Bewust niet via onthoudFout: dat zou zichzelf weer aanroepen.
-    try{ _fouten.unshift({t:new Date().toLocaleTimeString(LOCALE()),
-      waar:'techniekteller',wat:String(e&&e.message||e)}); }catch(x){}
+    // Bewust niet via onthoudFout: die telt de fout door naar de teller, en dat is
+    // precies wat hier net misging — dan roept hij zichzelf aan. De regel zelf wordt
+    // wel op dezelfde manier opgeschreven en bewaard.
+    foutRegel('techniekteller',(e&&e.message)||e);
   }finally{ _telBezig=false; }
 }
 // Eén keer per dag per toestel, anders telt elke keer openen mee.
@@ -4474,7 +4545,10 @@ function serializeState(){
     // Meldingen die de coach heeft weggetikt. Ze worden bij elke tekening opnieuw
     // uit het schema afgeleid, dus zonder dit veld staan ze op het grote scherm
     // gewoon weer in beeld en moet een kijker ze nóg een keer wegtikken.
-    wegMeldingen:state.wegMeldingen||[]
+    wegMeldingen:state.wegMeldingen||[],
+    // Zonder dit ziet de mede-coach geen melding dat de aanvoerder is weggevallen,
+    // terwijl hij wél de spelerslijst zonder aanvoerder binnenkrijgt.
+    aanvoerderWeg:state.aanvoerderWeg||''
   };
 }
 async function shareState(){
@@ -4875,7 +4949,8 @@ function diagnoseTekst(){
   r.push('spelers '+state.players.filter(p=>p.present).length+' aanwezig · '+(state.schedule?('schema '+state.schedule.perQ*4+' blokken'):'geen schema'));
   r.push('scherm aanhouden: '+wakeLockStand());
   r.push(_fouten.length?('laatste fouten:'):'geen fouten geregistreerd');
-  _fouten.forEach(f=>r.push('  '+f.t+' · '+f.waar+' · '+f.wat));
+  _fouten.forEach(f=>r.push('  '+(f.d?f.d+' ':'')+f.t+(f.v?' ('+f.v+')':'')+(f.eerder?' [vorige sessie]':'')
+    +' · '+f.waar+' · '+f.wat+(f.c?' · '+f.c:'')));
   return r.join('\n');
 }
 function diagnoseKaart(){
@@ -4910,6 +4985,14 @@ function globaleBanners(){
   }
   if(schemaFout){
     h+=`<div class="banner err">${ico("waarschuwing")}<span>Het wisselschema is beschadigd: ${esc(schemaFout)}. Genereer het opnieuw.</span><button class="btn small" data-regen>${T('Opnieuw genereren')}</button></div>`;
+  }
+  // Blijft staan tot er weer een aanvoerder is. Met een knop ernaast, want de schakelaar
+  // zit op het spelerstabblad onder het pijltje bij een speler en dat is niet de eerste
+  // plek waar je kijkt.
+  if(state.aanvoerderWeg&&!captainId()){
+    h+=`<div class="banner err">${ico("waarschuwing")}<span><b>${esc(state.aanvoerderWeg)}</b>${
+      U(' was aanvoerder en is afgemeld. Er is nu geen aanvoerder.',' was captain and is now out. There is no captain right now.')
+    }</span><button class="btn small" data-goplayers>${U('Aanvoerder kiezen','Pick a captain')}</button></div>`;
   }
   if(botsing){
     h+=`<div class="banner err">${ico("waarschuwing")}<span>${esc(botsing.wie)} wijzigde op hetzelfde moment iets. Eén van de twee wijzigingen is overschreven &mdash; controleer de opstelling en de spelerslijst.</span><button class="btn small" id="botsingOk">Begrepen</button></div>`;
@@ -5605,6 +5688,66 @@ function zwevendeKlokBijwerken(){
   const sub=document.getElementById('zwSub'); if(sub)sub.textContent=k.kwart+(k.loopt?'':' · '+U('pauze','paused'));
   zw.classList.toggle('pauze',!k.loopt);
 }
+// ── Ingezoomd scherm herkennen en terugzetten ──
+// De app is precies één schermhoogte hoog en alles eromheen — titelbalk, tabbalk,
+// zwevende klok — hangt vast aan die hoogte. Zoom je in (knijpen, of per ongeluk twee
+// keer tikken met een handschoen aan), dan kijk je door een kleiner venster over die
+// indeling heen: de inhoud schuift onder de titelbalk, terugslepen helpt niet, de
+// tabbalk kan buiten beeld liggen, en het wisselen van tabblad met een veeg zet de
+// app zélf uit zodra er is ingezoomd. Het voelt dan als een vastgelopen app, terwijl
+// er niets stuk is — vandaar dat wegswipen en opnieuw opstarten het 'oploste': dat
+// zet de zoom terug.
+// Niet meteen alarm slaan: tijdens het knijpen zelf is ingezoomd de bedoeling. Pas na
+// anderhalve seconde stilstaan komt het balkje, en dat zet de zoom met één tik terug.
+// Hoe: de viewport-regel krijgt even een bovengrens van 1, waarna Safari terugklapt;
+// daarna gaat die grens er weer af, zodat inzoomen gewoon mogelijk blijft.
+let _zoomT=null, _zoomGemeld=false;
+function zoomTerug(){
+  try{
+    const m=document.querySelector('meta[name="viewport"]');
+    if(!m)return;
+    const was=m.getAttribute('content');
+    m.setAttribute('content',was+', maximum-scale=1, user-scalable=no');
+    setTimeout(()=>{ try{ m.setAttribute('content',was); }catch(e){} },400);
+  }catch(e){}
+}
+function zoomBalkPlaatsen(bar){
+  const vv=window.visualViewport;
+  if(!vv)return;
+  bar.style.left =Math.round(vv.offsetLeft+10)+'px';
+  bar.style.width=Math.round(Math.max(180,vv.width-20))+'px';
+  bar.style.top  =Math.round(vv.offsetTop+10)+'px';
+}
+function zoomNakijken(){
+  const vv=window.visualViewport, bar=document.getElementById('zoomBar');
+  if(!vv||!bar)return;
+  const in_=vv.scale>1.02;
+  if(!in_){
+    clearTimeout(_zoomT); _zoomT=null;
+    bar.classList.remove('toon');
+    _zoomGemeld=false;
+    return;
+  }
+  if(bar.classList.contains('toon')){ zoomBalkPlaatsen(bar); return; }
+  if(_zoomT)return;
+  _zoomT=setTimeout(()=>{
+    _zoomT=null;
+    if(!(window.visualViewport&&window.visualViewport.scale>1.02))return;
+    bar.querySelector('.zb-tekst').textContent=U('Het scherm staat ingezoomd. Daardoor lijkt de app vast te zitten.','The screen is zoomed in. That makes the app seem stuck.');
+    bar.querySelector('.zb-knop').textContent=U('Terugzetten','Reset');
+    bar.querySelector('.zb-knop').onclick=()=>{ zoomTerug(); bar.classList.remove('toon'); };
+    zoomBalkPlaatsen(bar);
+    bar.classList.add('toon');
+    // Eén keer per keer dat het gebeurt in het logboek: zo is achteraf te zien of een
+    // vastloper tijdens de wedstrijd hiermee te maken had.
+    if(!_zoomGemeld){ _zoomGemeld=true; onthoudFout('zoom',U('scherm ingezoomd op ','screen zoomed to ')+(Math.round(window.visualViewport.scale*100)/100)+'x'); }
+  },1500);
+}
+if(window.visualViewport){
+  visualViewport.addEventListener('resize',zoomNakijken);
+  visualViewport.addEventListener('scroll',zoomNakijken);
+}
+
 // Telt de kaarten af terwijl de klok loopt en geeft één keer een seintje zodra
 // iemand weer mag meedoen. De coach haalt hem zelf terug; automatisch terugzetten
 // zou de opstelling laten verspringen op een moment dat hij er niet naar kijkt.
@@ -8392,7 +8535,36 @@ function render(){
   const eerste=_breedVast===null;
   if(eerste)_breedVast=breedGemeten();
   try{ _render(); }
+  catch(err){
+    // Het opbouwen van de inhoud zat al in een vangnet, maar het voorwerk ervóór niet
+    // — de kijkbalk, de schemacontrole, het schermslot, de kop van de titelbalk. Ging
+    // dáár iets mis, dan werd de tabbalk niet eens opnieuw opgebouwd en veranderde er
+    // niets op het scherm. Elke volgende tik op een tabblad deed precies hetzelfde:
+    // dezelfde fout, hetzelfde niets. De timer draait in een eigen venster en liep
+    // gewoon door, dus het leek half vast te zitten. Wegswipen was de enige uitweg.
+    // Nu wordt zo'n fout opgeschreven en komt er een scherm waar je wél weg kunt.
+    onthoudFout('hertekenen '+activeTab,err);
+    noodHertekening(err);
+  }
   finally{ if(eerste)_breedVast=null; }
+}
+// Het minimum waar je nog mee verder kunt: een werkende tabbalk en een melding met een
+// knop. Elk onderdeel apart afgeschermd, want juist hier mag niets meer stukgaan.
+function noodHertekening(err){
+  try{ renderTabbar(); }catch(e){}
+  try{ const th=document.getElementById('timerHost'); if(th)th.classList.remove('show'); }catch(e){}
+  try{
+    const v=document.getElementById('view');
+    if(!v)return;
+    v.innerHTML=`<div class="card"><h2>${ico("waarschuwing")}${U('De app liep vast bij het tekenen','The app got stuck while drawing')}</h2>
+      <p class="hint">${U('Je kunt gewoon naar een ander tabblad. Wat er misging staat hieronder en is bewaard onder Meer &rarr; Diagnose, ook als je de app afsluit.','You can simply switch to another tab. What went wrong is shown below and is kept under More &rarr; Diagnostics, even if you close the app.')}</p>
+      <p class="hint" style="opacity:.7;word-break:break-word">${esc(String(err&&err.message||err))}</p>
+      <button class="btn ghost full" id="retryBtn" style="margin-top:10px">&#8635; ${U('Opnieuw proberen','Try again')}</button></div>`;
+    try{ bind(v); }catch(e){
+      // Zelfs het koppelen van de knoppen kan meevallen in de fout. Dan tenminste deze.
+      const rb=v.querySelector('#retryBtn'); if(rb)rb.onclick=()=>render();
+    }
+  }catch(e){}
 }
 function _render(){
   if(zelftestModus)return;   // de uitslag mag niet worden overschreven door een late hertekening
@@ -8596,6 +8768,23 @@ function bind(v){
   v.querySelectorAll('[data-act="present"]').forEach(el=>el.onchange=e=>{
     if(wijzigenGeblokkeerd()){ e.target.checked=!e.target.checked; return; }
     const p=byId(el.dataset.id);p.present=e.target.checked;
+    // Een aanvoerder die wordt afgemeld, is geen aanvoerder. Hij bleef het wel, en dan
+    // staat er een goud randje om iemand die er niet is — op het veld, op de print en
+    // op het scherm van de mede-coach. De rol vervalt daarom meteen, en de app laat
+    // staan dát hij vervallen is tot er een nieuwe is aangewezen. Niet met een venster
+    // dat je moet wegklikken: je meldt iemand vaak af terwijl je met iets anders bezig
+    // bent, en dan hoort de app te wachten tot het jou uitkomt.
+    if(!p.present&&p.captain){
+      delete p.captain;
+      state.aanvoerderWeg=p.name||U('De aanvoerder','The captain');
+      toast((p.name||'')+U(' was aanvoerder en is afgemeld — wijs een nieuwe aanvoerder aan',' was captain and is now out — pick a new captain'));
+    }
+    // Komt hij er toch weer bij en is er intussen niemand anders aangewezen, dan is er
+    // niets meer aan de hand: hij ís de aanvoerder nog, de rol was alleen even weg.
+    if(p.present&&state.aanvoerderWeg&&!captainId()){
+      p.captain=true; delete state.aanvoerderWeg;
+      toast((p.name||'')+U(' is weer aanvoerder',' is captain again'));
+    }
     save();render();
   });
   v.querySelectorAll('[data-act="num"]').forEach(el=>el.onchange=e=>{
@@ -8633,8 +8822,10 @@ function bind(v){
     const aan=e.target.checked;
     // Er kan er maar een aanvoerder zijn: bij aanzetten vervalt de rol bij de vorige.
     state.players.forEach(p=>{delete p.captain;});
-    if(aan){const p=byId(el.dataset.id);p.captain=true;toast(p.name+' is aanvoerder');}
-    else toast(T('Geen aanvoerder ingesteld'));
+    if(aan){const p=byId(el.dataset.id);p.captain=true;toast(p.name+' is aanvoerder');delete state.aanvoerderWeg;}
+    // Zelf de aanvoerder uitzetten is een keuze, geen ongeluk — dan hoeft de app er
+    // niet over te blijven zeuren.
+    else {toast(T('Geen aanvoerder ingesteld'));delete state.aanvoerderWeg;}
     save();render();
   });
   v.querySelectorAll('[data-act="expand"]').forEach(el=>el.onclick=()=>{expandedPlayer=expandedPlayer===el.dataset.id?null:el.dataset.id;render();});
@@ -9197,8 +9388,8 @@ function updateScrollUI(){
 //                 midden in de opbouw van dat tabblad en werd daarom al twee
 //                 releases vergeten. Hier bij de andere twee, zodat je bij elke
 //                 release drie regels op één plek bijwerkt — plus version.json.
-const APP_VERSION=290;
-const VERSIE_LABEL='26.9.131';
+const APP_VERSION=293;
+const VERSIE_LABEL='26.9.134';
 // Datum in de taal van de lezer; de Engelse versie staat er los naast omdat een
 // maandnaam niet met een opzoektabel te doen is.
 const VERSIE_DATUM_NL='19 september 2026', VERSIE_DATUM_EN='19 September 2026';
