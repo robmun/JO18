@@ -1,0 +1,13 @@
+{
+  "name": "jo18-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Tests voor de app opstelling & wissels",
+  "scripts": {
+    "test": "node run.js",
+    "snel": "node run.js --snel"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  }
+}
