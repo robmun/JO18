@@ -2,6 +2,40 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
+<script>
+/* ── Kijk-adres met de teamcode in het pad ──
+   iOS knipt bij 'Zet op beginscherm' de parameters van het adres af. Nagemeten op
+   een iPhone en een iPad, met en zonder manifest: ?team=…&rol=kijker overleeft het
+   niet. Aan een pád valt niets af te knippen, dus staat de teamcode daar nu in:
+
+       https://robmun.github.io/JO18/t/<teamcode>/
+
+   Zo'n map bestaat niet op de server. GitHub Pages serveert voor elk onbekend adres
+   het bestand 404.html, en dat is een kopie van deze app — daarom werkt elk adres van
+   deze vorm zonder dat er per team iets op de server staat. In een openbare
+   repository is dat het verschil tussen een teamcode die in de bestandenlijst te
+   lezen is en een teamcode die alleen in de link staat.
+   De service worker vangt zo'n adres offline al af: bij een mislukte navigatie
+   serveert hij de bewaarde index.html (zie sw.js).
+
+   Twee dingen moeten hier, bovenaan, gebeuren:
+   1. De bestandsbasis rechtzetten. De app staat op /JO18/, maar de pagina draait op
+      /JO18/t/<code>/. Zonder dit zou 'timer.html' bij /JO18/t/<code>/timer.html
+      gezocht worden en niets vinden. De basis wordt uit het pad zelf afgeleid en is
+      absoluut, dus het telt geen mapniveaus verkeerd.
+   2. De teamcode onthouden, zodat verderop in de app de kijkstand aangezet wordt. */
+(function(){try{
+  var m=location.pathname.match(/^(.*\/)t\/([A-Za-z0-9_-]{3,64})\/?$/);
+  if(!m)return;
+  window.KIJKPAD=m[2];
+  /* document.write en niet createElement: de browser leest vooruit op de HTML en
+     begint plaatjes al op te halen voordat een met de hand toegevoegd element
+     meetelt. Het clublogo werd daardoor eerst op het verkeerde pad gezocht — een
+     mislukte aanvraag en een kort moment een kapot plaatje. Op deze manier staat de
+     basis in de tekenstroom zelf, nog voor het eerste plaatje erin voorkomt. */
+  document.write('<base href="'+m[1].replace(/"/g,'&quot;')+'">');
+}catch(e){}})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -3605,6 +3639,16 @@ async function cloudClaimOfKoppel(){
     try{ snap=await CLOUD.ref.get({source:'server'}); }
     catch(e){ onthoudFout('team van server lezen',e); snap=await CLOUD.ref.get(); }
     if(!snap.exists){
+      // Een kijker die binnenkomt op een team dat niet bestaat, heeft een verkeerde
+      // of verkeerd overgetikte link. Vroeger maakte de app dat team dan aan, met dat
+      // toestel als eigenaar: een leeg team in de database en een speler die denkt dat
+      // hij meekijkt terwijl hij naar niets kijkt. Aanmaken hoort bij een coach.
+      if(CLOUD.role==='viewer'){
+        CLOUD.on=false; CLOUD.status='fout'; CLOUD.rol=null; cloudSaveSettings();
+        toast(U('Deze kijk-link hoort bij een team dat niet bestaat \u2014 vraag je coach om een nieuwe.',
+                'This view link points to a team that does not exist \u2014 ask your coach for a new one.'));
+        return;
+      }
       // Nieuw team: wie het aanmaakt is eigenaar.
       await CLOUD.ref.set({owner:CLOUD.uid,editors:[CLOUD.uid],rev:0},{merge:true});
       CLOUD.rol='eigenaar'; noteerCoach('aangemaakt'); return;
@@ -4066,7 +4110,14 @@ function cloudPush(force){
 const READONLY_MSG=()=>U('Spelers kunnen alleen lezen — coaches/manager kan wijzigen','Players can only read — coaches and the manager can edit');
 function cloudShareLink(rol){
   if(!CLOUD.team){toast(T('Stel eerst een teamcode in (Instellen…) en verbind'));return;}
-  const url=location.origin+location.pathname+'?team='+encodeURIComponent(CLOUD.team)+'&rol='+(rol==='viewer'?'kijker':'coach');
+  // De map waarin de app staat: /JO18/index.html en /JO18/ leveren allebei '/JO18/'.
+  const _basis=location.origin+location.pathname.replace(/[^/]*$/,'');
+  // Kijkers krijgen het pad-adres, zodat 'Zet op beginscherm' blijft werken. Een
+  // mede-coach krijgt de vorm met parameters: die opent de link één keer en zet hem
+  // niet op zijn beginscherm, en de rol moet daar uitgesproken in staan.
+  const url = rol==='viewer'
+    ? _basis+'t/'+encodeURIComponent(CLOUD.team)+'/'
+    : _basis+'?team='+encodeURIComponent(CLOUD.team)+'&rol=coach';
   const titel=rol==='viewer'?'Kijk-link (spelers, alleen lezen)':'Coach-link (mag wijzigen)';
   if(navigator.share){ navigator.share({title:'opstelling & wissels',text:titel,url}).catch(()=>{}); }
   else if(navigator.clipboard){ navigator.clipboard.writeText(url).then(()=>toast(titel+' gekopieerd')).catch(()=>cloudShowLink(titel,url)); }
@@ -8266,7 +8317,7 @@ function renderUitleg(){
       `<p class="hint" style="margin:0 0 10px">${U('Heb je een link van je coach gekregen en zie je hier niet de opstelling van je team? Plak de link hieronder. Dat hoeft maar \u00e9\u00e9n keer.','Got a link from your coach but you are not seeing your team\u2019s line-up here? Paste the link below. You only need to do this once.')}</p>
       <input id="kijkPlak" class="plakin" type="text" inputmode="url" autocapitalize="none"
         autocorrect="off" spellcheck="false"
-        placeholder="https://\u2026?team=\u2026&amp;rol=kijker">
+        placeholder="https://\u2026/t/\u2026/">
       <button class="btn full" id="kijkKoppel" style="margin-top:8px">${U('Koppelen','Connect')}</button>`,
       true);
   }
@@ -8373,7 +8424,7 @@ function renderQuarter(q){
       <p class="hint" style="margin-bottom:10px">${U('Dan hoor je hier de opstelling van je eigen team te zien, niet deze voorbeeldspelers. Plak de link uit het bericht van je coach; dat hoeft maar \u00e9\u00e9n keer.','Then you should be seeing your own team\u2019s line-up here, not these sample players. Paste the link from your coach\u2019s message; you only need to do this once.')}</p>
       <input id="kijkPlak2" class="plakin" type="text" inputmode="url" autocapitalize="none"
         autocorrect="off" spellcheck="false"
-        placeholder="https://\u2026?team=\u2026&amp;rol=kijker">
+        placeholder="https://\u2026/t/\u2026/">
       <button class="btn full" id="kijkKoppel2" style="margin-top:8px">${U('Koppelen','Connect')}</button>
       <p class="hint" style="margin:10px 0 0">${U('Ben je coach en ga je je eigen team invullen? Dan kun je dit overslaan.','Are you a coach, about to fill in your own team? Then you can skip this.')}</p></div>`;
   }
@@ -9518,8 +9569,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=297;
-const VERSIE_LABEL='26.10.4';
+const APP_VERSION=298;
+const VERSIE_LABEL='26.10.5';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
@@ -10524,7 +10575,11 @@ cloudLoadSettings();
 // Kijk-/coach-link: ?team=CODE&rol=kijker|coach -> automatisch instellen en verbinden
 try{
   const _q=new URLSearchParams(location.search);
-  const _team=_q.get('team'), _rol=(_q.get('rol')||'').toLowerCase();
+  // Het pad gaat voor: wie via /t/<code>/ binnenkomt is kijker, punt. De oude vorm
+  // met parameters blijft werken, want die links staan al in teamgroepen.
+  const _pad=(typeof window!=='undefined'&&window.KIJKPAD)||'';
+  const _team=_pad||_q.get('team');
+  const _rol=_pad?'kijker':(_q.get('rol')||'').toLowerCase();
   if(_team){
     CLOUD.cfg=FB_CONFIG;
     CLOUD.team=_team.toLowerCase();
