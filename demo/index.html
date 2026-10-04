@@ -53,6 +53,13 @@
     Voor de demo verandert er niets: die is geen kijker, krijgt dus wel een manifest,
     en wisselt het verderop om naar manifest-demo.webmanifest. */
  try{ if(!kijker)document.write('<link rel="manifest" href="manifest.webmanifest">'); }catch(e){}
+ /* De pictogramregels horen om dezelfde reden hier: geschreven na de basis, zodat de
+    vooruitlezer van de browser ze niet al op het verkeerde pad ophaalt. Ze staan
+    hierdoor op dezelfde plek in de kop als voorheen. */
+ try{ document.write(
+   '<link rel="apple-touch-icon" sizes="180x180" href="icon-ghc-navy.png">'+
+   '<link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">'+
+   '<link rel="icon" href="icon-ghc-navy.png">'); }catch(e){}
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -73,9 +80,13 @@
      strook achter de klok en het eilandje; stond hij op een andere tint, dan liep de
      bovenrand van de kopbalk zichtbaar van donker naar licht. -->
 <meta name="theme-color" content="#103b77">
-<link rel="apple-touch-icon" sizes="180x180" href="icon-ghc-navy.png">
-<link rel="apple-touch-icon-precomposed" sizes="180x180" href="icon-ghc-navy.png">
-<link rel="icon" href="icon-ghc-navy.png">
+<!-- De drie pictogramregels staan niet hier maar bovenin, in het script. Reden: de
+     browser leest vooruit op de HTML en begint een plaatje op te halen zodra hij de
+     regel tegenkomt — nog voordat de <base> die een regel hoger wordt geschreven
+     meetelt. Op de kijk-link (/JO18/t/<code>/) zocht hij het pictogram daardoor in
+     die niet-bestaande map, en GitHub Pages antwoordt op élk onbekend adres met de
+     hele 404.html: 691 kB die weggegooid wordt, bij iedere keer openen. Nagemeten.
+     Wat het script schrijft ziet die vooruitlezer niet, dus daar gebeurt dat niet. -->
 <!-- Een echt manifest, geen tijdelijke blob-URL. Android geeft alleen een
      installatieprompt bij een volwaardig manifest met een gewone start_url. Elke
      map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt.
@@ -1456,7 +1467,11 @@ body.viewer.kijkbalk-weg .appbar{top:0}
 </header>
 
 <div id="a2hs" hidden>
-  <img src="icon-ghc-navy.png" alt="" onerror="this.style.display='none'">
+  <!-- Zonder src, met data-bron: de vooruitlezer van de browser zou dit plaatje
+       anders meteen ophalen, en op de kijk-link (/JO18/t/<code>/) nog voordat de
+       <base> telt — dus op een adres dat niet bestaat. Het staat pas in src als
+       deze tip echt getoond wordt, en dan is de basis allang goed. -->
+  <img data-bron="icon-ghc-navy.png" alt="" onerror="this.style.display='none'">
   <div class="txt"><b>Zet deze app op je beginscherm</b>Tik op <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8"/></svg> <b style="display:inline">Delen</b> en dan &lsquo;Zet op beginscherm&rsquo;.</div>
   <button id="a2hsClose" aria-label="Sluiten">&#10005;</button>
 </div>
@@ -9590,8 +9605,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=300;
-const VERSIE_LABEL='26.10.7';
+const APP_VERSION=301;
+const VERSIE_LABEL='26.10.8';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
@@ -10437,6 +10452,10 @@ setTimeout(function(){
   // volgend bezoek terug totdat hij hem zelf wegklikt.
   if(!DEMO){ try{localStorage.setItem(SLEUTEL('wisselplanner_a2hs'),'1');}catch(e){} }
   const el=document.getElementById('a2hs');
+  // Het pictogram wordt pas nu opgehaald; in de demo is het al omgezet naar het
+  // demopictogram, dus alleen invullen als er nog niets staat.
+  const ic=el.querySelector('img[data-bron]');
+  if(ic&&!ic.getAttribute('src'))ic.src=ic.dataset.bron;
   if(DEMO)el.classList.add('opvallend');
   el.hidden=false;document.body.classList.add('with-a2hs');
   const hide=()=>{el.hidden=true;document.body.classList.remove('with-a2hs');};
