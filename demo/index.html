@@ -1058,18 +1058,18 @@ body.sun .brow.uit span{color:#7a1811}
 /* Naast de grote klok houdt de bank afstand, zodat namen er nooit onder verdwijnen.
    De klok beslaat 42% van de veldbreedte plus wat hij uitsteekt. */
 /* Alleen de wisselspelers krijgen in de brede stand een kleinere letter en een
-   compacter balletje: naast de grote klok is de ruimte smal en werden namen als
-   'Boudewijn' afgekapt. De veldspelers en de klok blijven ongemoeid. */
+   compacter balletje: naast de grote klok is de ruimte smal en werd een lange naam
+   van een speler of tien letters afgekapt. De veldspelers en de klok blijven ongemoeid. */
 .twocol .col-field .benchlist .brow{gap:6px;padding:3px 9px 3px 3px}
 .twocol .col-field .benchlist .brow span{font-size:var(--fs-md)}
 .twocol .col-field .benchlist .brow .bball{width:27px;height:27px;font-size:var(--fs-xs)}
 /* Naast de grote klok is de kolom smal; de aftelling krijgt daar minder gewicht
-   zodat een naam als 'Boudewijn' er nog naast past. */
+   zodat een naam van een speler of tien letters er nog naast past. */
 .twocol .col-field .benchlist .brow .ktel{margin-left:4px;font-size:var(--fs-xs)}
 .twocol .col-field .benchlist{right:38%;padding-right:4px}
 .twocol .col-field .veldrij:has(.grklok.krap) .benchlist{right:24%}
 /* Smallere liggende tablet (9,7 inch): daar is het veld zo'n 45 pixels smaller en
-   past 'Boudewijn' pas een maatje kleiner. */
+   past zo'n lange naam pas een maatje kleiner. */
 @media (orientation:landscape) and (max-width:1100px){
   .twocol .col-field .benchlist .brow span{font-size:var(--fs-sm)}
   .twocol .col-field .benchlist .brow{gap:5px;padding:3px 7px 3px 3px}
@@ -2108,8 +2108,8 @@ function verbodenPosities(pid,rules,POS){
     //
     // Dat verschil was precies het probleem. De vinkjes op Spelers zeggen wát een
     // speler kan; ze zijn een voorkeur met gewicht STRAF_LINIE, en de planner mag er
-    // overheen als hij anders geen dekkende elf krijgt. Hidde stond daardoor op de
-    // spits terwijl alleen 'Achter' aangevinkt stond: de planner kwam klem te zitten
+    // overheen als hij anders geen dekkende elf krijgt. Een speler stond daardoor op
+    // de spits terwijl alleen 'Achter' aangevinkt stond: de planner kwam klem te zitten
     // en koos de goedkoopste overtreding. Dit is het instrument om te zeggen 'nee,
     // echt niet' — dan zoekt hij zijn compromis ergens anders.
     //
@@ -2198,23 +2198,34 @@ function demoPlayers(){return [
   {id:'d15',name:'Joep',  num:15,prefs:['sp','ra','la'],   present:true, guest:false, lines:['voor']},
   {id:'d16',name:'Robert',num:16,prefs:['lm','rm','mm'],   present:true, guest:false}
 ];}
+// ── Waarmee de app begint ──
+// Hier stond de echte selectie van het team: zestien voornamen met rugnummers,
+// voorkeursposities, de keeper en drie coachregels met namen erin. Dit bestand staat
+// openbaar op GitHub Pages, dus daarmee stonden gegevens van minderjarigen op een
+// openbare website — zonder dat iemand daarvoor gekozen had. Nu zijn het verzonnen
+// namen. Een bestaande installatie merkt er niets van: die leest zijn spelers uit de
+// opslag van het toestel, niet uit deze lijst. Alleen een nieuwe installatie begint
+// hiermee, en daar hoort een coach toch zijn eigen team in te vullen.
+// De opbouw blijft precies hetzelfde: zestien spelers, één keeper, een paar spelers
+// met een linie-beperking, zodat de app bij een eerste start meteen iets zinnigs laat
+// zien en de zelftest dezelfde vorm blijft toetsen.
 function defaultPlayers(){return DEMO?demoPlayers():[
-  {id:'bob',     name:'Bob',     num:3,  prefs:['ra','la','lman'], present:true, guest:false, lines:['achter']},
-  {id:'boudewijn',name:'Boudewijn',num:4,prefs:['mm','vs','rm'],  present:true, guest:false},
-  {id:'eise',    name:'Eise',    num:14, prefs:['rv','sp','lv'],  present:true, guest:false},
-  {id:'faas',    name:'Faas',    num:9,  prefs:['mm','lm','rm'],  present:true, guest:false, lines:['voor']},
-  {id:'floris',  name:'Floris',  num:6,  prefs:['ra','la','rv'],  present:true, guest:false},
-  {id:'gilles',  name:'Gilles',  num:7,  prefs:['vs','ra','la'],  present:true, guest:false},
-  {id:'hidde',   name:'Hidde',   num:2,  prefs:['lman','vs'],     present:true, guest:false},
-  {id:'hugo',    name:'Hugo',    num:10, prefs:['lm','mm','rm'],  present:true, guest:false},
-  {id:'joris',   name:'Joris',   num:5,  prefs:['la','lman'],     present:true, guest:false},
-  {id:'levyn',   name:'Levyn',   num:15, prefs:['sp','lv','rv'],  present:true, guest:false},
-  {id:'lucas',   name:'Lucas',   num:12, prefs:['lv','rm','sp'],  present:true, guest:false},
-  {id:'mees',    name:'Mees',    num:8,  prefs:['rm','lm','la'],  present:true, guest:false},
-  {id:'seb',     name:'Seb',     num:16, prefs:['lv','rv','sp'],  present:true, guest:false},
-  {id:'thijo',   name:'Thijo',   num:13, prefs:['lm','lv','sp'],  present:true, guest:false},
-  {id:'tom',     name:'Tom',     num:11, prefs:['vs','rm','ra'],  present:true, guest:false},
-  {id:'mauk',    name:'Mauk',    num:1,  prefs:['keeper','',''],  present:true, guest:false, isKeeper:true},
+  {id:'s01', name:'Bram',  num:3,  prefs:['ra','la','lman'], present:true, guest:false, lines:['achter']},
+  {id:'s02', name:'Daan',  num:4,  prefs:['mm','vs','rm'],   present:true, guest:false},
+  {id:'s03', name:'Niek',  num:14, prefs:['rv','sp','lv'],   present:true, guest:false},
+  {id:'s04', name:'Luuk',  num:9,  prefs:['mm','lm','rm'],   present:true, guest:false, lines:['voor']},
+  {id:'s05', name:'Teun',  num:6,  prefs:['ra','la','rv'],   present:true, guest:false},
+  {id:'s06', name:'Jens',  num:7,  prefs:['vs','ra','la'],   present:true, guest:false},
+  {id:'s07', name:'Milan', num:2,  prefs:['lman','vs'],      present:true, guest:false},
+  {id:'s08', name:'Ruben', num:10, prefs:['lm','mm','rm'],   present:true, guest:false},
+  {id:'s09', name:'Stijn', num:5,  prefs:['la','lman'],      present:true, guest:false},
+  {id:'s10', name:'Koen',  num:15, prefs:['sp','lv','rv'],   present:true, guest:false},
+  {id:'s11', name:'Pim',   num:12, prefs:['lv','rm','sp'],   present:true, guest:false},
+  {id:'s12', name:'Jesse', num:8,  prefs:['rm','lm','la'],   present:true, guest:false},
+  {id:'s13', name:'Finn',  num:16, prefs:['lv','rv','sp'],   present:true, guest:false},
+  {id:'s14', name:'Cas',   num:13, prefs:['lm','lv','sp'],   present:true, guest:false},
+  {id:'s15', name:'Sven',  num:11, prefs:['vs','rm','ra'],   present:true, guest:false},
+  {id:'s16', name:'Mats',  num:1,  prefs:['keeper','',''],   present:true, guest:false, isKeeper:true},
 ];}
 function defaultRules(){
   // In de demo een paar sprekende regels, zodat je meteen ziet wat ze doen.
@@ -2226,12 +2237,19 @@ function defaultRules(){
     {id:'dr5',type:'maxpos', n:3}
   ];
   return [
-  {id:'r1',type:'noq',    p1:'hidde', qs:[3,4]},
-  {id:'r2',type:'apart',  p1:'thijo', p2:'tom'},
-  {id:'r5',type:'condpos',p1:'bob',   pos:'lman', p2:'hidde'},
+  {id:'r1',type:'noq',    p1:'s07', qs:[3,4]},
+  {id:'r2',type:'apart',  p1:'s14', p2:'s15'},
+  {id:'r5',type:'condpos',p1:'s01', pos:'lman', p2:'s07'},
 ];}
+// Wie is in de startselectie de keeper? Uit de lijst zelf halen, zodat het nooit meer
+// uiteen kan lopen met de namen daarin.
+function standaardKeeperId(){
+  const lijst=defaultPlayers();
+  const k=lijst.find(p=>p.isKeeper)||lijst.find(p=>(p.prefs||[])[0]==='keeper');
+  return k?k.id:null;
+}
 function defaultState(){return {v:STATE_V, players:defaultPlayers(),
-  keeperId:DEMO?'d01':'mauk', rules:defaultRules(), schedule:null, genHash:null, wegMeldingen:[]};}
+  keeperId:standaardKeeperId(), rules:defaultRules(), schedule:null, genHash:null, wegMeldingen:[]};}
 
 /* ============ Planning ============ */
 // Kwarten waarin een speler volgens een 'noq'-regel niet speelt.
@@ -2762,8 +2780,8 @@ function assignAll(blockSets,perQ,rules,byId,vast){
       // Hierboven wordt elk paar geprobeerd, en dat is niet altijd genoeg. Er zijn
       // opstellingen waarin geen enkele één-op-één ruil verbetering geeft, terwijl er
       // wél een foutloze verdeling bestaat: dan moeten er drie tegelijk doorschuiven.
-      // Dat is geen theoretisch geval — op 14 september stond Joris daardoor in Q1
-      // en Q3 linksvoor, een achterspeler twee linies te ver naar voren, terwijl er
+      // Dat is geen theoretisch geval — in een echte wedstrijd stond er daardoor in Q1
+      // en Q3 een achterspeler linksvoor, twee linies te ver naar voren, terwijl er
       // met dezelfde tien spelers een opstelling was waarin iedereen binnen zijn
       // linies bleef. De verdeling zat vast in een hoek waar ruilen per twee niet
       // uit komt.
@@ -4110,20 +4128,33 @@ function meetKijkbalk(){
 }
 addEventListener('resize',()=>requestAnimationFrame(meetKijkbalk));
 // ── Het beginscherm-pictogram van een kijker ──
-// Zet een kijker de app op zijn beginscherm, dan start iOS hem via het start-adres uit
-// het manifest — zonder de teamcode en de rol uit de link. Wat je overhield was een
-// lege app die niets meer met het team te maken had.
+// Zet een kijker de app op zijn beginscherm, dan bewaarde iOS het adres zónder de
+// teamcode en de rol. Wat je overhield was een app die niets meer met het team te
+// maken had. Nagemeten op een iPhone én een iPad: in Diagnose stond
+// 'gestart vanaf beginscherm · /JO18/index.html' — de parameters waren weg.
 //
-// 'manifest-kijk.webmanifest' heeft daarom bewust GEEN start_url. Volgens de
-// manifestafspraak valt hij dan terug op het adres van de pagina zelf, dus inclusief
-// ?team=…&rol=kijker. Naam en pictogram blijven wel netjes uit het manifest komen.
+// Eerst stond hier een eigen manifest zonder start_url, omdat de afspraak zegt dat
+// een manifest zonder start_url terugvalt op het adres van de pagina zelf. Safari
+// houdt zich daar niet aan: hij knipt de parameters eraf.
 //
-// Let op: dit is de afspraak zoals die op papier staat. Of Safari zich er precies aan
-// houdt moet op een echt toestel blijken — er is geen andere manier om dat te toetsen.
+// Daarom laat de kijkversie het manifest nu helemaal los. Zonder manifest valt iOS
+// terug op de oudere weg, van vóór de manifestondersteuning: 'apple-mobile-web-app-
+// capable' voor schermvullend, 'apple-touch-icon' voor het pictogram en
+// 'apple-mobile-web-app-title' voor de naam eronder — en die weg bewaart het adres
+// zoals het in de balk staat, mét parameters. Die drie staan allemaal al boven in dit
+// bestand, dus de kijker houdt een echt pictogram, een eigen naam en een
+// schermvullende app.
+//
+// Let op: of Safari dit precies zo doet moet op een toestel blijken; hier valt het
+// niet te toetsen. Werkt het niet, dan is de volgende stap een eigen adres met de
+// teamcode in het pad, want aan een pad valt niets af te knippen.
+//
+// Op Android verdwijnt hiermee de installatievraag van Chrome voor een kijker. Dat is
+// de prijs; de kijk-link zelf werkt daar gewoon in de browser.
 function kijkManifest(){
   try{
     const mf=document.querySelector('link[rel="manifest"]');
-    if(mf)mf.href='manifest-kijk.webmanifest';
+    if(mf)mf.remove();
     document.title='opstelling & wissels \u2014 kijken';
     // De naam onder het pictogram komt op iOS uit deze meta, niet uit het manifest.
     // Daar stond de teamnaam van de coach; een speler heeft daar niets aan.
@@ -4660,7 +4691,10 @@ async function importShared(txt){
         +(loopt?'<br><br>'+U('<b>Let op: er loopt een wedstrijd.</b> Ook de opstelling die nu op het veld staat wordt vervangen.','<b>Careful: a match is running.</b> The line-up currently on the pitch will be replaced too.'):''),
       okLabel:U('Overnemen','Take over'),cancelLabel:T('Annuleren'),
       onOk:()=>{
-        const nieuw={v:Number(inc.v||0),players:inc.players,keeperId:inc.keeperId||'mauk',
+        // Geen keeper in de binnenkomende stand? Dan ook geen keeper verzinnen: een id
+        // uit de startselectie zou hier naar een speler wijzen die in dát team niet
+        // bestaat. De controle verderop meldt het netjes als er iets ontbreekt.
+        const nieuw={v:Number(inc.v||0),players:inc.players,keeperId:inc.keeperId||null,
           rules:Array.isArray(inc.rules)?inc.rules:[],schedule:inc.schedule||null,
           genHash:inc.genHash||null,gebeurtenissen:Array.isArray(inc.gebeurtenissen)?inc.gebeurtenissen:[]};
         migrateState(nieuw);
@@ -4742,9 +4776,9 @@ function benchOfBlock(sch,b){
   return (sch.fieldIds||[]).filter(id=>id!==kid&&!on.has(id)&&byId(id)&&byId(id).present);
 }
 function pName(id){const p=byId(id);return p?p.name:'?';}
-// Korte naam voor op het veld en de bank. Coaches vullen soms de volledige naam in,
-// en die plaatjes staan dicht op elkaar — 'Bob Munnichs' liep dan over de speler
-// ernaast heen. Alleen de voornaam dus.
+// Korte naam voor op het veld en de bank. Coaches vullen soms voor- én achternaam in,
+// en die plaatjes staan dicht op elkaar — zo'n naam liep dan over de speler ernaast
+// heen. Alleen het eerste woord dus.
 //
 // Komt een voornaam meer dan eens voor in de selectie, dan zou je niet meer weten
 // wie wie is; die krijgen er de eerste letter van hun achternaam bij: Bram J en
@@ -5102,7 +5136,7 @@ function linieBotsingen(){
   return uit;
 }
 // ── Past dit team überhaupt in deze speelvorm? ──
-// Dit is de melding die er niet was toen Joris linksvoor bleek te staan. Zijn de
+// Dit is de melding die er niet was toen een achterspeler linksvoor bleek te staan. Zijn de
 // linies bij de spelers zo ingevuld dat er in een linie minder spelers mogen staan
 // dan er plekken zijn, dan móét er iemand op een plek komen waar hij niet hoort
 // — hoe de planner ook rekent. Tien plekken moeten elke minuut gevuld worden.
@@ -8311,8 +8345,38 @@ function renderWedstrijd(){
   zetQbarSlot(renderQuarterPills());
   return renderQuarter(huidigQ());
 }
+// Staat hier nog precies de selectie waarmee de app begint? Dan heeft nog niemand dit
+// toestel ingericht. Dat is iets anders dan 'er is geen schema': de app maakt bij de
+// eerste start al een schema voor de startselectie, dus daar viel het niet aan te zien.
+// Zodra er één naam, één rugnummer of één speler bij of af gaat, is het antwoord nee.
+function nogStartSelectie(){
+  try{
+    const start=defaultPlayers();
+    if(!state.players||state.players.length!==start.length)return false;
+    return start.every((s,i)=>{
+      const sp=state.players[i];
+      return sp && sp.id===s.id && sp.name===s.name && sp.num===s.num && !sp.guest;
+    });
+  }catch(e){ return false; }
+}
 function renderQuarter(q){
   let html='';
+  // Kwam hier een speler binnen met een kijk-link die zijn teamcode kwijt is? Dat
+  // gebeurt zodra je zo'n link op je beginscherm zet: iOS bewaart het adres zonder de
+  // parameters — nagemeten op zowel een iPhone als een iPad, en er is van de app uit
+  // niets aan te doen. De app opent dan als een verse app met de startselectie, en een
+  // speler of ouder heeft geen idee wat hij ziet. Vandaar dit aanbod bovenaan: één keer
+  // de link plakken en dit toestel is voorgoed de kijkversie.
+  // Alleen zolang er niets is ingericht, dus een coach met zijn eigen team ziet het niet.
+  if(!CLOUD.team && nogStartSelectie()){
+    html+=`<div class="card"><h2>${U('Heb je een kijk-link gekregen?','Been given a view link?')}</h2>
+      <p class="hint" style="margin-bottom:10px">${U('Dan hoor je hier de opstelling van je eigen team te zien, niet deze voorbeeldspelers. Plak de link uit het bericht van je coach; dat hoeft maar \u00e9\u00e9n keer.','Then you should be seeing your own team\u2019s line-up here, not these sample players. Paste the link from your coach\u2019s message; you only need to do this once.')}</p>
+      <input id="kijkPlak2" class="plakin" type="text" inputmode="url" autocapitalize="none"
+        autocorrect="off" spellcheck="false"
+        placeholder="https://\u2026?team=\u2026&amp;rol=kijker">
+      <button class="btn full" id="kijkKoppel2" style="margin-top:8px">${U('Koppelen','Connect')}</button>
+      <p class="hint" style="margin:10px 0 0">${U('Ben je coach en ga je je eigen team invullen? Dan kun je dit overslaan.','Are you a coach, about to fill in your own team? Then you can skip this.')}</p></div>`;
+  }
   const stale=state.schedule&&state.genHash!==inputHash(state);
   const presentNow=state.players.filter(p=>p.present).length;
   if(presentNow<11){
@@ -8324,21 +8388,6 @@ function renderQuarter(q){
     return html;
   }
   if(!state.schedule){
-    // Kwam iemand hier binnen met een kijk-link die zijn teamcode kwijt is? Dat gebeurt
-    // als je de link op je beginscherm zet: iOS bewaart het adres zonder de parameters,
-    // hoe je het ook aanpakt. De app opent dan als een lege app met voorbeeldspelers,
-    // en een speler of ouder heeft geen idee wat hij ziet. Vandaar dit aanbod bovenaan,
-    // maar alleen als er nog niets is ingericht — een coach die zijn team al heeft
-    // ingevuld hoeft het niet te zien.
-    if(!CLOUD.team && !state.genHash){
-      html+=`<div class="card"><h2>${U('Heb je een kijk-link gekregen?','Been given a view link?')}</h2>
-        <p class="hint" style="margin-bottom:10px">${U('Dan hoor je hier de opstelling van je team te zien, niet deze voorbeeldspelers. Plak de link uit het bericht van je coach; dat hoeft maar \u00e9\u00e9n keer.','Then you should be seeing your team\u2019s line-up here, not these sample players. Paste the link from your coach\u2019s message; you only need to do this once.')}</p>
-        <input id="kijkPlak2" class="plakin" type="text" inputmode="url" autocapitalize="none"
-          autocorrect="off" spellcheck="false"
-          placeholder="https://\u2026?team=\u2026&amp;rol=kijker">
-        <button class="btn full" id="kijkKoppel2" style="margin-top:8px">${U('Koppelen','Connect')}</button>
-        <p class="hint" style="margin:10px 0 0">${U('Ben je coach en ga je je eigen team invullen? Dan kun je dit overslaan.','Are you a coach, about to fill in your own team? Then you can skip this.')}</p></div>`;
-    }
     html+=`<div class="card" style="text-align:center;padding:34px 18px">
       <div style="margin-bottom:10px;color:var(--dim)">${ico("bal",34)}</div>
       <p style="font-size:15px;font-weight:700;margin-bottom:6px">${U('Klaar om te genereren','Ready to generate')}</p>
@@ -8439,7 +8488,7 @@ function renderQuarter(q){
         const titel = kaart ? KAARTEN[kaart].naam : (uitIds.includes(id)?'Niet inzetbaar':'');
         // Bij een kaart staat de resterende tijd in het bolletje in plaats van het
         // rugnummer. Achter de naam paste hij niet: in de smalle kolom naast de grote
-        // klok drong hij namen als 'Boudewijn' weg.
+        // klok drong hij de langere namen weg.
         // Bij een kaart geen rugnummerbolletje: dat maakt de rij te breed. Naam plus
         // de resterende straftijd is wat je op dat moment wilt zien.
         if(kaart){
@@ -9469,8 +9518,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=295;
-const VERSIE_LABEL='26.10.2';
+const APP_VERSION=297;
+const VERSIE_LABEL='26.10.4';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
@@ -9638,7 +9687,7 @@ function ico(naam,grootte){
    om met het oog te overzien.
    De test draait op wegwerpteams; de eigen gegevens worden niet aangeraakt. */
 function ztTeam(n,extra){
-  const namen='Aad Bas Cas Dax Eef Fem Gijs Hans Ids Jan Kees Lars Mees Nout Olaf Pim Quin Ruben'.split(' ');
+  const namen='Aad Bas Cas Dax Eef Fem Gijs Hans Ids Jan Kees Lars Mick Nout Olaf Pim Quin Ruben'.split(' ');
   const posities=['lv','sp','rv','lm','mm','rm','la','lman','vs','ra'];
   const sp=[{id:'k',name:'Keep',num:1,prefs:['keeper','',''],present:true,guest:false}];
   for(let i=0;i<n;i++)sp.push({id:'p'+i,name:namen[i%namen.length]+i,num:i+2,
