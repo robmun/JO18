@@ -24,9 +24,12 @@
       gezocht worden en niets vinden. De basis wordt uit het pad zelf afgeleid en is
       absoluut, dus het telt geen mapniveaus verkeerd.
    2. De teamcode onthouden, zodat verderop in de app de kijkstand aangezet wordt. */
-(function(){try{
+(function(){
+ var kijker=false;
+ try{
   var m=location.pathname.match(/^(.*\/)t\/([A-Za-z0-9_-]{3,64})\/?$/);
-  if(!m)return;
+  kijker = !!m || /[?&]rol=(kijker|viewer)(&|$)/i.test(location.search||'');
+  if(m){
   window.KIJKPAD=m[2];
   /* document.write en niet createElement: de browser leest vooruit op de HTML en
      begint plaatjes al op te halen voordat een met de hand toegevoegd element
@@ -34,7 +37,23 @@
      mislukte aanvraag en een kort moment een kapot plaatje. Op deze manier staat de
      basis in de tekenstroom zelf, nog voor het eerste plaatje erin voorkomt. */
   document.write('<base href="'+m[1].replace(/"/g,'&quot;')+'">');
-}catch(e){}})();
+  }
+ }catch(e){}
+ /* ── Het manifest hoort hier, en alleen voor een coach ──
+    In manifest.webmanifest staat "start_url": "./index.html". Safari gebruikt dat
+    adres als je 'Zet op beginscherm' kiest, en gooit het adres waar je op dat moment
+    stáát dus weg. Op een kijkpagina leverde dat een snelkoppeling naar
+    /JO18/index.html op: de app zonder team, elke keer opnieuw.
+    De app haalde het manifest er wel uit, maar met JavaScript — en dat is te laat,
+    want Safari heeft het dan al gelezen. Het moet er dus nooit in komen te staan.
+    Vandaar deze regel in plaats van een vaste <link>: bij een kijker wordt er niets
+    geschreven, en dan valt iOS terug op de oudere weg van vóór de manifesten, die het
+    adres bewaart zoals het in de balk staat. Schermvullend, het pictogram en de naam
+    komen dan uit de drie apple-regels hieronder, die daar al stonden.
+    Voor de demo verandert er niets: die is geen kijker, krijgt dus wel een manifest,
+    en wisselt het verderop om naar manifest-demo.webmanifest. */
+ try{ if(!kijker)document.write('<link rel="manifest" href="manifest.webmanifest">'); }catch(e){}
+})();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -59,8 +78,9 @@
 <link rel="icon" href="icon-ghc-navy.png">
 <!-- Een echt manifest, geen tijdelijke blob-URL. Android geeft alleen een
      installatieprompt bij een volwaardig manifest met een gewone start_url. Elke
-     map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt. -->
-<link rel="manifest" href="manifest.webmanifest">
+     map heeft zijn eigen bestand, zodat de demo een neutrale naam en icoon krijgt.
+     De verwijzing zelf staat bovenaan in het script, want hij hoort er bij een
+     kijker helemaal niet te staan — zie de uitleg daar. -->
 <title>opstelling &amp; wissels</title>
 <!-- Hier stond <meta name="app-version">. Weggehaald en niet bijgewerkt: niets las
      hem, en hij stond twaalf versies achter. Er zijn al vier nummers die gelijk
@@ -9569,8 +9589,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=298;
-const VERSIE_LABEL='26.10.5';
+const APP_VERSION=299;
+const VERSIE_LABEL='26.10.6';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
