@@ -1,0 +1,82 @@
+# Houdt de demomap en 404.html gelijk aan de hoofdmap.
+#
+# Waarom: de demo draait op exact dezelfde bestanden als productie — de app kijkt
+# alleen of '/demo/' in het adres staat. Ze moesten dus met de hand twee keer worden
+# geüpload, en dat ging mis: de demo stond 37 versies achter zonder dat iemand het zag.
+# 404.html is een kopie van index.html, zodat GitHub Pages ook bij een onbekend adres
+# de app laat zien.
+#
+# Wat dit doet: zodra index.html, timer.html of version.json in de hoofdmap verandert,
+# kopieert GitHub ze naar demo/ (en index.html ook naar 404.html) en legt dat vast als
+# een eigen commit. Jij uploadt dus nog maar op één plek.
+#
+# Daarvoor controleert hij of de drie versienummers (APP_VERSION, TIMER_VERSION en
+# version.json) gelijklopen. Lopen ze uiteen, dan stopt de run met een foutmelding en
+# wordt er niets gekopieerd — beter een rode melding in GitHub dan een demo die
+# stilletjes de verkeerde versie serveert.
+
+name: Demo gelijktrekken
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - timer.html
+      - version.json
+  workflow_dispatch:        # ook met de hand te starten via het tabblad Actions
+
+permissions:
+  contents: write           # nodig om de kopie terug te mogen schrijven
+
+concurrency:                # twee uploads vlak na elkaar niet door elkaar laten lopen
+  group: demo-gelijktrekken
+  cancel-in-progress: false
+
+jobs:
+  gelijktrekken:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository ophalen
+        uses: actions/checkout@v4
+
+      - name: Versienummers controleren
+        run: |
+          app=$(grep -o "const APP_VERSION *= *[0-9]\+" index.html | head -1 | grep -o "[0-9]\+$")
+          tim=$(grep -o "TIMER_VERSION *= *[0-9]\+" timer.html | head -1 | grep -o "[0-9]\+$")
+          jsn=$(grep -o '"version"[[:space:]]*:[[:space:]]*[0-9]\+' version.json | head -1 | grep -o "[0-9]\+$")
+          lab=$(grep -o "const VERSIE_LABEL *= *'[^']*'" index.html | head -1 | cut -d"'" -f2)
+          [ -n "$lab" ] || lab=$(grep -o '"label"[[:space:]]*:[[:space:]]*"[^"]*"' version.json | head -1 | cut -d'"' -f4)
+          [ -n "$lab" ] || lab="$app"
+          echo "index.html   APP_VERSION   = $app"
+          echo "timer.html   TIMER_VERSION = $tim"
+          echo "version.json version       = $jsn"
+          echo "etiket                     = $lab"
+          if [ -z "$app" ] || [ -z "$tim" ] || [ -z "$jsn" ]; then
+            echo "::error::Een van de versienummers is niet gevonden (APP_VERSION='$app', TIMER_VERSION='$tim', version.json='$jsn')."
+            exit 1
+          fi
+          if [ "$app" != "$tim" ] || [ "$app" != "$jsn" ]; then
+            echo "::error::De versienummers lopen uiteen (APP_VERSION $app / TIMER_VERSION $tim / version.json $jsn). Upload de drie bestanden uit dezelfde build."
+            exit 1
+          fi
+          echo "VERSIE=$lab" >> "$GITHUB_ENV"
+          echo "VERSIENR=$app" >> "$GITHUB_ENV"
+
+      - name: Kopieren naar demo/ en 404.html
+        run: |
+          mkdir -p demo
+          cp index.html timer.html version.json demo/
+          cp index.html 404.html
+
+      - name: Vastleggen als er iets veranderd is
+        run: |
+          if [ -z "$(git status --porcelain -- demo 404.html)" ]; then
+            echo "demo en 404.html stonden al gelijk — niets te doen"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add demo 404.html
+          git commit -m "demo en 404.html gelijkgetrokken met $VERSIE (versie $VERSIENR)"
+          git push
