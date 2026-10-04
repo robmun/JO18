@@ -1,37 +1,85 @@
 # Testen en pas daarna uitgeven.
 #
-# Deze workflow doet bij elke upload naar main vier dingen, in deze volgorde:
-#   1. demo/ en 404.html gelijktrekken met de hoofdmap (en dat vastleggen)
-#   2. de vijf tests uit de map test/ draaien
-#   3. alleen als die groen zijn: de site publiceren
-#   4. bij rood: de schermafdrukken van de mislukte test bewaren
+# Twee momenten waarop dit draait:
 #
-# Punt 3 is waarom GitHub Pages op "GitHub Actions" moet staan in plaats van op
-# "Deploy from a branch". Staat het op een branch, dan publiceert GitHub zelf bij
-# elke upload en kan geen enkele test dat nog tegenhouden.
+#   • bij een pull request — dan worden alléén de tests gedraaid. Je ziet op het
+#     voorstel een groen of rood vinkje voordat je op Merge drukt, en er wordt niets
+#     gepubliceerd en niets vastgelegd.
 #
-# Deze workflow vervangt sync-demo.yml; laat ze niet allebei staan.
+#   • bij een upload naar main — dan worden de tests gedraaid én, als die groen zijn,
+#     demo/ en 404.html gelijkgetrokken en de site gepubliceerd.
+#
+# Dat publiceren kan alleen als GitHub Pages bij Settings → Pages op 'GitHub Actions'
+# staat. Staat het op 'Deploy from a branch', dan publiceert GitHub zelf bij elke
+# upload en kan geen enkele test dat nog tegenhouden.
 
 name: Testen en uitgeven
 
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write   # om demo/ en 404.html bij te werken
-  pages: write      # om de site te publiceren
-  id-token: write
+  contents: read
 
-# Nooit twee uitgaves tegelijk, en een lopende niet afbreken.
+# Per tak één tegelijk, zodat een pull request de uitgave van main niet afbreekt.
 concurrency:
-  group: uitgeven
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  uitgeven:
+  testen:
+    name: Tests
     runs-on: ubuntu-latest
+    steps:
+      - name: Repository ophalen
+        uses: actions/checkout@v4
+
+      # Ook hier gelijktrekken, maar zonder iets vast te leggen: zo toetsen de tests
+      # precies wat er gepubliceerd zou worden. Zonder deze stap zou test 01 klagen
+      # over een demo-map die de uitgave zelf pas bijwerkt.
+      - name: Kopieën gelijktrekken (alleen in deze draai)
+        run: |
+          set -e
+          mkdir -p demo
+          cp index.html 404.html
+          cp index.html timer.html version.json demo/
+
+      - name: Node klaarzetten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Testgereedschap installeren
+        working-directory: test
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Tests draaien
+        run: node test/run.js
+
+      - name: Schermafdrukken bewaren als er iets mis was
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-uitvoer
+          path: test/uitvoer/
+          if-no-files-found: ignore
+
+  uitgeven:
+    name: Publiceren
+    needs: testen
+    # Alleen bij een upload naar main of met de hand gestart — nooit bij een pull request.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # om demo/ en 404.html bij te werken
+      pages: write      # om de site te publiceren
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.publiceren.outputs.page_url }}
@@ -59,29 +107,6 @@ jobs:
           git add -A
           git commit -m "demo/ en 404.html gelijkgetrokken met ${LABEL:-de hoofdmap}"
           git push
-
-      - name: Node klaarzetten
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Testgereedschap installeren
-        working-directory: test
-        run: |
-          npm install --no-audit --no-fund
-          npx playwright install --with-deps chromium
-
-      # Gaat hier iets mis, dan stopt de workflow en wordt er niets gepubliceerd.
-      - name: Tests draaien
-        run: node test/run.js
-
-      - name: Schermafdrukken bewaren als er iets mis was
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-uitvoer
-          path: test/uitvoer/
-          if-no-files-found: ignore
 
       # De map test/ hoort niet op de website; node_modules al helemaal niet.
       - name: Site klaarzetten
