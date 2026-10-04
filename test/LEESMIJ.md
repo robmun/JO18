@@ -73,8 +73,18 @@ uitvoer/            schermafdrukken bij een mislukte test (niet in git)
 
 ## Twee dingen om te weten
 
-De tests draaien zonder internet. Firebase en de service worker kunnen daardoor niet
-geladen worden; die meldingen worden bewust genegeerd, want ze zeggen niets over de
+**De tests kunnen niet naar buiten.** Elk venster wordt gemaakt met `nieuweContext()`
+uit `lib/browser.js`, en die blokkeert alles wat niet van de testserver komt. Dat is
+geen detail: de app verbindt bij een kijk-link uit zichzelf met de cloud, en op een
+machine mét internet — zoals een GitHub-runner — zou hij daar de echte Firebase laden
+en anoniem inloggen. Dan maakt elke testronde echte anonieme gebruikers aan in het
+Firebase-project. Een team wordt niet aangemaakt en er worden geen gegevens gelezen,
+maar een test hoort nooit iets buiten zichzelf aan te raken. Tests 03 en 05 controleren
+bovendien of er werkelijk niets naar buiten is gegaan, en worden rood als dat wel zo is.
+Wie het samenwerken wél wil toetsen, gebruikt de nagebootste Firebase in `lib/fbstub.js`.
+
+Doordat Firebase en de service worker zo niet geladen worden, legt de app een paar
+meldingen vast die daarover gaan. Die worden bewust genegeerd — ze zeggen niets over de
 app. Alle andere fouten die de app zelf vastlegt, laten een test mislukken.
 
 De verwachtingen in test 03 staan met opzet hard in het bestand, inclusief de naam

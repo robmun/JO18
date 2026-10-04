@@ -1,7 +1,7 @@
 // De zelftest die in de app zelf zit (?zelftest=1). Die rekent de planner honderden
 // keren door: wisselmomenten, speeltijdverdeling, keeperregels, ongedaan maken.
 // Hier wordt alleen de uitslag opgehaald en omgezet in goed of fout.
-const { startBrowser, TOESTEL } = require('../lib/browser');
+const { startBrowser, nieuweContext } = require('../lib/browser');
 
 const naam = 'zelftest van de planner';
 const traag = false;
@@ -10,7 +10,7 @@ async function draai({ basis, log }) {
   const mis = [];
   const b = await startBrowser();
   try {
-    const ctx = await b.newContext(TOESTEL);
+    const ctx = await nieuweContext(b);
     const p = await ctx.newPage();
     const paginafouten = [];
     p.on('pageerror', e => { if (!/ServiceWorker/.test(String(e))) paginafouten.push(String(e).slice(0, 160)); });
