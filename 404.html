@@ -4228,9 +4228,10 @@ function kijkManifest(){
     if(mf)mf.remove();
     document.title='opstelling & wissels \u2014 kijken';
     // De naam onder het pictogram komt op iOS uit deze meta, niet uit het manifest.
-    // Daar stond de teamnaam van de coach; een speler heeft daar niets aan.
+    // Daar stond de teamnaam van de coach; een speler moet aan de naam kunnen zien
+    // dat dit de meekijk-versie is en niet de versie waarin je iets kunt wijzigen.
     const at=document.querySelector('meta[name="apple-mobile-web-app-title"]');
-    if(at)at.setAttribute('content','Opstelling');
+    if(at)at.setAttribute('content','JO18-5 view-only');
   }catch(e){}
 }
 // Een teamcode is het enige dat je team beschermt: wie hem kent, leest alle namen.
@@ -9589,8 +9590,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=299;
-const VERSIE_LABEL='26.10.6';
+const APP_VERSION=300;
+const VERSIE_LABEL='26.10.7';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
