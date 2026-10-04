@@ -3,7 +3,7 @@
 // op /t/<teamcode>/ staat en dus een map dieper lijkt), en welke naam de iPad
 // voorstelt bij 'Zet op beginscherm' (die kwam uit het manifest en zette een
 // kijker op de coachversie).
-const { startBrowser, TOESTEL } = require('../lib/browser');
+const { startBrowser, nieuweContext, volgBuitenverkeer } = require('../lib/browser');
 
 const naam = 'de vier adressen en de naam op het beginscherm';
 const traag = false;
@@ -29,9 +29,12 @@ async function draai({ basis, log }) {
   const b = await startBrowser();
   try {
     for (const a of ADRESSEN) {
-      const ctx = await b.newContext(TOESTEL);
+      const ctx = await nieuweContext(b);
       const p = await ctx.newPage();
       const mislukt = [], paginafouten = [];
+      // Een kijk-link laat de app uit zichzelf verbinden; hier wordt bewezen dat die
+      // verbinding de testomgeving niet verlaat (zie nieuweContext in lib/browser.js).
+      const buiten = volgBuitenverkeer(p);
       p.on('pageerror', e => { if (!/ServiceWorker/.test(String(e))) paginafouten.push(String(e).slice(0, 120)); });
       p.on('response', r => {
         // Het kijkpad geeft met opzet 404 (zo werkt GitHub Pages); de rest niet.
@@ -69,6 +72,7 @@ async function draai({ basis, log }) {
       if (r.vullend !== 'yes') fout('start niet schermvullend');
       if (!r.icoon) fout('geen pictogram voor het beginscherm');
       mislukt.forEach(m => fout('bestand mislukt: ' + m));
+      buiten.forEach(u => fout('de test ging naar buiten: ' + u));
       paginafouten.forEach(m => fout('paginafout: ' + m));
 
       log(`${a.naam.padEnd(16)} status ${resp.status()} · rol ${r.rol} · ${r.tabs} tabs · `

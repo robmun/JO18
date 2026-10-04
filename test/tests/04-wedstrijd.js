@@ -5,7 +5,7 @@
 // De test stopt zodra de app niet meer reageert en legt dan vast wat er aan de hand is.
 const fs = require('fs');
 const path = require('path');
-const { startBrowser, TOESTEL } = require('../lib/browser');
+const { startBrowser, nieuweContext } = require('../lib/browser');
 
 const naam = 'hele wedstrijd op één toestel';
 const traag = true;
@@ -14,7 +14,7 @@ async function draai({ basis, log, uitvoer }) {
   const mis = [];
   const b = await startBrowser();
   try {
-    const ctx = await b.newContext(TOESTEL);
+    const ctx = await nieuweContext(b);
     const p = await ctx.newPage();
     const paginafouten = [];
     p.on('pageerror', e => { if (!/ServiceWorker/.test(String(e))) paginafouten.push(String(e).slice(0, 160)); });
@@ -185,8 +185,8 @@ async function draai({ basis, log, uitvoer }) {
         gebeurtenissen: (state.gebeurtenissen || []).length,
         // Firebase en de service worker bestaan in de testomgeving niet; die meldingen
         // horen erbij en zeggen niets over de app zelf.
-        // Deze test draait zonder nep-Firebase. Waar internet is (GitHub Actions) bereikt
-        // de app dan de echte Firestore, en die weigert de techniekteller vanaf de
+        // De techniekteller schrijft naar Firestore. Die is hier geblokkeerd (zie
+        // nieuweContext), en ook mét internet weigert de echte Firestore hem vanaf de
         // testserver. Dat zegt niets over de wedstrijd, dus die melding telt niet mee.
         fouten: _fouten.filter(f => !/Firebase|ServiceWorker/i.test(f.wat) && f.waar !== 'techniekteller').map(f => f.waar + ' · ' + f.wat)
       }));

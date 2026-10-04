@@ -3,7 +3,7 @@
 // en wijzigen ze een keer tegelijk — de twee gevallen waarin de standen uit elkaar
 // kunnen lopen. Alleen de database is nagebootst; de rest is de echte app.
 const path = require('path');
-const { startBrowser, TOESTEL } = require('../lib/browser');
+const { startBrowser, nieuweContext, volgBuitenverkeer } = require('../lib/browser');
 const maakStub = require('../lib/fbstub.js')();
 
 const naam = 'twee coaches tegelijk';
@@ -14,13 +14,15 @@ async function draai({ basis, log, uitvoer }) {
   const TEAM = 'testteam' + Math.floor(Math.random() * 99999);
   const b = await startBrowser();
   try {
-    const fouten = { A: [], B: [] }, paginas = [];
+    const fouten = { A: [], B: [] }, buitenverkeer = { A: [], B: [] }, paginas = [];
     let stap = 0;
 
     async function maakPagina(nm, uid) {
-      const ctx = await b.newContext(TOESTEL);
+      const ctx = await nieuweContext(b);
       const p = await ctx.newPage(); p._naam = nm;
       p.on('pageerror', e => { if (!/ServiceWorker/.test(String(e))) fouten[nm].push(String(e).slice(0, 150)); });
+      // Bewijs dat de nagebootste Firebase gebruikt wordt en niet de echte.
+      buitenverkeer[nm] = volgBuitenverkeer(p);
       // Twee aparte browseromgevingen kunnen geen BroadcastChannel delen (elk heeft een
       // eigen opslag en dus een eigen toestel-id). De koppeling loopt daarom via Node.
       await p.exposeFunction('__fbSend', async t => {
@@ -191,6 +193,8 @@ async function draai({ basis, log, uitvoer }) {
     if (!eA.schema || !eB.schema) mis.push('het wisselschema is onderweg verdwenen');
     eA.fouten.forEach(f => mis.push('A legde een fout vast: ' + f));
     eB.fouten.forEach(f => mis.push('B legde een fout vast: ' + f));
+    buitenverkeer.A.forEach(u => mis.push('A ging naar buiten: ' + u));
+    buitenverkeer.B.forEach(u => mis.push('B ging naar buiten: ' + u));
     fouten.A.forEach(f => mis.push('paginafout A: ' + f));
     fouten.B.forEach(f => mis.push('paginafout B: ' + f));
 
