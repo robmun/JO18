@@ -113,38 +113,53 @@ async function draai({ basis, log }) {
     if (grens.lang > 20) mis.push(`een naam van 80 tekens bleef ${grens.lang} tekens lang`);
     log(`grenzen: niet onder 0, niet boven ${grens.hoog}, naam hoogstens ${grens.lang} tekens`);
 
-    // de telefoonindeling: veld blijft staan, wisselmomenten schuiven erachter weg
+    // De telefoonindeling: de wisseltekst staat direct onder de veldtekening en is in
+    // zijn geheel te lezen.
+    //
+    // Hier is eerder een vastgezet veld (position:sticky) geprobeerd, naar het voorbeeld
+    // van de liggende tablet. Dat liep mis: de tekening is op een telefoon 564 tot 646 px
+    // hoog en het scrollvenster 524 tot 818 px, dus op een kleine iPhone was het veld
+    // hoger dan het venster en schoof álle wisseltekst er voorgoed achter. Daarom toetst
+    // deze test nu het omgekeerde: het veld mag níet vastgezet zijn, en elke regel van
+    // het eerstvolgende moment moet in beeld te krijgen zijn.
     const indeling = await pT.evaluate(() => {
       state.score = { thuis: 'Gooische', uit: 'Naarden', t: 5, u: 1 };
       activeTab = 'wedstrijd'; render();
       const pv = document.querySelector('.plakveld'), pz = document.querySelector('.plakzone');
-      if (!pv || !pz) return { fout: 'geen plakveld of plakzone' };
+      if (!pv || !pz) return { fout: 'geen veldblok of wisselzone' };
+      const mo = pz.querySelector('.wmoment[data-min]');
+      if (!mo) return { fout: 'geen wisselmoment onder het veld' };
       const v = document.getElementById('view');
-      // Bij het vastklikken schuift het blok de bovenmarge van de scrollbak in; het
-      // gaat er dus niet om dat het stilstaat, maar dat het bovenaan blijft plakken
-      // in plaats van weg te schuiven.
-      v.scrollTop = Math.round(v.scrollHeight * 0.3);
+      mo.scrollIntoView({ block: 'center' });
       const bak = v.getBoundingClientRect();
-      const blok = pv.getBoundingClientRect();
+      const regels = [...mo.querySelectorAll('.wline')];
+      const inBeeld = regels.filter(e => {
+        const r = e.getBoundingClientRect();
+        return r.top >= bak.top - 1 && r.bottom <= bak.bottom + 1;
+      });
+      // Staat de wisseltekst wel echt tussen de tekening en de rest van de veldkaart?
+      const kinderen = [...pz.children];
       return {
         positie: getComputedStyle(pv).position,
         veldIn: !!pv.querySelector('#field'),
-        kaartenNaast: [...pz.children].filter(x => x !== pv).length,
-        // De scrollbak heeft 12px lucht bovenin; daar klikt het blok tegenaan. Dat
-        // strookje wordt door .plakveld::before afgedekt, dus het mag meetellen.
-        blijftStaan: (blok.top - bak.top) <= 16 && blok.bottom > bak.top + 100,
-        afstandTotBoven: Math.round(blok.top - bak.top),
-        hogerDanScherm: blok.height > v.clientHeight
+        veldEerst: kinderen[0] === pv,
+        tekstOnderVeld: kinderen.indexOf(mo.closest('.card')) > 0,
+        regels: regels.length,
+        leesbaar: inBeeld.length,
+        lettergrootte: regels.length ? getComputedStyle(regels[0]).fontSize : ''
       };
     });
     if (indeling.fout) mis.push(indeling.fout);
     else {
-      if (indeling.positie !== 'sticky') mis.push(`het veld staat op position:${indeling.positie} in plaats van sticky`);
-      if (!indeling.veldIn) mis.push('de veldtekening zit niet in het vastgezette blok');
-      if (!indeling.kaartenNaast) mis.push('er staan geen wisselmomenten naast het vastgezette veld');
-      if (indeling.hogerDanScherm) mis.push('het vastgezette veld is hoger dan het scherm; dan kan het niet blijven staan');
-      if (!indeling.blijftStaan) mis.push(`het veld blijft niet bovenaan plakken (${indeling.afstandTotBoven} px van de bovenkant)`);
-      else log(`veld blijft staan bij het scrollen, met ${indeling.kaartenNaast} blok(ken) tekst erachter`);
+      if (indeling.positie === 'sticky' || indeling.positie === 'fixed')
+        mis.push(`het veld staat weer vast (position:${indeling.positie}); op een telefoon verdwijnt de wisseltekst daarachter`);
+      if (!indeling.veldIn) mis.push('de veldtekening zit niet in het veldblok');
+      if (!indeling.veldEerst) mis.push('de veldtekening staat niet bovenaan de wisselzone');
+      if (!indeling.tekstOnderVeld) mis.push('de wisseltekst staat niet direct onder de veldtekening');
+      if (!indeling.regels) mis.push('het eerstvolgende moment heeft geen enkele wisselregel');
+      else if (indeling.leesbaar !== indeling.regels)
+        mis.push(`van de ${indeling.regels} wisselregels zijn er maar ${indeling.leesbaar} in beeld te krijgen`);
+      else log(`wisseltekst direct onder het veld, alle ${indeling.regels} regels leesbaar op ${indeling.lettergrootte}`);
     }
     await ctxT.close();
 
