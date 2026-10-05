@@ -1518,6 +1518,48 @@ function taal(){
   return 'nl';
 }
 const EN=()=>taal()==='en';
+
+/* ============ Hoe de app over spelers schrijft ============ */
+// De app wist niet of een team uit jongens of meisjes bestaat en schreef overal 'hij'.
+// Voor de helft van het hockey klopt dat niet. Waar een voornaamwoord gemist kan worden
+// staat het er nu niet meer; waar het echt nodig is, komt het hiervandaan.
+//
+// Dit hoort bij het team en niet bij het toestel — anders zou je mede-coach het apart
+// moeten instellen, net als de coachregels. De taal is wél per toestel: dat is een
+// kijkvoorkeur, dit is een eigenschap van de ploeg.
+//
+// 'j' is de beginwaarde, zodat een bestaande app precies blijft lezen zoals hij deed.
+const VNW={
+  j:{hij:'hij', hem:'hem',  zijn:'zijn', he:'he',   him:'him',  his:'his'  },
+  m:{hij:'zij', hem:'haar', zijn:'haar', he:'she',  him:'her',  his:'her'  },
+  // Neutraal: 'die' en 'hun' voor een gemengde ploeg of een coach die het liever
+  // niet benoemt. In het Engels is dat de enkelvoudige 'they' — let op: dan hoort er
+  // 'they are' en niet 'they is', dus Engelse zinnen zetten geen werkwoord vlak
+  // achter dit woord.
+  n:{hij:'die', hem:'die',  zijn:'hun',  he:'they', him:'them', his:'their'}
+};
+function aanspreekvorm(){
+  try{
+    const v=(typeof state!=='undefined'&&state&&state.aanspreek)||'';
+    if(v==='j'||v==='m'||v==='n')return v;
+  }catch(e){}
+  return 'j';
+}
+// V('hem') in een gewone tekst, {hem} in een tekst die door T/U/Tf gaat.
+// Een hoofdletter in de sleutel geeft een hoofdletter terug: V('Hij') → 'Zij'.
+function V(sleutel){
+  const groot=/^[A-Z]/.test(sleutel);
+  const k=sleutel.toLowerCase();
+  const tabel=VNW[aanspreekvorm()]||VNW.j;
+  const w=tabel[k]!=null?tabel[k]:sleutel;
+  return groot?w.charAt(0).toUpperCase()+w.slice(1):w;
+}
+// Vult {hij} {hem} {zijn} {he} {him} {his} in, met hoofdletter als het token er een heeft.
+function vnwVul(s){
+  if(typeof s!=='string'||s.indexOf('{')<0)return s;
+  return s.replace(/\{(Hij|hij|Hem|hem|Zijn|zijn|He|he|Him|him|His|his)\}/g,(m,k)=>V(k));
+}
+
 // en-GB en niet en-US: dan blijft de datum '12 September' en de klok 24-uurs.
 // Voor een wedstrijdtimer is dat laatste geen smaakkwestie.
 const LOCALE=()=>EN()?'en-GB':'nl-NL';
@@ -1605,7 +1647,7 @@ const WB={
   'Niets om ongedaan te maken':'Nothing to undo',
   'Terugdraaien lukt niet':'Cannot undo that',
   'Kan niet tijdens een wedstrijd':'Not possible during a match',
-  'Kan niet tijdens een wedstrijd \u2014 meld hem af op Spelers':'Not possible during a match \u2014 mark him unavailable under Players',
+  'Kan niet tijdens een wedstrijd \u2014 meld de speler af op Spelers':'Not possible during a match \u2014 mark the player unavailable under Players',
   'Tik nu de speler aan om mee te ruilen':'Now tap the player to swap with',
   'Melding weggedrukt \u2014 schud om terug te halen':'Notice dismissed \u2014 shake to bring it back',
   'Schudden staat aan':'Shake is on',
@@ -1615,8 +1657,8 @@ const WB={
   // ── Gebeurtenissen tijdens de wedstrijd ──
   'groene kaart':'green card', 'gele kaart':'yellow card', 'het veld':'the pitch',
   '{0} krijgt een {1} en staat {2} minuten buiten het veld':'{0} gets a {1} and is off the pitch for {2} minutes',
-  '{0} krijgt een {1} en staat {2} minuten buiten het veld; het team speelt zolang met een man minder.':
-    '{0} gets a {1} and is off the pitch for {2} minutes; the team plays a man down until then.',
+  '{0} krijgt een {1} en staat {2} minuten buiten het veld; het team speelt zolang met een speler minder.':
+    '{0} gets a {1} and is off the pitch for {2} minutes; the team plays a player down until then.',
   ', vervangen door {0}':', replaced by {0}',
   ' die op {0} gaat spelen':', who takes over at {0}',
   '{0} is weer inzetbaar en zit op de bank.':'{0} is available again and is on the bench.',
@@ -1630,13 +1672,13 @@ const WB={
     '{0} is injured and is replaced by {1}, who takes over at {2}.',
   '{0} raakt geblesseerd en wordt vervangen door {1}.':'{0} is injured and is replaced by {1}.',
   '{0} mag terug en gaat naar {1}.':'{0} can come back on, at {1}.',
-  '{0} mag terug, maar staat volgens het schema nu op de bank; hij komt {1}.':
-    '{0} can come back on, but the plan has him on the bench right now; he is {1}.',
+  '{0} mag terug, maar staat volgens het schema nu op de bank en komt {1}.':
+    '{0} can come back on, but the plan has {0} on the bench right now; coming on {1}.',
   '{0} mag terug, maar staat volgens het schema de rest van de wedstrijd op de bank.':
     '{0} can come back on, but the plan has him on the bench for the rest of the match.',
   '{0} is weer beschikbaar en staat {1}.':'{0} is available again and is {1}.',
   '{0} terug op {1}':'{0} back on at {1}',
-  '{0} mag terug \u2014 staat op de bank':'{0} can come back on \u2014 he is on the bench',
+  '{0} mag terug \u2014 staat op de bank':'{0} can come back on \u2014 on the bench for now',
   '{0} minuten eruit':'{0} minutes off',
   'Herplannen lukt niet \u2014 {0} staat nog op niet inzetbaar':'Cannot replan \u2014 {0} is still marked unavailable',
   // ── Beschrijving van een herplanning ──
@@ -1720,7 +1762,7 @@ const WB={
   'Deze demo werkt nog {0} dag.':'This demo works for {0} more day.',
   'Deze demo werkt nog {0} dagen.':'This demo works for {0} more days.',
   '{0} staat twee keer tegelijk op het veld in Q{1}':'{0} is on the pitch twice at once in Q{1}',
-  '{0} mag weer meedoen \u2014 tik hem aan':'{0} can play again \u2014 tap him',
+  '{0} mag weer meedoen \u2014 tik de naam aan':'{0} can play again \u2014 tap the name',
   // ── Wisselmomenten ──
   'na {0} min':'after {0} min',
   'Na {0} min':'After {0} min',
@@ -1730,10 +1772,10 @@ const WB={
   ', dus bij {0} {1} op de klok':', so at {0} {1} on the clock',
   ' in Q{0}, dus bij {1} {2}':' in Q{0}, so at {1} {2}',
   // ── Waarschuwingen boven het veld ──
-  '{0} staat toch op {1}, terwijl daar een regel tegen is. Er was geen andere plek voor hem \u2014 kijk of de regel kan vervallen.':
-    '{0} is playing {1} even though a rule says otherwise. There was nowhere else to put him \u2014 see whether the rule can go.',
-  '{0} staat in {1} in de {2}, terwijl hij daar volgens Spelers niet mag staan.':
-    '{0} plays in {2} in {1}, while Players says he is not allowed there.',
+  '{0} staat toch op {1}, terwijl daar een regel tegen is. Er was geen andere plek \u2014 kijk of de regel kan vervallen.':
+    '{0} is playing {1} even though a rule says otherwise. There was nowhere else to go \u2014 see whether the rule can go.',
+  '{0} staat in {1} in de {2}, terwijl dat volgens Spelers niet mag.':
+    '{0} plays in {2} in {1}, while Players does not allow that.',
   '{0} staat op {1} verschillende posities, terwijl het maximum {2} is.':
     '{0} plays {1} different positions, while the maximum is {2}.',
   // ── Heat map ──
@@ -1748,8 +1790,8 @@ const WB={
   'Opslaan in cloud mislukt: {0}':'Saving to the cloud failed: {0}',
   'Zet eerst meer spelers op aanwezig; met {0} spelers zegt dit plaatje nog niets.':
     'Mark more players available first; with {0} players this picture says nothing yet.',
-  'Dan blijft er geen enkele linie over voor {0} \u2014 meld hem af op Spelers':
-    'That leaves no line at all for {0} \u2014 mark him unavailable under Players',
+  'Dan blijft er geen enkele linie over voor {0} \u2014 meld {0} af op Spelers':
+    'That leaves no line at all for {0} \u2014 mark {0} unavailable under Players',
   'Dat botst met \u2018{0}\u2019':'That conflicts with \u2018{0}\u2019',
   'Speelt nooit in een bepaalde linie':'Never plays in a given line',
   '{0} speelt altijd op {1} of {2}':'{0} always plays {1} or {2}',
@@ -1778,15 +1820,15 @@ const WB={
   'Taal':'Language',
   'Nederlands':'Dutch',
   'Engels':'English',
-  'Alleen dit toestel. Je mede-coach houdt zijn eigen taal, ook in dezelfde gedeelde stand.':
-    'This device only. Your co-coach keeps his own language, even in the same shared state.',
+  'Alleen dit toestel. Je mede-coach houdt de eigen taalkeuze, ook in dezelfde gedeelde stand.':
+    'This device only. Your co-coach keeps their own language choice, even in the same shared state.',
   'Posities, regels en schema\u2019s worden niet vertaald opgeslagen: een deel-link uit een Nederlandse app opent gewoon in een Engelse.':
     'Positions, rules and plans are not stored translated: a share link from a Dutch app opens fine in an English one.'
 };
 function T(nl){
-  if(!EN())return nl;
+  if(!EN())return vnwVul(nl);
   const v=WB[nl];
-  return v==null?nl:v;
+  return vnwVul(v==null?nl:v);
 }
 // Zinnen met gaten. De Engelse zin mag de gaten in een andere volgorde zetten —
 // precies waarvoor dit nodig is: 'X erin op Y' tegenover 'X on at Y' loopt gelijk,
@@ -1796,8 +1838,9 @@ function T(nl){
 // twee talen naast elkaar op de plek waar ze gebruikt worden, zodat een wijziging in
 // het Nederlands meteen de Engelse versie ernaast laat zien. Korte, herhaalde labels
 // blijven wél in WB staan — die komen op tientallen plekken terug.
-function U(nl,en){ return EN()?en:nl; }
+function U(nl,en){ return vnwVul(EN()?en:nl); }
 function Tf(nl,...w){
+  // T() vult de voornaamwoorden al in; hier blijven alleen de genummerde gaten over.
   const sjabloon=T(nl);
   return sjabloon.replace(/\{(\d+)\}/g,(m,i)=>w[Number(i)]==null?'':String(w[Number(i)]));
 }
@@ -1991,13 +2034,13 @@ function demoTips(){
   if(!/^q[0-3]$/.test(activeTab))return;
   if(klok.loopt){
     demoUitleg('loopt',U('De wedstrijd loopt','The match is running'),
-      U('Tik nu een speler aan en je kunt vier dingen doen: hem spontaan wisselen met '
-        +'iemand van de bank, een blessure doorgeven, hem voor de rest van de wedstrijd '
+      U('Tik nu een speler aan en je kunt vier dingen doen: spontaan wisselen met '
+        +'iemand van de bank, een blessure doorgeven, voor de rest van de wedstrijd '
         +'afmelden, of een groene of gele kaart registreren. '
         +'Het schema past zich meteen aan en wat er gebeurde komt op de juiste minuut '
         +'in het wisseloverzicht te staan.',
-        'Tap a player now and you can do four things: substitute him on the spot with '
-        +'someone from the bench, report an injury, rule him out for the rest of the '
+        'Tap a player now and you can do four things: substitute that player on the spot with '
+        +'someone from the bench, report an injury, rule that player out for the rest of the '
         +'match, or record a green or yellow card. '
         +'The plan adjusts straight away and what happened appears at the right minute '
         +'in the substitution overview.'));
@@ -2318,7 +2361,10 @@ function standaardKeeperId(){
   return k?k.id:null;
 }
 function defaultState(){return {v:STATE_V, players:defaultPlayers(),
-  keeperId:standaardKeeperId(), rules:defaultRules(), schedule:null, genHash:null, wegMeldingen:[]};}
+  keeperId:standaardKeeperId(), rules:defaultRules(), schedule:null, genHash:null, wegMeldingen:[],
+  // Jongens, meisjes of neutraal — zie VNW bovenaan. Een stand van vóór deze versie
+  // heeft dit veld niet; aanspreekvorm() valt dan terug op 'j', dus er verandert niets.
+  aanspreek:'j'};}
 
 /* ============ Planning ============ */
 // Kwarten waarin een speler volgens een 'noq'-regel niet speelt.
@@ -3852,7 +3898,7 @@ function kijkerNaamVragen(altijd){
   h.innerHTML=`<div class="modal-back center" id="mback"><div class="modal" role="dialog" aria-modal="true" style="max-width:min(94vw,420px)">
     <h3>${U('Hoe heet je?','What is your name?')}</h3>
     <p style="font-size:var(--fs-sm);color:var(--dim);margin:0 0 8px">${U(
-      'Alleen zodat je coach in zijn overzicht ziet wie er meekijkt. Je kunt dit overslaan — je ziet de opstelling hoe dan ook. Je naam blijft binnen het team en er gaat verder niets mee.',
+      'Alleen zodat je coach in het coachoverzicht ziet wie er meekijkt. Je kunt dit overslaan — je ziet de opstelling hoe dan ook. Je naam blijft binnen het team en er gaat verder niets mee.',
       'Only so your coach can see who is following along in their overview. You can skip this — you will see the line-up either way. Your name stays within the team and nothing else is sent along.')}</p>
     <input class="cin" id="mnaam" type="text" maxlength="24" autocomplete="name"
       placeholder="${U('je voornaam','your first name')}" value="${esc(heeftEigenNaam()?CLOUD.name:'')}">
@@ -4286,7 +4332,7 @@ function geweigerdUitleg(){
   return ico('waarschuwing')+U(
     '<b>Dit toestel staat niet in de coachlijst van team ‘'+esc(CLOUD.team)+'’.</b> Meekijken kan wel, wijzigen niet.'
     +'<br><br>Dit gebeurt vrijwel altijd doordat de app opnieuw op het beginscherm is gezet, of doordat de gegevens van de app zijn gewist. Je toestel krijgt dan een nieuw kenmerk en het team kent alleen het oude nog. Dat je naam in het coachoverzicht nog bij ‘eigenaar’ staat klopt dus ook — dat hoort bij je vórige kenmerk.'
-    +'<br><br><b>Zo kom je er weer in</b><br>Laat een mede-coach in zijn app op ‘Coach toelaten’ tikken en tik daarna hieronder op ‘Opnieuw verbinden’. Is er niemand anders met coachrechten, zet dan in de Firebase-console het kenmerk hieronder bij <b>editors</b> van dit team.',
+    +'<br><br><b>Zo kom je er weer in</b><br>Laat een mede-coach in de eigen app op ‘Coach toelaten’ tikken en tik daarna hieronder op ‘Opnieuw verbinden’. Is er niemand anders met coachrechten, zet dan in de Firebase-console het kenmerk hieronder bij <b>editors</b> van dit team.',
     '<b>This device is not in the coach list of team ‘'+esc(CLOUD.team)+'’.</b> You can follow along but not make changes.'
     +'<br><br>This almost always happens after re-adding the app to the home screen, or after clearing the app\u2019s data. The device then gets a new id and the team only knows the old one. Your name still showing as \u2018owner\u2019 in the coach overview is correct too \u2014 that belongs to your previous id.'
     +'<br><br><b>How to get back in</b><br>Ask a fellow coach to tap \u2018Allow a coach in\u2019 in their app, then tap \u2018Reconnect\u2019 below. If nobody else has coach rights, add the id below to <b>editors</b> of this team in the Firebase console.')
@@ -4532,6 +4578,14 @@ function valideerStand(s){
     s.gebeurtenissen=s.gebeurtenissen.slice(-MAX_GEBEURTENISSEN);
   }
 
+  // Jongens, meisjes of neutraal. Een binnenkomende stand mag hier niets anders in
+  // zetten; aanspreekvorm() zou dat toch negeren, maar dan blijft de rommel wél staan
+  // en reist hij door naar de volgende coach.
+  if(s.aanspreek!=null&&!['j','m','n'].includes(s.aanspreek)){
+    klachten.push(U('onbekende aanspreekvorm','unknown way of addressing players'));
+    delete s.aanspreek;
+  }
+
   const posIds=POSITIONS.map(p=>p.id);
   const gezien=new Set();
   s.players=s.players.filter(p=>{
@@ -4730,7 +4784,10 @@ function serializeState(){
     wegMeldingen:state.wegMeldingen||[],
     // Zonder dit ziet de mede-coach geen melding dat de aanvoerder is weggevallen,
     // terwijl hij wél de spelerslijst zonder aanvoerder binnenkrijgt.
-    aanvoerderWeg:state.aanvoerderWeg||''
+    aanvoerderWeg:state.aanvoerderWeg||'',
+    // Jongens, meisjes of neutraal. Hoort bij het team, dus hij reist mee naar de
+    // mede-coach en naar het kijkscherm; anders zou iedereen hem apart moeten zetten.
+    aanspreek:aanspreekvorm()
   };
 }
 async function shareState(){
@@ -5215,8 +5272,8 @@ function linieBotsingen(){
       if(!pid)continue;
       const p=byId(pid); if(!p)continue;
       if(magInLinie(p,pos.line))continue;
-      uit.push(`${p.name||'Een speler'} mag volgens zijn instellingen niet in de ${LINES[pos.line]},`
-        +` maar de regel \u2018${ruleSentence(r)}\u2019 zet hem daar wel neer. De regel wint;`
+      uit.push(`${p.name||'Een speler'} mag volgens de eigen instellingen niet in de ${LINES[pos.line]},`
+        +` maar de regel \u2018${ruleSentence(r)}\u2019 zet ${V('hem')} daar wel neer. De regel wint;`
         +` pas de linies aan op Spelers of verwijder de regel.`);
     }
   }
@@ -5317,10 +5374,10 @@ function gebrokenAfspraken(sch){
   }
   const uit=[];
   for(const pid in verbod)
-    uit.push(Tf('{0} staat toch op {1}, terwijl daar een regel tegen is. Er was geen andere plek voor hem \u2014 kijk of de regel kan vervallen.',
+    uit.push(Tf('{0} staat toch op {1}, terwijl daar een regel tegen is. Er was geen andere plek \u2014 kijk of de regel kan vervallen.',
       pName(pid), [...verbod[pid]].map(x=>PNz(x)).join(' '+T('en')+' ')));
   for(const pid in linie)
-    uit.push(Tf('{0} staat in {1} in de {2}, terwijl hij daar volgens Spelers niet mag staan.',
+    uit.push(Tf('{0} staat in {1} in de {2}, terwijl dat volgens Spelers niet mag.',
       pName(pid), [...linie[pid].q].map(q=>'Q'+q).join(' + '),
       [...linie[pid].l].map(l=>LINES[l]).join(EN()?' and ':' en de ')));
   if(maxPos)for(const pid in posities){
@@ -5953,7 +6010,7 @@ function kaartenBijwerken(){
     }
     if(rest===0 && !_kaartGemeld[p.id]){
       _kaartGemeld[p.id]=true;
-      toast(Tf('{0} mag weer meedoen — tik hem aan', p.name));
+      toast(Tf('{0} mag weer meedoen — tik de naam aan', p.name));
       if('vibrate' in navigator)navigator.vibrate([60,50,60]);
     }
     if(rest>0)_kaartGemeld[p.id]=false;
@@ -6566,7 +6623,7 @@ function drukKaart(){
     <span><i class="geel"></i>${U('gemiddeld','average')}</span>
     <span><i class="groen"></i>${U('ruimste keus','widest choice')}</span></div>`;
 
-  const getaluitleg=`<p class="hint" style="margin:9px 0 0">${U('Het getal is hoeveel spelers er voor die plek overblijven nadat iedereen verdeeld is over alle plekken waar hij mag en wil staan. Wie de enige kandidaat is voor drie posities, telt bij elk daarvan maar voor een derde mee \u2014 hij kan er tenslotte op \u00e9\u00e9n tegelijk staan. Alle drie de voorkeuren tellen mee, met aflopend gewicht: een tweede voorkeur telt bijna twee derde van een eerste, een derde ongeveer de helft, en een plek waar iemand alleen m\u00e1g staan telt licht mee.','The number is how many players are left over for that position once everyone has been spread across all the places he may and wants to play. Someone who is the only candidate for three positions counts as only a third at each of them \u2014 after all, he can stand in one place at a time. All three preferences count, with decreasing weight: a second preference counts almost two thirds of a first, a third about half, and a place where someone is merely allowed counts lightly.')}</p>`;
+  const getaluitleg=`<p class="hint" style="margin:9px 0 0">${U('Het getal is hoeveel spelers er voor die plek overblijven nadat iedereen verdeeld is over alle plekken waar iemand mag en wil staan. Wie de enige kandidaat is voor drie posities, telt bij elk daarvan maar voor een derde mee \u2014 je kunt tenslotte maar op \u00e9\u00e9n plek tegelijk staan. Alle drie de voorkeuren tellen mee, met aflopend gewicht: een tweede voorkeur telt bijna twee derde van een eerste, een derde ongeveer de helft, en een plek waar iemand alleen m\u00e1g staan telt licht mee.','The number is how many players are left over for that position once everyone has been spread across all the places they may and want to play. Someone who is the only candidate for three positions counts as only a third at each of them \u2014 after all, you can only be in one place at a time. All three preferences count, with decreasing weight: a second preference counts almost two thirds of a first, a third about half, and a place where someone is merely allowed counts lightly.')}</p>`;
 
   // De rangorde is relatief, en dat moet er met zoveel woorden bij staan. Anders leest
   // donkerrood als een storing terwijl er ook bij een prima selectie altijd \u00e9\u00e9n plek
@@ -6581,8 +6638,8 @@ function drukKaart(){
   for(const l of LINE_IDS){
     const k=krap[l]; if(!k)continue;
     uitleg+=`<div class="heatrij"><i class="donkerrood"></i><span><b>${U('De ','')}${LINES[l]}</b> \u2014 ${
-      U(`er mogen ${k.kan} speler${k.kan===1?'':'s'} staan voor ${k.plek} plekken. Wie daar speelt kan dus niet rusten zonder dat er iemand op zijn plek komt die er volgens zijn instellingen niet hoort. Vink bij een paar spelers de ${LINES[l]} aan op <b>Spelers</b>, of kies een speelvorm met minder plekken daar.`,
-        `${k.kan} player${k.kan===1?'':'s'} are allowed here for ${k.plek} places. Anyone playing there cannot rest without someone taking his place who is not supposed to be there according to his own settings. Tick ${LINES[l]} for a couple of players under <b>Players</b>, or pick a formation with fewer places there.`)
+      U(`er mogen ${k.kan} speler${k.kan===1?'':'s'} staan voor ${k.plek} plekken. Wie daar speelt kan dus niet rusten zonder dat iemand anders die plek inneemt die er volgens de eigen instellingen niet hoort. Vink bij een paar spelers de ${LINES[l]} aan op <b>Spelers</b>, of kies een speelvorm met minder plekken daar.`,
+        `${k.kan} player${k.kan===1?'':'s'} are allowed here for ${k.plek} places. Anyone playing there cannot rest without someone else taking that place who is not supposed to be there according to their own settings. Tick ${LINES[l]} for a couple of players under <b>Players</b>, or pick a formation with fewer places there.`)
     }</span></div>`;
   }
   if(!D.vlak){
@@ -6822,7 +6879,7 @@ function renderRegels(){
     html+=`<div class="frow"><label class="hint">${U('Positie','Position')}</label><select class="sel" id="nrPos">${posopts(gek[0])}</select></div>
       <div class="frow"><label class="hint">${U('Of ook','Or also')}</label><select class="sel" id="nrPos2">${leeg}${posopts(gek[1])}</select></div>
       <div class="frow"><label class="hint">${U('Of ook','Or also')}</label><select class="sel" id="nrPos3">${leeg}${posopts(gek[2])}</select></div>
-      <p class="hint" style="margin:2px 0 6px">${U('Laat de onderste twee leeg voor \u00e9\u00e9n vaste plek. Vul je er meer in, dan staat hij altijd op \u00e9\u00e9n daarvan \u2014 welke, bepaalt de planner. Meer plekken geeft hem meer ruimte om de minuten eerlijk te verdelen.','Leave the bottom two empty for a single fixed spot. Fill in more and he will always be at one of them \u2014 which one is up to the planner. More spots give it more room to share the minutes out fairly.')}</p>`;
+      <p class="hint" style="margin:2px 0 6px">${U('Laat de onderste twee leeg voor \u00e9\u00e9n vaste plek. Vul je er meer in, dan staat deze speler altijd op \u00e9\u00e9n daarvan \u2014 welke, bepaalt de planner. Meer plekken geven de planner meer ruimte om de minuten eerlijk te verdelen.','Leave the bottom two empty for a single fixed spot. Fill in more and this player will always be at one of them \u2014 which one is up to the planner. More spots give it more room to share the minutes out fairly.')}</p>`;
   }
   if(t==='posdoor'){
     const sp=Array.isArray(newRule.spelers)?newRule.spelers:[];
@@ -6838,11 +6895,11 @@ function renderRegels(){
       LINE_IDS.map(l=>`<option value="${l}" ${newRule.line===l?'selected':''}>${LINES[l]}</option>`).join('')}</select></div>
     <p class="hint" style="margin:2px 0 6px">${U('Meestal heb je deze regel niet nodig: de vinkjes bij de speler op <b>Spelers</b> zijn even bindend. Gebruik hem als het alleen om <b>deze wedstrijd</b> gaat \u2014 een speler die het normaal w&#233;l kan, maar vandaag niet. Dan blijft zijn profiel ongemoeid en haal je na afloop alleen de regel weg.','You usually will not need this rule: the tick boxes on the player under <b>Players</b> are just as binding. Use it when it is only about <b>this match</b> \u2014 someone who normally can, but not today. That leaves his profile untouched; afterwards you just remove the rule.')}</p>`;
   if(t==='nopos')html+=`<div class="frow"><label class="hint">${U('Nooit op positie','Never at position')}</label><select class="sel" id="nrPos">${posopts(newRule.pos)}</select></div>
-    <p class="hint" style="margin:2px 0 6px">${U(`Harder dan een voorkeur: de planner zet hem hier niet neer, ook niet als hij daardoor krap komt te zitten. Wil je een hele linie afsluiten, doe dat dan met de vinkjes bij de speler op <b>Spelers</b> \u2014 dat scheelt drie regels.`,`Stronger than a preference: the planner will not put him here, even if that leaves it tight. If you want to rule out a whole line, use the tick boxes on the player under <b>Players</b> \u2014 that saves you three rules.`)}</p>`;
+    <p class="hint" style="margin:2px 0 6px">${U(`Harder dan een voorkeur: de planner zet deze speler hier niet neer, ook niet als het daardoor krap wordt. Wil je een hele linie afsluiten, doe dat dan met de vinkjes bij de speler op <b>Spelers</b> \u2014 dat scheelt drie regels.`,`Stronger than a preference: the planner will not put this player here, even if that leaves it tight. If you want to rule out a whole line, use the tick boxes on the player under <b>Players</b> \u2014 that saves you three rules.`)}</p>`;
   if(t==='maxpos'){
     const n=newRule.n||3;
     html+=`<div class="frow"><label class="hint">${U('Maximaal aantal posities','Maximum number of positions')}</label><select class="sel" id="nrMaxPos">${[2,3,4].map(k=>`<option value="${k}" ${n===k?'selected':''}>${k} posities</option>`).join('')}</select></div>
-    <p class="hint" style="margin:2px 0 6px">${U(`Geldt voor iedereen. Keepen telt niet mee: wie een kwart keept, houdt daarna zijn volledige aantal. Twee posities is streng \u2014 bij drie wisselmomenten per kwart betekent het dat iemand vier blokken lang op dezelfde plek staat.`,`Applies to everyone. Keeping goal does not count: whoever keeps for a quarter still has his full allowance afterwards. Two positions is strict \u2014 with three substitution points per quarter it means someone stands in the same place for four blocks.`)}</p>`;
+    <p class="hint" style="margin:2px 0 6px">${U(`Geldt voor iedereen. Keepen telt niet mee: wie een kwart keept, houdt daarna het volledige aantal. Twee posities is streng \u2014 bij drie wisselmomenten per kwart betekent het dat iemand vier blokken lang op dezelfde plek staat.`,`Applies to everyone. Keeping goal does not count: whoever keeps for a quarter still has the full allowance afterwards. Two positions is strict \u2014 with three substitution points per quarter it means someone stands in the same place for four blocks.`)}</p>`;
   }
   if(t==='condpos')html+=`<div class="frow"><label class="hint">${U('…als deze speler niet meespeelt','…when this player is not playing')}</label><select class="sel" id="nrP2">${popts(newRule.p2)}</select></div>`;
   if(t==='subs'){
@@ -6887,7 +6944,7 @@ function formConflicts(){
     const plekken=r.type==='pos'?regelPosities(r):[r.pos];
     const mist=[0,1,2,3].filter(q=>!plekken.some(x=>heeft(q,x)));
     if(mist.length&&mist.length<4){
-      out.push(`${nm(r.p1)} heeft ${PNz(r.pos)} als vaste plek, maar die bestaat niet in de speelvorm van ${mist.map(q=>'Q'+(q+1)).join(', ')} — daar krijgt hij de meest verwante plek.`);
+      out.push(`${nm(r.p1)} heeft ${PNz(r.pos)} als vaste plek, maar die bestaat niet in de speelvorm van ${mist.map(q=>'Q'+(q+1)).join(', ')} — daar wordt het de meest verwante plek.`);
     }
   });
   // Q3-spiegel met een andere speelvorm in Q3 dan in Q1
@@ -6936,7 +6993,7 @@ function detectRuleConflicts(){
     fixedPos.forEach(pos=>{
       const l=lineOf(pos);
       if(l&&!toegestaan.includes(l))
-        out.push(`${nm(pid)} moet altijd ${PNz(pos)} spelen, maar bij zijn naam staat de ${LINES[l]} niet aangevinkt — die botsen.`);
+        out.push(`${nm(pid)} moet altijd ${PNz(pos)} spelen, maar bij die naam staat de ${LINES[l]} niet aangevinkt — die botsen.`);
     });
     // twee verschillende vaste posities
     if(new Set(fixedPos).size>1) out.push(`${nm(pid)} heeft meerdere vaste posities — alleen de eerste kan gelden.`);
@@ -6953,16 +7010,16 @@ function detectRuleConflicts(){
         out.push(`${nm(pid)} is de vaste keeper en staat de hele wedstrijd op doel. `
           +`${zinloos.length===1?'De regel':'De regels'} \u2018${zinloos.map(ruleSentence).join('\u2019 en \u2018')}\u2019 `
           +`${zinloos.length===1?'doet':'doen'} dus niets. Verwijder ${zinloos.length===1?'hem':'ze'}, of haal bij `
-          +`Spelers zijn keepervoorkeur weg en wijs met keeperregels per kwart aan wie er op doel staat \u2014 `
-          +`dan speelt hij de kwarten dat hij niet keept gewoon mee in het veld.`);
+          +`Spelers die keepervoorkeur weg en wijs met keeperregels per kwart aan wie er op doel staat \u2014 `
+          +`dan speelt ${V('hij')} de kwarten zonder keeperbeurt gewoon mee in het veld.`);
       if(rs.some(r=>r.type==='gk'))
-        out.push(`${nm(pid)} is al de vaste keeper; een regel die hem voor losse kwarten op doel zet verandert niets.`);
+        out.push(`${nm(pid)} is al de vaste keeper; een regel die ${V('hem')} voor losse kwarten op doel zet verandert niets.`);
     }
     // min > max minuten
     const mins=rs.filter(r=>r.type==='minutes'&&r.mm==='min').map(r=>r.min);
     const maxs=rs.filter(r=>r.type==='minutes'&&r.mm==='max').map(r=>r.min);
     if(mins.length&&maxs.length&&Math.max(...mins)>Math.min(...maxs))
-      out.push(`${nm(pid)} heeft een minimum (${Math.max(...mins)} min) dat hoger ligt dan zijn maximum (${Math.min(...maxs)} min).`);
+      out.push(`${nm(pid)} heeft een minimum (${Math.max(...mins)} min) dat hoger ligt dan het maximum (${Math.min(...maxs)} min).`);
     const halfR=rs.find(r=>r.type==='half'); // alleen nog voor regels van een oudere versie
     // uitgesloten kwarten die samen (bijna) de hele wedstrijd beslaan
     const noqAlle=[...new Set(rs.filter(r=>r.type==='noq').flatMap(noqQs))];
@@ -6970,11 +7027,11 @@ function detectRuleConflicts(){
     if(noqAlle.length>=2&&maxs.length&&Math.min(...maxs)<17)
       out.push(`${nm(pid)} speelt maar twee kwarten én heeft een laag maximum — mogelijk weinig speeltijd.`);
     if(noqAlle.length>=3)
-      out.push(`${nm(pid)} is uitgesloten in ${noqAlle.sort().map(q=>'Q'+q).join(', ')} — hij speelt dan nog maar één kwart.`);
+      out.push(`${nm(pid)} is uitgesloten in ${noqAlle.sort().map(q=>'Q'+q).join(', ')} — dan speelt ${V('hij')} nog maar één kwart.`);
     if(halfR&&noqAlle.length){
       const eigen=halfR.half===1?[1,2]:[3,4];
       if(eigen.every(q=>noqAlle.includes(q)))
-        out.push(`${nm(pid)} speelt alleen de ${halfR.half===1?'eerste':'tweede'} helft, maar is in beide kwarten daarvan uitgesloten — hij komt zo niet in het veld.`);
+        out.push(`${nm(pid)} speelt alleen de ${halfR.half===1?'eerste':'tweede'} helft, maar is in beide kwarten daarvan uitgesloten — zo komt ${V('hij')} niet in het veld.`);
     }
     // 'speelt zeker het einde' botst met regels die het einde juist uitsluiten
     const endR=rs.find(r=>r.type==='endstrong');
@@ -6985,7 +7042,7 @@ function detectRuleConflicts(){
     }
     // vervangkeeper die ook veldregels heeft: die gelden alleen in zijn niet-keeper-kwarten
     if(rs.some(r=>r.type==='gk')&&rs.some(r=>['pos','rotate'].includes(r.type)))
-      out.push(`${nm(pid)} keept een deel van de wedstrijd; positie- of linieregels gelden alleen in de kwarten dat hij níét keept.`);
+      out.push(`${nm(pid)} keept een deel van de wedstrijd; positie- of linieregels gelden alleen in de kwarten zonder keeperbeurt.`);
   }
   // rotate: een speler in twee verschillende rotatieparen
   const inRot={};
@@ -7336,9 +7393,9 @@ function kernTekst(k){
       ? Tf('{0} raakt geblesseerd en wordt vervangen door {1} die op {2} gaat spelen.', naam, pKort(k.verv), plek)
       : Tf('{0} raakt geblesseerd en wordt vervangen door {1}.', naam, pKort(k.verv));
     case 'kaartterug-nu':   return Tf('{0} mag terug en gaat naar {1}.', naam, plek||T('het veld'));
-    case 'kaartterug-bank': return Tf('{0} mag terug, maar staat volgens het schema nu op de bank; hij komt {1}.', naam, inzetZin(k.inz));
+    case 'kaartterug-bank': return Tf('{0} mag terug, maar staat volgens het schema nu op de bank en komt {1}.', naam, inzetZin(k.inz));
     case 'kaartterug-rest': return Tf('{0} mag terug, maar staat volgens het schema de rest van de wedstrijd op de bank.', naam);
-    case 'kaartuit':        return Tf('{0} krijgt een {1} en staat {2} minuten buiten het veld; het team speelt zolang met een man minder.', naam, kaartNaam(k.soort), (KAARTEN[k.soort]||{min:0}).min);
+    case 'kaartuit':        return Tf('{0} krijgt een {1} en staat {2} minuten buiten het veld; het team speelt zolang met een speler minder.', naam, kaartNaam(k.soort), (KAARTEN[k.soort]||{min:0}).min);
     case 'beschikbaar':     return Tf('{0} is weer beschikbaar en staat {1}.', naam, inzetZin(k.inz));
   }
   return '';
@@ -7474,7 +7531,7 @@ function herplanVanafNu(label,vanafVolgende,gebeurtenis,nood){
   let vanaf=q*perQ+huidigBlok(q);
   if(vanafVolgende)vanaf++;
   if(vanaf>=B){                       // laatste blok loopt al: niets meer te plannen
-    planInfo=[label+' \u2014 het laatste blok van de wedstrijd loopt al, dus het schema verandert niet meer. Hij staat op de bank.'];
+    planInfo=[label+' \u2014 het laatste blok van de wedstrijd loopt al, dus het schema verandert niet meer. De speler staat op de bank.'];
     if(_subsWacht)planInfo.push(_subsWacht);
     save();render();
     toast(label);
@@ -7505,7 +7562,7 @@ function herplanVanafNu(label,vanafVolgende,gebeurtenis,nood){
   const _elders = (huidigQ()!==q) ? ' Je keek naar Q'+(huidigQ()+1)+'; herplannen hoort bij Q'+(q+1)+', waar de wedstrijd staat.' : '';
   planInfo=[(nood
       ? label+' \u2014 nu meteen alleen '+pKort(nood.in)+' erin op '
-        +(POSMAP[nood.pos]?PNz(nood.pos):'zijn plek')
+        +(POSMAP[nood.pos]?PNz(nood.pos):'de eigen plek')
         +'; de rest van het veld blijft staan. Vanaf '+wanneer+' is de verdeling bijgewerkt. '
       : label+' \u2014 schema aangepast vanaf '+wanneer+'. ')
     +beschrijfHerplan(oudAssign,fresh.assignments,vanaf,perQ,!!vanafVolgende)+_elders];
@@ -7749,9 +7806,9 @@ const UITLEG=[
   ['u1','Selectie klaarzetten',
    'Tabblad <b>Spelers</b>: zet aan wie er is, vul rugnummers in en kies per speler '
    +'maximaal drie voorkeursposities. Wie keept geef je \u2018Keeper\u2019 als eerste voorkeur. '
-   +'Per speler kun je ook aangeven in welke linies hij mag spelen \u2014 achter, midden, voor \u2014 '
-   +'en dat is een harde grens: de planner zet hem daar niet buiten, ook niet als hij daardoor '
-   +'krap komt te zitten. Let op wat dat kost. Mogen er in een linie evenveel of minder spelers '
+   +'Per speler kun je ook aangeven in welke linies die mag spelen \u2014 achter, midden, voor \u2014 '
+   +'en dat is een harde grens: de planner gaat daar niet buiten, ook niet als het daardoor '
+   +'krap wordt. Let op wat dat kost. Mogen er in een linie evenveel of minder spelers '
    +'staan dan er plekken zijn, dan kunnen die spelers nooit rusten en loopt de speeltijd uiteen. '
    +'De app rekent dat na en zegt het erbij. Gastspelers voeg je onderaan toe.'],
   ['u2','Coachregels',
@@ -7777,9 +7834,9 @@ const UITLEG=[
    +'Het witte bolletje bovenin is het kwart dat je bekijkt; een groen stipje ernaast betekent '
    +'dat de klok in d\u00e1t kwart loopt. Kijk je even vooruit naar een ander kwart, dan zie je '
    +'daaraan meteen waar de wedstrijd werkelijk staat. '
-   +'Tik een speler aan en je kunt hem spontaan wisselen, een blessure doorgeven, hem afmelden, '
-   +'of een groene of gele kaart registreren. Bij een kaart speelt het team met een man minder '
-   +'en blijft zijn plek open staan met een aftelling.'],
+   +'Tik een speler aan en je kunt spontaan wisselen, een blessure doorgeven, afmelden, '
+   +'of een groene of gele kaart registreren. Bij een kaart speelt het team met een speler minder '
+   +'en blijft die plek open staan met een aftelling.'],
   ['u6','Delen en printen',
    'Van elk kwart maak je met het deelicoon een afbeelding voor de teamapp. Voor je co-coach '
    +'is er een link met de complete stand, en voor spelers een kijk-link waarmee ze alleen '
@@ -7793,9 +7850,9 @@ const UITLEG_EN=[
   ['u1','Getting your squad ready',
    '<b>Players</b> tab: switch on who is there, fill in shirt numbers and pick up to three '
    +'preferred positions per player. Whoever keeps goal gets \u2018Goalkeeper\u2019 as their first '
-   +'preference. Per player you can also set which lines he may play in \u2014 defence, midfield, '
-   +'attack \u2014 and that is a hard limit: the planner will not put him outside it, even if that '
-   +'leaves him short of options. Watch what that costs. If a line may hold as many players as '
+   +'preference. Per player you can also set which lines they may play in \u2014 defence, midfield, '
+   +'attack \u2014 and that is a hard limit: the planner stays inside it, even if that '
+   +'leaves few options. Watch what that costs. If a line may hold as many players as '
    +'there are places, or fewer, those players can never rest and playing time drifts apart. '
    +'The app works that out and tells you. Guest players are added at the bottom.'],
   ['u2','Coach rules',
@@ -7821,8 +7878,8 @@ const UITLEG_EN=[
    +'The white dot at the top is the quarter you are looking at; a green dot beside it means the '
    +'clock is running in that quarter. If you look ahead to another quarter, that tells you at a '
    +'glance where the match really stands. '
-   +'Tap a player and you can substitute him on the spot, report an injury, rule him out for the '
-   +'rest, or record a green or yellow card. With a card the team plays a man down and his place '
+   +'Tap a player and you can substitute that player on the spot, report an injury, rule them out for the '
+   +'rest, or record a green or yellow card. With a card the team plays a player down and that place '
    +'stays open with a countdown.'],
   ['u6','Sharing and printing',
    'The share icon turns any quarter into an image for the team app. For your co-coach there is '
@@ -8075,7 +8132,7 @@ function speeltijdHTML(){
   const kop=`<div class="sprij spkop"><span class="spnaam"></span>
       <span class="sppos">${U('Posities','Positions')}</span><span class="spmin">${U('Min','Min')}</span></div>`;
   return `<div class="card"><h2>${U('Geplande speeltijd en posities','Planned playing time and positions')} <span class="eenheid">${U('(in min.)','(in min.)')}</span></h2>
-    <p class="hint" style="margin:-2px 0 8px">${U('Tik op een naam voor zijn schema per kwart.','Tap a name for his plan per quarter.')}</p>
+    <p class="hint" style="margin:-2px 0 8px">${U('Tik op een naam voor het schema per kwart.','Tap a name for that player\u2019s plan per quarter.')}</p>
     <div class="sptijd">${kop+kop}${rijen.map(r=>`
       <div class="sprij${minder(r)?' minder':''}${r.aanwezig?'':' weg'}" data-spschema="${r.id}" role="button" tabindex="0">
         <span class="spnaam">${esc(r.naam)}${
@@ -8087,7 +8144,7 @@ function speeltijdHTML(){
     <p class="hint" style="margin:10px 0 0">${gelijk
       ? U('Iedereen staat op hetzelfde aantal minuten gepland \u2014 zo hoort het.','Everyone is planned for the same number of minutes \u2014 as it should be.')
       : U('Wie duidelijk minder gepland staat dan de rest is gemarkeerd.','Anyone planned for clearly less than the rest is marked.')}
-      ${U('Staat er iets achter een naam, dan komt zijn afwijkende tijd uit een regel die je zelf hebt ingesteld: niet in bepaalde kwarten, alleen een halve wedstrijd, een maximum of minimum aantal minuten, of tijd op doel. Tijd op doel telt mee als speeltijd. De hele selectie staat er, ook wie is afgemeld.','If there is something after a name, his different total comes from a rule you set yourself: not in certain quarters, half a match only, a maximum or minimum number of minutes, or time in goal. Time in goal counts as playing time. The whole squad is listed, including anyone who is out.')}</p></div>`;
+      ${U('Staat er iets achter een naam, dan komt die afwijkende tijd uit een regel die je zelf hebt ingesteld: niet in bepaalde kwarten, alleen een halve wedstrijd, een maximum of minimum aantal minuten, of tijd op doel. Tijd op doel telt mee als speeltijd. De hele selectie staat er, ook wie is afgemeld.','If there is something after a name, that different total comes from a rule you set yourself: not in certain quarters, half a match only, a maximum or minimum number of minutes, or time in goal. Time in goal counts as playing time. The whole squad is listed, including anyone who is out.')}</p></div>`;
 }
 
 
@@ -8129,13 +8186,40 @@ function taalKaart(){
   const nu=taal();
   const opties=[['nl','NL','Nederlands'],['en','EN','Engels']];
   return klapKaart('taal',T('Taal'),nu==='en'?'English':'Nederlands',
-    `<p class="hint" style="margin:0 0 10px">${esc(T('Alleen dit toestel. Je mede-coach houdt zijn eigen taal, ook in dezelfde gedeelde stand.'))}</p>
+    `<p class="hint" style="margin:0 0 10px">${esc(T('Alleen dit toestel. Je mede-coach houdt de eigen taalkeuze, ook in dezelfde gedeelde stand.'))}</p>
     <div class="keuzelijst">${opties.map(([id,badge,tekst])=>`
       <button class="keuze${nu===id?' aan':''}" data-taal="${id}">
         <span class="keuzebadge">${badge}</span>
         <span class="keuzetekst">${esc(T(tekst))}</span>
       </button>`).join('')}</div>
     <p class="hint" style="margin:10px 0 0">${esc(T('Posities, regels en schema\u2019s worden niet vertaald opgeslagen: een deel-link uit een Nederlandse app opent gewoon in een Engelse.'))}</p>`);
+}
+// Jongens, meisjes of neutraal. Anders dan de taal hoort dit bij het team en niet bij
+// het toestel: je mede-coach hoeft hem niet apart te zetten, en op het kijkscherm staat
+// hetzelfde. Daarom gaat hij door save() — die schrijft op en stuurt naar de cloud.
+const AANSPREEKVORMEN=[
+  ['j','JO', ()=>U('Jongens','Boys'),  ()=>U('hij · hem · zijn','he · him · his')],
+  ['m','MO', ()=>U('Meisjes','Girls'), ()=>U('zij · haar · haar','she · her · her')],
+  ['n','—',()=>U('Gemengd of neutraal','Mixed or neutral'), ()=>U('die · die · hun','they · them · their')]
+];
+function zetAanspreek(v){
+  if(!['j','m','n'].includes(v))return;
+  if(cloudViewerBlocked())return;
+  state.aanspreek=v;
+  save();
+  render();
+}
+function aanspreekKaart(){
+  const nu=aanspreekvorm();
+  const rij=AANSPREEKVORMEN.find(a=>a[0]===nu)||AANSPREEKVORMEN[0];
+  return klapKaart('aanspreek',U('Hoe de app over spelers schrijft','How the app writes about players'),esc(rij[2]()),
+    `<p class="hint" style="margin:0 0 10px">${U('In vrijwel alle teksten staat geen hij of zij — daar was het nergens voor nodig. Op de paar plekken waar een voornaamwoord de zin leesbaar houdt, bepaalt deze keuze welk woord er staat. Dit hoort bij het team, dus je mede-coach en het kijkscherm krijgen hem mee.','Almost every text avoids he or she — it was never needed. In the few places where a pronoun keeps the sentence readable, this choice decides which word appears. It belongs to the team, so your co-coach and the view screen get it too.')}</p>
+    <div class="keuzelijst">${AANSPREEKVORMEN.map(([id,badge,tekst,vb])=>`
+      <button class="keuze${nu===id?' aan':''}" data-aanspreek="${id}">
+        <span class="keuzebadge">${badge}</span>
+        <span class="keuzetekst">${esc(tekst())}</span>
+        <span class="keuzevb">${esc(vb())}</span>
+      </button>`).join('')}</div>`);
 }
 function klokRichtingKaart(){
   const nu=tijdweergave();
@@ -8223,7 +8307,7 @@ function spelerToevoegen(){
       if(!naam)return;
       snapshot('speler toegevoegd');
       state.players.push({id:'sp'+Date.now(),name:naam,num:'',prefs:['','',''],present:true,guest:false});
-      save(); render(); toast(naam+' toegevoegd \u2014 vul zijn nummer en posities in op Spelers');
+      save(); render(); toast(naam+' toegevoegd \u2014 vul nummer en posities in op Spelers');
     }
   });
 }
@@ -8232,7 +8316,7 @@ function spelerToevoegen(){
 // zestien bevestigingen betekenen.
 function selectieVerwijderen(){
   if(wijzigenGeblokkeerd())return;
-  if(wedstrijdBezig()){ toast(T('Kan niet tijdens een wedstrijd \u2014 meld hem af op Spelers')); return; }
+  if(wedstrijdBezig()){ toast(T('Kan niet tijdens een wedstrijd \u2014 meld de speler af op Spelers')); return; }
   const weg=state.players.filter(p=>!p.guest&&_selGekozen.has(p.id));
   if(!weg.length)return;
   const namen=weg.map(p=>p.name||'(naamloos)');
@@ -8252,7 +8336,7 @@ function selectieVerwijderen(){
   if(over<11)gevolgen.push('Er blijven dan '+over+' aanwezige spelers over; voor een opstelling zijn er 11 nodig.');
   confirmDialog({
     title:lijst+' uit de selectie halen?',
-    bodyHtml:(namen.length===1?'Hij verdwijnt':'Zij verdwijnen')+' uit het team, niet alleen uit deze wedstrijd.'
+    bodyHtml:(namen.length===1?V('Hij')+' verdwijnt':'Zij verdwijnen')+' uit het team, niet alleen uit deze wedstrijd.'
       +(gevolgen.length?'<br><br>'+gevolgen.map(t=>'&bull; '+esc(t)).join('<br>'):'')
       +'<br><br>Schud je telefoon of gebruik Ongedaan maken als je je bedenkt.',
     okLabel:'Verwijderen', danger:true,
@@ -8291,6 +8375,7 @@ function renderUitleg(){
   if(_wlFout)h+=schermSlotKaart();
   h+=`<h2 class="sectiekop">${U('Instellingen','Settings')}</h2>`;
   h+=taalKaart();
+  h+=aanspreekKaart();
   h+=klokRichtingKaart();
   h+=selectieKaart();
   h+=`<h2 class="sectiekop">${U('Uitleg','How it works')}</h2>`;
@@ -9053,7 +9138,7 @@ function bind(v){
     // gastspeler op doel, dan bleef de app naar een speler wijzen die niet meer
     // bestond: hij verdween van de veldtekening zonder melding, en herplannen
     // weigerde daarna met 'geen keeper voor Q1, Q2, Q3, Q4'.
-    if(wedstrijdBezig()){ toast(T('Kan niet tijdens een wedstrijd \u2014 meld hem af op Spelers')); return; }
+    if(wedstrijdBezig()){ toast(T('Kan niet tijdens een wedstrijd \u2014 meld de speler af op Spelers')); return; }
     const p=byId(el.dataset.id);
     confirmDialog({title:'Gastspeler verwijderen?',body:(p?esc(p.name):'Deze speler')+' wordt uit de selectie gehaald. Eventuele regels voor deze speler vervallen ook.',okLabel:'Verwijderen',danger:true,onOk:()=>{
       snapshot('gastspeler verwijderd');
@@ -9120,6 +9205,7 @@ function bind(v){
   v.querySelectorAll('[data-klokstand]').forEach(el=>el.onclick=()=>zetTijdweergave(el.dataset.klokstand));
   // ── Tabblad Meer: taal ──
   v.querySelectorAll('[data-taal]').forEach(el=>el.onclick=()=>zetTaal(el.dataset.taal));
+  v.querySelectorAll('[data-aanspreek]').forEach(el=>el.onclick=()=>zetAanspreek(el.dataset.aanspreek));
   // ── Tabblad Meer: selectie ──
   const st=v.querySelector('#selToevoegen');
   if(st)st.onclick=spelerToevoegen;
@@ -9293,7 +9379,7 @@ function bind(v){
       // nergens kwijt. Liever hier weigeren dan zaterdag een onverklaarbare nul.
       const al=state.rules.filter(x=>x.type==='nolinie'&&x.p1===r.p1).map(x=>x.line);
       if(new Set([...al,r.line]).size>=LINE_IDS.length){
-        toast(Tf('Dan blijft er geen enkele linie over voor {0} \u2014 meld hem af op Spelers', pName(r.p1)));
+        toast(Tf('Dan blijft er geen enkele linie over voor {0} \u2014 meld {0} af op Spelers', pName(r.p1)));
         return;
       }
       // Botst met een vaste positie in diezelfde linie? Dan spreken twee harde
@@ -9605,8 +9691,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=301;
-const VERSIE_LABEL='26.10.8';
+const APP_VERSION=302;
+const VERSIE_LABEL='26.10.9';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
