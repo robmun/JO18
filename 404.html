@@ -594,6 +594,26 @@ body.sun .wmoment.nu{background:rgba(18,64,143,.08);border-color:rgba(18,64,143,
      de kleinste iPad niet afbreekt, en een bovengrens zodat hij op de grootste niet
      alsnog de halve breedte inneemt. */
   .twocol .klokbalk .kb-rechts{flex:0 1 auto;min-width:0;width:clamp(170px,34%,300px)}
+  /* ── De stand, rechts in de klokbalk ──
+     Dezelfde kleur als de tijd, zodat het als één geheel leest: dit zijn de twee
+     cijfers waar langs de lijn naar gekeken wordt. Hij krijgt de ruimte die er is en
+     drukt de rest niet weg: bij een lange tegenstandernaam breekt de naamregel af. */
+  .twocol .klokbalk .kb-stand{flex:0 1 auto;min-width:112px;margin-left:auto;padding-left:14px;
+    text-align:center;border-left:1px solid rgba(255,255,255,.14)}
+  /* De namen mogen afbreken, maar niet afgekapt worden: een ouder die 'Naar…' leest
+     weet niet tegen wie er gespeeld wordt. Twee regels is de grens; daaronder blijft
+     ruimte voor de cijfers, die de eigenlijke boodschap zijn. */
+  .twocol .klokbalk .kb-stand .kbs-namen{font-size:var(--fs-xs);font-weight:800;
+    color:#ff6a52;line-height:1.15;overflow-wrap:anywhere;
+    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+  .twocol .klokbalk .kb-stand .kbs-cijfers{margin-top:2px;font-size:clamp(30px,3.6vw,46px);
+    font-weight:800;line-height:1;color:#ff6a52;font-variant-numeric:tabular-nums}
+  .twocol .klokbalk .kb-stand .st-streep{opacity:.55;padding:0 6px}
+  .twocol .klokbalk.pauze .kb-stand .kbs-namen,
+  .twocol .klokbalk.pauze .kb-stand .kbs-cijfers{color:rgba(255,106,82,.72)}
+  body.sun .twocol .klokbalk .kb-stand{border-left-color:rgba(15,32,64,.16)}
+  body.sun .twocol .klokbalk .kb-stand .kbs-namen,
+  body.sun .twocol .klokbalk .kb-stand .kbs-cijfers{color:#eb4b1e}
   .twocol .klokbalk .kb-sub{font-size:var(--fs-md);font-weight:700;color:var(--txt)}
   .twocol .klokbalk .kb-rest{font-size:var(--fs-sm);color:var(--dim);margin-top:2px}
   .twocol .klokbalk .kb-baan{height:9px;border-radius:5px;margin-top:8px;
@@ -675,6 +695,28 @@ body.sun .sprij.minder .spnaam,body.sun .sprij.minder .spmin b{color:#a01a10}
   margin:18px 6px 8px;opacity:.75}
 .sectiekop:first-child{margin-top:4px}
 /* Keuzelijst: drie standen onder elkaar, elk met het getal dat hij oplevert. */
+/* ── De kaart waarmee de coach de stand bijhoudt ──
+   Twee kolommen naast elkaar, thuis en uit, elk met een naam en een teller. De
+   knoppen zijn ruim: dit wordt met één hand bediend terwijl er gespeeld wordt. */
+.scorekaart{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;align-items:start}
+.scorekol{display:flex;flex-direction:column;gap:6px;min-width:0}
+.scorelabel{align-self:center;padding:3px 14px;border-radius:var(--r-pill);
+  background:rgba(255,255,255,.10);border:1px solid var(--stroke);
+  font-size:var(--fs-xs);font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.scorenaam{width:100%;padding:9px 10px;border-radius:var(--r-md);
+  border:1px solid var(--stroke);background:var(--glass);color:var(--txt);
+  font:inherit;font-size:var(--fs-base);font-weight:700;text-align:center}
+.scoretel{display:flex;align-items:center;justify-content:center;gap:8px}
+.scoreknop{flex:0 0 auto;width:38px;height:38px;border-radius:var(--r-md);
+  border:1px solid var(--stroke);background:var(--glass);color:var(--txt);
+  font-size:var(--fs-lg);font-weight:800;line-height:1}
+.scoreknop:active{transform:scale(.94)}
+.scoregetal{width:62px;padding:7px 4px;border-radius:var(--r-md);
+  border:1px solid var(--stroke);background:rgba(255,255,255,.10);color:var(--txt);
+  font:inherit;font-size:var(--fs-xl);font-weight:800;text-align:center;
+  font-variant-numeric:tabular-nums}
+body.sun .scorelabel,body.sun .scorenaam,body.sun .scoreknop,body.sun .scoregetal{background:#fff}
+
 .keuzelijst{display:flex;flex-direction:column;gap:8px}
 .keuze{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
   padding:10px 12px;border-radius:var(--r-md);border:1px solid var(--stroke);
@@ -1073,6 +1115,39 @@ body.sun .zwklok{background:#0b2148;border-color:#0b2148}
    dat je iets met de tijd wilt — dan is de tabbalk onderin een omweg. Ze zijn geen
    <button> maar houden wel een tikdoel, een aanwijzer en hetzelfde indrukgevoel als
    de rest van de app. */
+/* ── De stand op het veld (telefoon) ──
+   Onder de klok, tegen dezelfde rechterrand. Die hoek is de enige plek op het veld
+   die altijd leeg is: de bank staat links en de voorste linie begint lager. */
+.veldstand{position:absolute;right:3.5%;top:22%;z-index:3;min-width:38%;max-width:52%;
+  padding:5px 10px 6px;border-radius:var(--r-md);text-align:center;
+  background:rgba(6,16,34,.72);border:1px solid rgba(255,255,255,.28);
+  box-shadow:0 6px 16px rgba(4,14,32,.45);pointer-events:none}
+.veldstand .vs-namen{font-size:clamp(9px,2.5vw,11px);font-weight:800;letter-spacing:.4px;
+  color:rgba(255,255,255,.88);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.veldstand .vs-cijfers{margin-top:1px;font-size:clamp(17px,5.4vw,23px);font-weight:800;
+  line-height:1;color:#ff6a52;font-variant-numeric:tabular-nums}
+.veldstand .st-streep{opacity:.55;padding:0 3px}
+body.sun .veldstand{background:#0b2148;border-color:#fff}
+
+/* ── Telefoon: het veld blijft staan, de wisselmomenten schuiven eronderdoor ──
+   Dezelfde gedachte als de vastgezette veldkolom op de liggende tablet. De zone loopt
+   tot het einde van het wisselverhaal; daarna laat het veld vanzelf los, zodat de
+   speeltijdkaart het hele scherm krijgt.
+   De achtergrond is nodig: zonder dat zouden de teksten dóór het veld heen te zien
+   zijn in plaats van erachter te verdwijnen. */
+.plakveld{position:sticky;top:0;z-index:6;background:#091e48;padding-bottom:8px}
+/* De scrollbak heeft 12px lucht bovenin. Die ruimte hoort mee afgedekt te worden,
+   anders schemert de tekst erachter er in een strookje bovenlangs doorheen. Met een
+   laagje boven het blok in plaats van met marges, zodat de indeling niet verschuift. */
+.plakveld::before{content:'';position:absolute;left:0;right:0;top:-14px;height:14px;
+  background:inherit}
+body.sun .plakveld{background:#eef2f7}
+/* Op een liggende telefoon is er in de hoogte niets te missen: dan zou het veld bijna
+   het hele scherm vullen en bleef er geen regel tekst over. */
+@media (orientation:landscape) and (max-height:560px){
+  .plakveld{position:static}
+}
+
 .veldklok, .zwklok, .grklok{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .veldklok:active, .zwklok:active, .grklok:active{transform:scale(.96)}
 .veldklok, .zwklok, .grklok{transition:transform .12s ease}
@@ -1518,6 +1593,32 @@ function taal(){
   return 'nl';
 }
 const EN=()=>taal()==='en';
+
+/* ============ De wedstrijdstand ============ */
+// Bijgehouden door de coach, bedoeld voor de ouders thuis: die kijken mee op de
+// kijk-link en zien daar alleen de opstelling. De stand hoort dus bij het team en
+// reist mee in de gedeelde stand, net als de coachregels.
+//
+// Leeg is een echte waarde: zolang er geen namen zijn ingevuld en de stand 0-0 is,
+// staat er niets op het veld. Wie geen stand bijhoudt, ziet dus ook geen leeg vakje.
+const WISSELEINDE='<!--einde-wissels-->';
+const VELDEINDE='<!--einde-veld-->';
+const SCORE_MAX=99;                       // meer dan dit is een typefout, geen uitslag
+const SCORE_NAAM_MAX=20;                  // past nog in de balk op de kleinste iPad
+function scoreNu(){
+  const s=(typeof state!=='undefined'&&state&&state.score)||{};
+  return {
+    thuis:String(s.thuis||'').slice(0,SCORE_NAAM_MAX),
+    uit:String(s.uit||'').slice(0,SCORE_NAAM_MAX),
+    t:Math.max(0,Math.min(SCORE_MAX,Number(s.t)||0)),
+    u:Math.max(0,Math.min(SCORE_MAX,Number(s.u)||0))
+  };
+}
+// Wordt de stand gebruikt? Alleen dan komt hij in beeld.
+function scoreActief(){
+  const s=scoreNu();
+  return !!(s.thuis||s.uit||s.t||s.u);
+}
 
 /* ============ Hoe de app over spelers schrijft ============ */
 // De app wist niet of een team uit jongens of meisjes bestaat en schreef overal 'hij'.
@@ -2364,7 +2465,11 @@ function defaultState(){return {v:STATE_V, players:defaultPlayers(),
   keeperId:standaardKeeperId(), rules:defaultRules(), schedule:null, genHash:null, wegMeldingen:[],
   // Jongens, meisjes of neutraal — zie VNW bovenaan. Een stand van vóór deze versie
   // heeft dit veld niet; aanspreekvorm() valt dan terug op 'j', dus er verandert niets.
-  aanspreek:'j'};}
+  aanspreek:'j',
+  // De wedstrijdstand. Hoort bij het team en niet bij het toestel: hij moet juist op
+  // het kijkscherm thuis te zien zijn. Leeg betekent 'niet in gebruik' — dan staat er
+  // ook niets op het veld, zodat een coach die geen stand bijhoudt niets extra's ziet.
+  score:{thuis:'',uit:'',t:0,u:0}};}
 
 /* ============ Planning ============ */
 // Kwarten waarin een speler volgens een 'noq'-regel niet speelt.
@@ -4586,6 +4691,20 @@ function valideerStand(s){
     delete s.aanspreek;
   }
 
+  // De wedstrijdstand. Namen afkappen en de doelpunten binnen de perken houden: dit
+  // komt uit een deel-link en belandt zo in beeld op het kijkscherm.
+  if(s.score!=null){
+    if(typeof s.score!=='object'||Array.isArray(s.score)){
+      klachten.push(U('stand onbruikbaar','score unusable')); delete s.score;
+    }else{
+      const sc=s.score;
+      sc.thuis=String(sc.thuis||'').slice(0,SCORE_NAAM_MAX);
+      sc.uit=String(sc.uit||'').slice(0,SCORE_NAAM_MAX);
+      sc.t=Math.max(0,Math.min(SCORE_MAX,Math.round(Number(sc.t)||0)));
+      sc.u=Math.max(0,Math.min(SCORE_MAX,Math.round(Number(sc.u)||0)));
+    }
+  }
+
   const posIds=POSITIONS.map(p=>p.id);
   const gezien=new Set();
   s.players=s.players.filter(p=>{
@@ -4787,7 +4906,10 @@ function serializeState(){
     aanvoerderWeg:state.aanvoerderWeg||'',
     // Jongens, meisjes of neutraal. Hoort bij het team, dus hij reist mee naar de
     // mede-coach en naar het kijkscherm; anders zou iedereen hem apart moeten zetten.
-    aanspreek:aanspreekvorm()
+    aanspreek:aanspreekvorm(),
+    // De wedstrijdstand reist om dezelfde reden mee: de ouders thuis kijken op de
+    // kijk-link, en die haalt alles uit deze stand.
+    score:scoreNu()
   };
 }
 async function shareState(){
@@ -5765,6 +5887,7 @@ function klokBalkHTML(){
       <div class="kb-rest" id="gkRest">${klokRestTekst()}</div>
       <div class="kb-baan"><div class="kb-voort${laatst?' laat':''}" id="gkVoort" style="width:${Math.round(deel*100)}%"></div></div>
     </div>
+    ${standBalkHTML()}
   </div>`;
 }
 // ── Is dit scherm nog verbonden met de gedeelde stand? ──
@@ -5892,6 +6015,33 @@ function veldKlokHTML(){
   return `<div class="veldklok${k.loopt?'':' pauze'}" id="veldklok" role="button" tabindex="0" title="Naar de timer">
     <div class="vk-tijd" id="vkTijd">${k.tijd}</div>
     <div class="vk-sub" id="vkSub">${k.kwart}${k.loopt?'':' &middot; '+U('pauze','paused')}</div>
+  </div>`;
+}
+// ── De stand ──
+// Op de telefoon een blokje op het veld, net onder de klok; op de liggende tablet in
+// de klokbalk ernaast, in dezelfde kleur als de tijd. Allebei alleen als er echt een
+// stand bijgehouden wordt — zie scoreActief().
+function standRegels(){
+  const s=scoreNu();
+  return {
+    namen:`${esc(s.thuis||U('Thuis','Home'))} – ${esc(s.uit||U('Uit','Away'))}`,
+    cijfers:`${s.t} <span class="st-streep">–</span> ${s.u}`
+  };
+}
+function veldStandHTML(){
+  if(!scoreActief())return '';
+  const r=standRegels();
+  return `<div class="veldstand" id="veldstand">
+    <div class="vs-namen">${r.namen}</div>
+    <div class="vs-cijfers">${r.cijfers}</div>
+  </div>`;
+}
+function standBalkHTML(){
+  if(!scoreActief())return '';
+  const r=standRegels();
+  return `<div class="kb-stand" id="kbStand">
+    <div class="kbs-namen">${r.namen}</div>
+    <div class="kbs-cijfers">${r.cijfers}</div>
   </div>`;
 }
 // Klopt de getoonde opstelling nog met de klok? Zo niet: opnieuw tekenen.
@@ -7165,6 +7315,10 @@ function regenerate(){
         _regenBevestigd=true;
         try{
           state.wedstrijdGestart=false;
+          // De stand hoort bij déze wedstrijd, dus die gaat terug naar 0-0. De namen
+          // blijven staan: de thuisploeg is elke week dezelfde, en de tegenstander
+          // overschrijf je sneller dan je hem opnieuw intikt.
+          const _sc=scoreNu(); state.score={thuis:_sc.thuis,uit:_sc.uit,t:0,u:0};
           // De timer moet mee terug naar de aftrap: anders begint de 'nieuwe wedstrijd'
           // met Q4 actief en Q1 nog op 17:30, en kloppen de wisselsignalen niet meer.
           const ifr=document.querySelector('#timerHost iframe');
@@ -8233,6 +8387,43 @@ function taalKaart(){
       </button>`).join('')}</div>
     <p class="hint" style="margin:10px 0 0">${esc(T('Posities, regels en schema\u2019s worden niet vertaald opgeslagen: een deel-link uit een Nederlandse app opent gewoon in een Engelse.'))}</p>`);
 }
+// De stand bijhouden. Staat bovenaan Instellingen omdat je hem tijdens de wedstrijd
+// nodig hebt: twee tikken en de stand klopt weer. Zowel de knoppen als het getal zelf
+// werken, want een doelpunt dat je mist tik je sneller recht dan je wegklikt.
+function zetScore(veld,waarde){
+  if(cloudViewerBlocked())return;
+  const s=scoreNu();
+  if(veld==='thuis'||veld==='uit') s[veld]=String(waarde||'').slice(0,SCORE_NAAM_MAX);
+  else s[veld]=Math.max(0,Math.min(SCORE_MAX,Math.round(Number(waarde)||0)));
+  state.score=s;
+  save();
+}
+function scoreKaart(){
+  const s=scoreNu();
+  const kop = scoreActief()
+    ? `${esc(s.thuis||U('Thuis','Home'))} ${s.t} – ${s.u} ${esc(s.uit||U('Uit','Away'))}`
+    : U('niet in gebruik','not in use');
+  const kolom=(zijde,naam,getal,label)=>`
+    <div class="scorekol">
+      <span class="scorelabel">${label}</span>
+      <input class="scorenaam" type="text" inputmode="text" maxlength="${SCORE_NAAM_MAX}"
+             data-score-naam="${zijde}" value="${esc(naam)}" placeholder="${label}"
+             aria-label="${U('Naam','Name')} ${label}">
+      <div class="scoretel">
+        <button class="scoreknop" data-score-min="${zijde}" aria-label="${label} − 1">&minus;</button>
+        <input class="scoregetal" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2"
+               data-score-getal="${zijde}" value="${getal}" aria-label="${U('Doelpunten','Goals')} ${label}">
+        <button class="scoreknop" data-score-plus="${zijde}" aria-label="${label} + 1">+</button>
+      </div>
+    </div>`;
+  return klapKaart('score',U('Wedstrijdscore','Match score'),esc(kop),
+    `<p class="hint" style="margin:0 0 10px">${U('Wat je hier invult staat ook op de kijk-link van de spelers, zodat thuis meegekeken kan worden. Zolang er niets is ingevuld blijft het veld leeg.','What you fill in here also appears on the players’ view link, so people at home can follow along. As long as nothing is filled in, the pitch stays clean.')}</p>
+     <div class="scorekaart">
+       ${kolom('t',s.thuis,s.t,U('Thuis','Home'))}
+       ${kolom('u',s.uit,s.u,U('Uit','Away'))}
+     </div>`);
+}
+
 // Jongens, meisjes of neutraal. Anders dan de taal hoort dit bij het team en niet bij
 // het toestel: je mede-coach hoeft hem niet apart te zetten, en op het kijkscherm staat
 // hetzelfde. Daarom gaat hij door save() — die schrijft op en stuurt naar de cloud.
@@ -8413,6 +8604,7 @@ function renderUitleg(){
   // overrulen; wat hij wél kan is zeggen wat eraan te doen is.
   if(_wlFout)h+=schermSlotKaart();
   h+=`<h2 class="sectiekop">${U('Instellingen','Settings')}</h2>`;
+  h+=scoreKaart();
   h+=taalKaart();
   h+=aanspreekKaart();
   h+=klokRichtingKaart();
@@ -8645,7 +8837,7 @@ function renderQuarter(q){
   if(inTitel)zetAppbarKop(kopKort);
   let veld=`<div class="card tight">${inTitel?'':`<h2>${kopTitel} <span class="sub">${kopSub}</span></h2>`}`
     +(isWide()?`<div class="veldrij">`:'')
-    +`<div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>${isWide()?'':veldKlokHTML()}`;
+    +`<div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>${isWide()?'':veldKlokHTML()+veldStandHTML()}`;
   // Geblesseerden staan gewoon in de banklijst, alleen rood. Ze hadden een eigen
   // vak rechtsboven, maar dat kwam op de tablet onder de klok terecht en liep op de
   // telefoon over de opstelling heen zodra het er een paar werden.
@@ -8736,7 +8928,12 @@ function renderQuarter(q){
   if(keeper)veld+=`<div class="chip kpc" style="left:50%;top:93%"><div class="ball keeperball${keeper.id===capt?' capt':''}">${KEEPER_HELM}${keeper.id===capt?'<span class="cbadge">C</span>':''}</div><div class="tag">${esc(pKort(keeper.id))}</div></div>`;
   veld+=`</div>`                                      // einde fieldwrap
     +(isWide()?`</div>`:'')   // einde veldrij; de klok staat nu boven de wisselkolom
-    +`${isKijker()?'':`<p class="hint" style="margin-top:10px">${U('Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor ','Tap two players to swap them — including with the bench. Applies to ')}${toonBlok===0?U('de start van dit kwart','the start of this quarter'):U('dit moment in het kwart','this point in the quarter')}.</p>`}</div>`;
+    // De kaart sluit hier, vóór de ruiltip. Op de telefoon wordt op dit punt geknipt:
+    // de tekening blijft staan en de tip schuift eronderdoor weg, zodat het
+    // eerstvolgende wisselmoment de plek krijgt die er direct onder hoort.
+    +`</div>`
+    +VELDEINDE
+    +`${isKijker()?'':`<p class="hint" style="margin:10px 0 0;padding:0 6px">${U('Tik twee spelers aan om te ruilen — ook met de bank. Geldt voor ','Tap two players to swap them — including with the bench. Applies to ')}${toonBlok===0?U('de start van dit kwart','the start of this quarter'):U('dit moment in het kwart','this point in the quarter')}.</p>`}`;
   // Alles wat naast het veld komt te staan in de brede stand
   let tekst='';
   // De klok bovenaan deze kolom, niet meer over het veld. Zie de CSS bij .klokbalk.
@@ -8795,6 +8992,10 @@ function renderQuarter(q){
     tekst+=`<div class="wbench"><b>${U('Wissels daarna:','On the bench after that:')}</b> ${mo.bankNa.map(pKort).map(esc).join(', ')||'—'}</div></div>`;
   }
   tekst+=`</div>`;
+  // Hier houdt het wisselverhaal op. Op de telefoon wordt de tekst hier in tweeën
+  // geknipt: alles ervóór scrollt achter het vastgezette veld door, alles erna komt
+  // er gewoon onder. Zie de opbouw onderaan deze functie.
+  tekst+=WISSELEINDE;
   if(!isKijker()){
     if(canUndo())tekst+=`<button class="btn ghost full" id="undoBtn" style="margin-bottom:8px">&#8634; Ongedaan maken (${esc(undoLabel())})${_undoStack.length>1?' &middot; '+_undoStack.length+' stappen':''}</button>`;
     // Welke knoppen er staan hangt af van de blijvende status, niet van de klokstand.
@@ -8827,7 +9028,22 @@ function renderQuarter(q){
   }
   tekst+=speeltijdHTML();
   // Liggende tablet: veld links, wisselteksten rechts. Anders gewoon onder elkaar.
-  html+=isWide()?`<div class="twocol"><div class="col-field">${veld}</div><div>${tekst}</div></div>`:veld+tekst;
+  if(isWide()){
+    html+=`<div class="twocol"><div class="col-field">${veld}</div><div>${tekst}</div></div>`;
+  }else{
+    // Telefoon: het veld blijft staan terwijl de wisselmomenten eronder doorscrollen,
+    // net als op de liggende tablet. Zo staat het eerstvolgende moment altijd direct
+    // onder de opstelling en verdwijnen de gepasseerde momenten achter het veld.
+    // Alleen zolang het wisselverhaal duurt: daarna laat het veld los, want de
+    // speeltijdkaart lezen met een half scherm is geen winst.
+    const i=tekst.indexOf(WISSELEINDE);
+    const wissels = i<0 ? tekst : tekst.slice(0,i);
+    const rest    = i<0 ? ''    : tekst.slice(i+WISSELEINDE.length);
+    const j=veld.indexOf(VELDEINDE);
+    const tekening = j<0 ? veld : veld.slice(0,j);
+    const onderVeld = j<0 ? ''  : veld.slice(j+VELDEINDE.length);
+    html+=`<div class="plakzone"><div class="plakveld">${tekening}</div>${wissels}${onderVeld}</div>${rest}`;
+  }
 
   return html;
 }
@@ -9245,6 +9461,21 @@ function bind(v){
   // ── Tabblad Meer: taal ──
   v.querySelectorAll('[data-taal]').forEach(el=>el.onclick=()=>zetTaal(el.dataset.taal));
   v.querySelectorAll('[data-aanspreek]').forEach(el=>el.onclick=()=>zetAanspreek(el.dataset.aanspreek));
+  // De stand. Tijdens het typen alleen onthouden; pas bij het verlaten van het veld
+  // wegschrijven en hertekenen, anders springt de cursor bij elke aanslag weg.
+  v.querySelectorAll('[data-score-plus]').forEach(el=>el.onclick=()=>{
+    zetScore(el.dataset.scorePlus, scoreNu()[el.dataset.scorePlus]+1); render(); });
+  v.querySelectorAll('[data-score-min]').forEach(el=>el.onclick=()=>{
+    zetScore(el.dataset.scoreMin, scoreNu()[el.dataset.scoreMin]-1); render(); });
+  v.querySelectorAll('[data-score-getal]').forEach(el=>{
+    el.onchange=()=>{ zetScore(el.dataset.scoreGetal, el.value); render(); };
+    el.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } };
+  });
+  v.querySelectorAll('[data-score-naam]').forEach(el=>{
+    const veld = el.dataset.scoreNaam==='t' ? 'thuis' : 'uit';
+    el.onchange=()=>{ zetScore(veld, el.value); render(); };
+    el.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } };
+  });
   // ── Tabblad Meer: selectie ──
   const st=v.querySelector('#selToevoegen');
   if(st)st.onclick=spelerToevoegen;
@@ -9737,8 +9968,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=303;
-const VERSIE_LABEL='26.10.10';
+const APP_VERSION=304;
+const VERSIE_LABEL='26.10.11';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
