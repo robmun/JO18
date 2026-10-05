@@ -25,15 +25,19 @@ on:
 permissions:
   contents: read
 
-# Per tak één tegelijk, zodat een pull request de uitgave van main niet afbreekt.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
   testen:
     name: Tests
     runs-on: ubuntu-latest
+    # Upload je drie keer kort na elkaar — eerst de tests, dan de app, dan nog een
+    # correctie — dan stonden die drie runs vroeger achter elkaar in de rij van ruim
+    # vier minuten elk. Alleen de laatste zegt iets: die draait tegen de repository
+    # zoals hij ná alle uploads is. Daarom worden de oudere hier afgebroken zodra er
+    # een nieuwere begint. Zo'n afgebroken run komt grijs in de lijst te staan; dat
+    # betekent 'ingehaald', niet 'stuk'.
+    concurrency:
+      group: tests-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - name: Repository ophalen
         uses: actions/checkout@v4
@@ -52,6 +56,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      # Een runner begint elke keer met een lege machine, dus werden de pakketten en
+      # de testbrowser (ruim 100 MB) bij iedere upload opnieuw opgehaald. Dat kostte
+      # het grootste deel van de wachttijd. Ze worden nu bewaard en teruggezet.
+      # De sleutel hangt aan test/package.json: verandert daar de versie van Playwright,
+      # dan haalt hij vanzelf een nieuwe browser op in plaats van de oude te hergebruiken.
+      - name: Pakketten en testbrowser terugzetten
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+          key: test-${{ runner.os }}-${{ hashFiles('test/package.json') }}
+          restore-keys: |
+            test-${{ runner.os }}-
 
       - name: Testgereedschap installeren
         working-directory: test
@@ -76,6 +95,13 @@ jobs:
     # Alleen bij een upload naar main of met de hand gestart — nooit bij een pull request.
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    # Hier juist níet afbreken. Een publicatie die halverwege wordt afgekapt kan bij
+    # GitHub Pages blijven hangen en de volgende tegenhouden. Ze wachten dus netjes
+    # op elkaar — dat kan, want ze duren onder de minuut. Het afbreken gebeurt een
+    # stap eerder, bij de tests, dus een ingehaalde upload komt hier toch nooit aan.
+    concurrency:
+      group: pages-uitgave
+      cancel-in-progress: false
     permissions:
       contents: write   # om demo/ en 404.html bij te werken
       pages: write      # om de site te publiceren
@@ -106,7 +132,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "demo/ en 404.html gelijkgetrokken met ${LABEL:-de hoofdmap}"
-          git push
+          # Wachten er twee uitgaven achter elkaar, dan heeft de eerste al een commit
+          # geplaatst en loopt deze een stap achter. Eén keer bijtrekken en opnieuw.
+          git push || { git pull --rebase; git push; }
 
       # De map test/ hoort niet op de website; node_modules al helemaal niet.
       - name: Site klaarzetten
