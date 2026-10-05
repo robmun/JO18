@@ -64,8 +64,8 @@ behouden blijft in plaats van mee te groeien of in één klap op te zijn, dat de
 nooit langer wordt dan de kaart zelf, en dat zo'n speler altijd aantikbaar blijft — ook
 met een stilstaande klok op 0.
 
-**08 wedstrijdstand en de telefoonindeling** — Controleert dat een lege stand
-nergens in beeld komt, dat een ingevulde stand op de telefoon op het veld staat en op
+**08 wedstrijdstand en de telefoonindeling** — Controleert dat de stand nergens in
+beeld komt zolang er geen teamnamen staan — ook niet als er al doelpunten zijn ingetikt — dat een ingevulde stand op de telefoon op het veld staat en op
 de liggende tablet in de klokbalk in dezelfde kleur als de tijd, dat de plus- en
 minknoppen binnen hun grenzen blijven, en dat op de telefoon de veldtekening blijft
 staan terwijl de wisselmomenten erachter wegschuiven.

@@ -25,10 +25,29 @@ const UITVOER = path.join(__dirname, 'uitvoer');
   const server = await startServer(REPO, '/JO18');
   console.log(`testserver op ${server.basis} (bedient ${REPO} zoals GitHub Pages dat doet)\n`);
 
-  const uitslagen = [];
+  const uitslagen = [], overgeslagen = [];
   for (const bestand of bestanden) {
-    const test = require(path.join(__dirname, 'tests', bestand));
-    if (snel && test.traag) { console.log(`— ${test.naam} (overgeslagen met --snel)\n`); continue; }
+    let test;
+    try {
+      test = require(path.join(__dirname, 'tests', bestand));
+    } catch (e) {
+      console.log(`✗ ${bestand}  — kon niet worden ingelezen`);
+      console.log('   ✗ ' + (e && e.message ? e.message : e) + '\n');
+      uitslagen.push({ naam: bestand, ok: false, aantal: 1 });
+      continue;
+    }
+    // Een bestand in deze map dat geen test is — een restant van een eerdere upload,
+    // een kopie met '(1)' in de naam — hoort geen release tegen te houden. Wel wordt
+    // er bij naam gezegd dat het er staat, want anders blijft het onopgemerkt staan.
+    if (typeof test.draai !== 'function') {
+      console.log(`— ${bestand} is geen test (geen 'draai'), overgeslagen\n`);
+      overgeslagen.push(bestand);
+      continue;
+    }
+    // De bestandsnaam als terugval: zonder dit heette een test zonder naam 'undefined',
+    // en dan weet je bij een fout niet eens welk bestand het was.
+    const naam = test.naam || bestand;
+    if (snel && test.traag) { console.log(`— ${naam} (overgeslagen met --snel)\n`); continue; }
 
     const regels = [];
     const log = r => regels.push('   ' + r);
@@ -37,15 +56,19 @@ const UITVOER = path.join(__dirname, 'uitvoer');
     try {
       uitslag = await test.draai({ basis: server.basis, repo: REPO, uitvoer: UITVOER, log });
     } catch (e) {
-      uitslag = { ok: false, mis: ['de test zelf liep stuk: ' + (e && e.stack ? e.stack.split('\n').slice(0, 3).join(' | ') : e)] };
+      uitslag = { ok: false, mis: [`de test zelf liep stuk (${bestand}): ` + (e && e.stack ? e.stack.split('\n').slice(0, 3).join(' | ') : e)] };
     }
     const sec = ((Date.now() - begin) / 1000).toFixed(1);
 
-    console.log(`${uitslag.ok ? '✓' : '✗'} ${test.naam}  (${sec}s)`);
+    console.log(`${uitslag.ok ? '✓' : '✗'} ${naam}  (${sec}s)`);
     regels.forEach(r => console.log(r));
     (uitslag.mis || []).forEach(m => console.log('   ✗ ' + m));
     console.log('');
-    uitslagen.push({ naam: test.naam, ok: uitslag.ok, aantal: (uitslag.mis || []).length });
+    uitslagen.push({ naam, ok: uitslag.ok, aantal: (uitslag.mis || []).length });
+  }
+  if (overgeslagen.length) {
+    console.log(`let op: ${overgeslagen.length} bestand(en) in tests/ zijn geen test: ${overgeslagen.join(', ')}`);
+    console.log('   waarschijnlijk een restant van een eerdere upload — die mogen weg.\n');
   }
 
   await server.stop();

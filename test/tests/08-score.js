@@ -47,6 +47,31 @@ async function draai({ basis, log }) {
     if (leeg.actief) mis.push('een lege stand telt als in gebruik');
     if (leeg.opVeld) mis.push('een lege stand staat tóch op het veld');
 
+    // Wél doelpunten, geen teamnamen: de wedstrijd is niet ingevuld, dus er hoort
+    // niets in beeld te komen. Een 0-0 zonder tegenstander is geen stand.
+    const zonderNamen = await pT.evaluate(() => {
+      state.score = { thuis: '', uit: '', t: 3, u: 2 }; render();
+      return { actief: scoreActief(), opVeld: !!document.querySelector('.veldstand') };
+    });
+    if (zonderNamen.actief) mis.push('doelpunten zonder teamnamen tellen als in gebruik');
+    if (zonderNamen.opVeld) mis.push('doelpunten zonder teamnamen staan tóch op het veld');
+
+    // Wél namen, maar nog 0-0: ook dan nog niets. Dat vak zou de hele eerste helft
+    // op nul staan en alleen plek innemen.
+    const nulnul = await pT.evaluate(() => {
+      state.score = { thuis: 'Gooische', uit: 'Naarden', t: 0, u: 0 }; render();
+      return { actief: scoreActief(), opVeld: !!document.querySelector('.veldstand') };
+    });
+    if (nulnul.actief || nulnul.opVeld) mis.push('bij 0-0 staat de stand al in beeld');
+
+    // Eerste doelpunt: vanaf nu wél.
+    const eerste = await pT.evaluate(() => {
+      state.score = { thuis: 'Gooische', uit: 'Naarden', t: 1, u: 0 }; render();
+      return { actief: scoreActief(), opVeld: !!document.querySelector('.veldstand') };
+    });
+    if (!eerste.actief || !eerste.opVeld) mis.push('na het eerste doelpunt blijft de stand verborgen');
+    else log('verborgen zonder namen, verborgen bij 0-0, zichtbaar vanaf het eerste doelpunt');
+
     // ingevuld: wél in beeld, en mee in de gedeelde stand
     const gevuld = await pT.evaluate(() => {
       state.score = { thuis: 'Gooische', uit: 'Naarden', t: 5, u: 1 };
