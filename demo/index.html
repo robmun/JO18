@@ -1614,10 +1614,19 @@ function scoreNu(){
     u:Math.max(0,Math.min(SCORE_MAX,Number(s.u)||0))
   };
 }
-// Wordt de stand gebruikt? Alleen dan komt hij in beeld.
+// Wordt de stand gebruikt? Alleen dan komt hij in beeld, en daar zijn twee dingen
+// voor nodig:
+//
+//   • er moet ingevuld zijn wie er tegenover elkaar staan. Zonder namen is het geen
+//     wedstrijd maar een leeg vak;
+//   • er moet gescoord zijn. Een 0-0 zegt niets wat je niet al weet, en een vak dat
+//     de hele eerste helft op nul staat neemt alleen plek in op het veld.
+//
+// Zodra er één doelpunt valt verschijnt de stand, en vanaf dat moment blijft hij
+// staan — ook als het later weer 0-0 zou worden, want dat kan niet.
 function scoreActief(){
   const s=scoreNu();
-  return !!(s.thuis||s.uit||s.t||s.u);
+  return !!((s.thuis||s.uit) && (s.t||s.u));
 }
 
 /* ============ Hoe de app over spelers schrijft ============ */
@@ -2467,8 +2476,9 @@ function defaultState(){return {v:STATE_V, players:defaultPlayers(),
   // heeft dit veld niet; aanspreekvorm() valt dan terug op 'j', dus er verandert niets.
   aanspreek:'j',
   // De wedstrijdstand. Hoort bij het team en niet bij het toestel: hij moet juist op
-  // het kijkscherm thuis te zien zijn. Leeg betekent 'niet in gebruik' — dan staat er
-  // ook niets op het veld, zodat een coach die geen stand bijhoudt niets extra's ziet.
+  // het kijkscherm thuis te zien zijn. Zonder teamnamen is de wedstrijd niet ingevuld
+  // — dan staat er ook niets op het veld, zodat een coach die geen stand bijhoudt
+  // niets extra's ziet.
   score:{thuis:'',uit:'',t:0,u:0}};}
 
 /* ============ Planning ============ */
@@ -8402,7 +8412,7 @@ function scoreKaart(){
   const s=scoreNu();
   const kop = scoreActief()
     ? `${esc(s.thuis||U('Thuis','Home'))} ${s.t} – ${s.u} ${esc(s.uit||U('Uit','Away'))}`
-    : U('niet in gebruik','not in use');
+    : U('nog niet in beeld','not shown yet');
   const kolom=(zijde,naam,getal,label)=>`
     <div class="scorekol">
       <span class="scorelabel">${label}</span>
@@ -8417,7 +8427,7 @@ function scoreKaart(){
       </div>
     </div>`;
   return klapKaart('score',U('Wedstrijdscore','Match score'),esc(kop),
-    `<p class="hint" style="margin:0 0 10px">${U('Wat je hier invult staat ook op de kijk-link van de spelers, zodat thuis meegekeken kan worden. Zolang er niets is ingevuld blijft het veld leeg.','What you fill in here also appears on the players’ view link, so people at home can follow along. As long as nothing is filled in, the pitch stays clean.')}</p>
+    `<p class="hint" style="margin:0 0 10px">${U('Wat je hier invult staat ook op de kijk-link van de spelers, zodat thuis meegekeken kan worden. De stand verschijnt pas als er teams zijn ingevuld én er gescoord is. Bij 0-0 of zonder namen blijft het veld leeg.','What you fill in here also appears on the players’ view link, so people at home can follow along. The score only appears once the teams are filled in and someone has scored. At 0-0, or without names, the pitch stays clean.')}</p>
      <div class="scorekaart">
        ${kolom('t',s.thuis,s.t,U('Thuis','Home'))}
        ${kolom('u',s.uit,s.u,U('Uit','Away'))}
@@ -9968,8 +9978,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=304;
-const VERSIE_LABEL='26.10.11';
+const APP_VERSION=305;
+const VERSIE_LABEL='26.10.12';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
