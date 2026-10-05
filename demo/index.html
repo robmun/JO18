@@ -6069,7 +6069,46 @@ function wisUitStatus(){state.players.forEach(p=>{if(p.uit)delete p.uit;if(p.kaa
 function totaalSec(){ return klok.q==null?0:((klok.q-1)*17.5*60+klok.sec); }
 function kaartResterend(p){
   if(!p||!p.kaart)return null;
-  return Math.max(0,Math.round(p.kaart.terug-totaalSec()));
+  // De klem is geen schoonheidsfoutje maar een vangnet. De straftijd staat vast als
+  // een eindpunt op de wedstrijdklok, en die klok kan terug: een coach die Q1 op nul
+  // zet om opnieuw te beginnen, laat de aftelling anders meegroeien. Op een echte
+  // wedstrijd stond er zo 4:17 achter een groene kaart van twee minuten. Langer dan
+  // de kaart zelf kan nooit kloppen, dus dat wordt hier afgekapt.
+  const duur=(KAARTEN[p.kaart.soort]||{min:0}).min*60;
+  return Math.max(0,Math.min(duur,Math.round(p.kaart.terug-totaalSec())));
+}
+// De straftijd van een kaart staat vast als eindpunt op de wedstrijdklok. Dat werkt
+// zolang die klok gewoon dóórloopt, en gaat mis zodra hij springt. Twee gevallen, en
+// allebei zijn ze op een zaterdag voorgekomen:
+//
+//   • Een kwart dat teruggezet wordt. De klok gaat achteruit, het eindpunt blijft
+//     staan, en de aftelling groeit mee: 4:17 achter een groene kaart van twee minuten.
+//   • Een kwart dat vroeg wordt afgesloten. Bij de overgang naar het volgende kwart
+//     springt de klok vooruit met wat er van het vorige kwart over was — tot 17,5
+//     minuut. De straftijd was dan in één klap op, terwijl er nog niet gespeeld was.
+//
+// Een straftijd hoort te lopen op speeltijd, niet op de stand van de klok. Daarom:
+// bij een kwartwissel of een klok die teruggaat, wordt het eindpunt opnieuw gezet op
+// 'wat er nog te gaan was'. Loopt de klok gewoon door binnen hetzelfde kwart, dan telt
+// die tijd wél mee — ook als de app even op de achtergrond stond en later bijtrekt.
+//
+// Alleen het toestel dat de klok bedient doet dit; het nieuwe eindpunt reist daarna mee
+// in de gedeelde stand, zodat de mede-coach niet nóg een keer verschuift.
+function kaartenHerankeren(oudQ,oudSec){
+  if(oudQ==null)return false;                       // eerste klokbericht: niets te doen
+  const nieuwSec=totaalSec();
+  const sprong = klok.q!==oudQ || nieuwSec < oudSec-1;
+  if(!sprong)return false;
+  let geraakt=false;
+  for(const p of (state.players||[])){
+    if(!p||!p.kaart||typeof p.kaart.terug!=='number')continue;
+    const duur=(KAARTEN[p.kaart.soort]||{min:0}).min*60;
+    const resteerde=Math.max(0,Math.min(duur,Math.round(p.kaart.terug-oudSec)));
+    const nieuwTerug=nieuwSec+resteerde;
+    if(nieuwTerug!==p.kaart.terug){ p.kaart.terug=nieuwTerug; geraakt=true; }
+  }
+  if(geraakt)save();
+  return geraakt;
 }
 function kaartTijd(sec){
   const m=Math.floor(sec/60), s2=sec%60;
@@ -9475,10 +9514,17 @@ function chipTap(pid){
   if(!isQTab(activeTab)||!state.schedule)return;
   const q=huidigQ();
   const sp=byId(pid);
-  // Een speler op de blessurelijst moet je altijd kunnen aantikken om hem weer
-  // beschikbaar te maken — ook als de klok stilstaat of net gereset is. Anders zit
-  // hij vast tot je de timer weer aanzet.
-  if(selChip===null && sp && sp.uit){ spelerActies(pid,q); return; }
+  // Een speler die niet meedoet — geblesseerd, afgemeld of met een kaart — moet je
+  // altijd kunnen aantikken om hem weer beschikbaar te maken. Ook als de klok stilstaat
+  // of net gereset is, en ook midden in een ruil. Twee redenen:
+  //
+  // 1. Zonder dit zit zo iemand vast tot de timer weer aanstaat. Bij een kaart gebeurde
+  //    dat op een echte wedstrijd: het kwart werd teruggezet, de klok stond op 0 en
+  //    stil, en een tik op die speler begon een ruil in plaats van het menu te openen.
+  //    'Terug op het veld' en 'Vandaag niet meer' waren niet meer te bereiken.
+  // 2. Zo iemand hoort sowieso niet in een ruil te belanden: hij staat buiten het veld.
+  //    Een halve ruil wordt daarom afgebroken en het menu komt in beeld.
+  if(sp && (sp.uit || sp.kaart)){ selChip=null; spelerActies(pid,q); return; }
   // Loopt de wedstrijd, dan eerst vragen wat je wilt — behalve als je midden in een ruil zit.
   if(selChip===null && wedstrijdBezig()){ spelerActies(pid,q); return; }
   if(selChip===null){selChip=pid;render();return;}
@@ -9691,8 +9737,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=302;
-const VERSIE_LABEL='26.10.9';
+const APP_VERSION=303;
+const VERSIE_LABEL='26.10.10';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
@@ -10485,7 +10531,11 @@ window.addEventListener('message',e=>{
     // vanzelf. Een eigen keuze is bedoeld om even vooruit te kijken, niet om het
     // beeld voorgoed vast te zetten — anders sta je in Q4 nog naar Q1 te kijken.
     if(klok.q!==st.q)toonQ=null;
+    // Vóór het overschrijven onthouden waar de klok stond: liep hij terug, dan moet de
+    // straftijd van een kaart evenveel meeschuiven (zie kaartenHerankeren).
+    const _klokWasQ=klok.q, _klokWas=totaalSec();
     klok={q:st.q,sec:st.sec,loopt:st.loopt};
+    kaartenHerankeren(_klokWasQ,_klokWas);
     veldKlokBijwerken();
     // Hier ligt de goedkoopste hartslag die de app heeft: de timer stuurt elke seconde
     // een stand. Daar hangt het schermslot aan, in plaats van aan een eigen tijdklok.
