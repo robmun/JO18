@@ -8965,8 +8965,27 @@ function renderQuarter(q){
   let tekst='';
   // De klok bovenaan deze kolom, niet meer over het veld. Zie de CSS bij .klokbalk.
   if(isWide())tekst+=klokBalkHTML();
-  // Wissel bij start van kwart (t.o.v. vorige kwart)
-  if(q>0){
+
+  // ── Wat al geweest is, verdwijnt ──
+  // Op een telefoon blijft er onder de vastgezette veldtekening maar een strook over.
+  // Stond daar het wisselmoment van zes minuten geleden, dan schoof het moment dat
+  // eraan komt achter het veld weg voordat je het kon lezen. Een gepasseerd moment
+  // heeft ook niemand meer iets aan: de wissel is gemaakt en staat op het veld.
+  //
+  // Alleen in het kwart dat nú loopt wordt er weggelaten. Blader je vooruit, dan hoor
+  // je het hele plan te zien; blader je terug naar een gespeeld kwart, dan kijk je
+  // bewust naar wat er gebeurd is en blijft alles staan.
+  const nuMinuut = (klok.q!=null && klok.q-1===q) ? klok.sec/60
+                 : (klok.q!=null && klok.q-1>q) ? Infinity   // dit kwart is voorbij
+                 : -1;                                        // nog niet begonnen
+  const blokMinuten=17.5/sch.perQ;
+  const inLopendKwart = nuMinuut!==Infinity && nuMinuut>=0;
+  // De grens is de werkelijke blokgrens, niet het afgeronde getal in de kop: bij drie
+  // blokken ligt die op 5:50 terwijl er 'na 6 min' staat.
+  const alGeweest = grensMin => inLopendKwart && grensMin<=nuMinuut+1e-9;
+
+  // Wissel bij start van kwart (t.o.v. vorige kwart) — weg zodra het kwart loopt
+  if(q>0 && !alGeweest(0)){
     const d=wisselChains(sch.assignments[qStart-1],sch.assignments[qStart]);
     const prevK=keeperOfQ(sch,q-1), curK=keeperOfQ(sch,q);
     let kLine='';
@@ -8987,10 +9006,7 @@ function renderQuarter(q){
   // erop hangen — precies op het moment dat de opstelling wél omsloeg. Tot de
   // volgende blokwissel kwam er geen hertekening meer, dus het bleef staan tot je
   // de app opnieuw opende.
-  const nuMinuut = (klok.q!=null && klok.q-1===q) ? klok.sec/60
-                 : (klok.q!=null && klok.q-1>q) ? Infinity   // dit kwart is voorbij
-                 : -1;                                        // nog niet begonnen
-  const blokMinuten=17.5/sch.perQ;
+  // nuMinuut, blokMinuten en alGeweest staan hierboven; de startkaart gebruikt ze ook.
   let volgendeMinuut=null;
   if(nuMinuut!==Infinity){
     const aanstaand=kwartMomenten(q,sch).filter(mo=>mo.m*blokMinuten>nuMinuut+1e-9);
@@ -8998,7 +9014,12 @@ function renderQuarter(q){
   }
   const regels=kwartMomenten(q,sch).map(mo=>({minuut:mo.minuut,soort:'wissel',mo}))
     .concat(zichtbareGebeurtenissen().filter(g=>g.q===q).map(g=>({minuut:g.min,soort:'gebeurtenis',g})))
-    .sort((a,b)=>a.minuut-b.minuut || (a.soort==='wissel'?-1:1));
+    .sort((a,b)=>a.minuut-b.minuut || (a.soort==='wissel'?-1:1))
+    // Gepasseerde wisselmomenten eruit; zie de toelichting bij alGeweest. Blessures
+    // en kaarten blijven wél staan: daar loopt vaak nog een straftijd bij, en je kunt
+    // ze zelf wegtikken met het kruisje.
+    .filter(r=>!(r.soort==='wissel' && alGeweest(r.mo.m*blokMinuten)));
+  let getoondeWissels=0;
   for(const r of regels){
     if(r.soort==='gebeurtenis'){
       // Zelfde kop als bij een wisselmoment: ze staan op één tijdlijn onder elkaar,
@@ -9017,7 +9038,11 @@ function renderQuarter(q){
     tekst+=`<div class="wmoment${mo.minuut===volgendeMinuut?' nu':''}" data-min="${mo.minuut}"><div class="wtime">${kop}</div>`;
     tekst+=chainsEmpty(mo.wissels)?'<p class="empty">'+U('Geen wissels op dit moment.','No substitutions at this point.')+'</p>':wisselLines(mo.wissels);
     tekst+=`<div class="wbench"><b>${U('Wissels daarna:','On the bench after that:')}</b> ${mo.bankNa.map(pKort).map(esc).join(', ')||'—'}</div></div>`;
+    getoondeWissels++;
   }
+  // Alles gehad in dit kwart: dat hoort er te staan, anders lijkt de kaart stuk.
+  if(!getoondeWissels && inLopendKwart)
+    tekst+=`<p class="empty">${U('Alle wisselmomenten van dit kwart zijn geweest.','All substitution points in this quarter have passed.')}</p>`;
   tekst+=`</div>`;
   // Hier houdt het wisselverhaal op. Op de telefoon wordt de tekst hier in tweeën
   // geknipt: alles ervóór scrollt achter het vastgezette veld door, alles erna komt
@@ -9995,8 +10020,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=307;
-const VERSIE_LABEL='26.10.14';
+const APP_VERSION=308;
+const VERSIE_LABEL='26.10.15';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
