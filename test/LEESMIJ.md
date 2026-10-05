@@ -67,8 +67,10 @@ met een stilstaande klok op 0.
 **08 wedstrijdstand en de telefoonindeling** — Controleert dat de stand nergens in
 beeld komt zolang er geen teamnamen staan — ook niet als er al doelpunten zijn ingetikt — dat een ingevulde stand op de telefoon op het veld staat en op
 de liggende tablet in de klokbalk in dezelfde kleur als de tijd, dat de plus- en
-minknoppen binnen hun grenzen blijven, en dat op de telefoon de veldtekening blijft
-staan terwijl de wisselmomenten erachter wegschuiven.
+minknoppen binnen hun grenzen blijven, en dat op de telefoon de wisseltekst direct
+onder de veldtekening staat en elke regel ervan in beeld te krijgen is. Dat laatste
+staat er sinds het vastzetten van het veld op de telefoon is teruggedraaid: de tekening
+is daar hoger dan er scherm overblijft, waardoor de wisseltekst erachter verdween.
 
 **09 gepasseerde wisselmomenten** — Zet de klok midden in een kwart en controleert dat
 een wisselmoment dat geweest is van het scherm verdwijnt, dat de nadruk doorschuift naar
