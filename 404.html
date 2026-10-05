@@ -1147,24 +1147,20 @@ body.sun .zwklok{background:#0b2148;border-color:#0b2148}
 .veldstand .st-streep{opacity:.55;padding:0 3px}
 body.sun .veldstand{border-color:#fff}
 
-/* ── Telefoon: het veld blijft staan, de wisselmomenten schuiven eronderdoor ──
-   Dezelfde gedachte als de vastgezette veldkolom op de liggende tablet. De zone loopt
-   tot het einde van het wisselverhaal; daarna laat het veld vanzelf los, zodat de
-   speeltijdkaart het hele scherm krijgt.
-   De achtergrond is nodig: zonder dat zouden de teksten dóór het veld heen te zien
-   zijn in plaats van erachter te verdwijnen. */
-.plakveld{position:sticky;top:0;z-index:6;background:#091e48;padding-bottom:8px}
-/* De scrollbak heeft 12px lucht bovenin. Die ruimte hoort mee afgedekt te worden,
-   anders schemert de tekst erachter er in een strookje bovenlangs doorheen. Met een
-   laagje boven het blok in plaats van met marges, zodat de indeling niet verschuift. */
-.plakveld::before{content:'';position:absolute;left:0;right:0;top:-14px;height:14px;
-  background:inherit}
-body.sun .plakveld{background:#eef2f7}
-/* Op een liggende telefoon is er in de hoogte niets te missen: dan zou het veld bijna
-   het hele scherm vullen en bleef er geen regel tekst over. */
-@media (orientation:landscape) and (max-height:560px){
-  .plakveld{position:static}
-}
+/* ── Telefoon: de wisselmomenten staan direct onder de veldtekening ──
+   Deze zone zet de wisseltekst tussen de tekening en de rest van de veldkaart, zodat
+   het eerstvolgende moment pal onder de opstelling staat. Verder doet hij niets.
+
+   Het veld heeft hier eerder vastgezeten (position:sticky), naar het voorbeeld van de
+   liggende tablet. Op een telefoon kan dat niet, en dat is nagemeten: de tekening is
+   564 tot 646 px hoog en het scrollvenster 524 tot 818 px. Op een iPhone SE is het
+   veld dus hóger dan het venster — alles schoof erachter en kwam er nooit meer onder
+   vandaan: geen enkele wisselregel te lezen. Op de ruimste iPhone bleef 172 px over,
+   terwijl één wisselmoment 262 tot 328 px nodig heeft. Een vastgezet veld laat op een
+   telefoon dus in het gunstigste geval een kier over, en in het ongunstigste niets.
+   Op de liggende tablet klopt het wél: daar staat het veld in een eigen kolom naast
+   de tekst, niet erboven. */
+.plakveld{position:static}
 
 .veldklok, .zwklok, .grklok{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .veldklok:active, .zwklok:active, .grklok:active{transform:scale(.96)}
@@ -10020,8 +10016,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=308;
-const VERSIE_LABEL='26.10.15';
+const APP_VERSION=309;
+const VERSIE_LABEL='26.10.16';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
