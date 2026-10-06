@@ -130,6 +130,13 @@
   .team-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
   @media(max-width:760px){.team-overview{grid-template-columns:repeat(3,1fr)}.team-stat:first-child{grid-column:1/-1}.team-members{grid-template-columns:1fr}.team-hero-top{flex-direction:column}}
 
+
+  .login-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:8px}
+  .login-card{border-color:rgba(105,160,245,.35)}
+  .login-card input{min-width:0}
+  .link-button{border:0;background:none;color:#8eb7ff;padding:7px 0 0;font-size:.74rem;font-weight:650}
+  .logged-card{border-color:rgba(62,183,121,.3)}
+  @media(max-width:700px){.login-grid{grid-template-columns:1fr}.login-grid button{width:100%}}
 </style>
 </head>
 <body>
@@ -145,6 +152,29 @@
 
 <!-- Alleen zichtbaar als je géén beheerder bent -->
 <div class="fout admin-alert" id="geenBeheer"></div>
+
+<section class="kaart login-card" id="loginCard">
+  <div class="section-head">
+    <div><div class="section-kicker">BEHEERLOGIN</div><h2>Inloggen als beheerder</h2></div>
+    <span class="badge neutral">Firebase</span>
+  </div>
+  <p class="hint compact">Log in met je vaste beheerdersaccount. Je hoeft geen anoniem beheerderskenmerk meer te kopiëren.</p>
+  <div class="login-grid">
+    <input id="loginEmail" type="email" autocomplete="username" placeholder="E-mailadres">
+    <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Wachtwoord">
+    <button class="prim" id="loginButton">Inloggen</button>
+  </div>
+  <div id="loginMessage"></div>
+  <button id="resetButton" class="link-button" type="button">Wachtwoord vergeten?</button>
+</section>
+
+<section class="kaart logged-card" id="loggedCard" style="display:none">
+  <div class="section-head">
+    <div><div class="section-kicker">INGELOGD</div><h2 id="loggedEmail">Beheerder</h2></div>
+    <button id="logoutButton">Uitloggen</button>
+  </div>
+  <p class="hint compact">Je beheerrechten worden gecontroleerd op je Firebase-account, niet op Safari of het toestel.</p>
+</section>
 
 <nav class="quicknav" aria-label="Snelle navigatie">
   <a href="#teamkaart">🏑 Team</a>
@@ -441,27 +471,41 @@ function sorteerbaar(tabel){
 // Alle tabellen binnen een element sorteerbaar maken, ná het vullen.
 function sorteerAlles(el){ el.querySelectorAll('table').forEach(sorteerbaar); }
 
+let authUser=null;
+
 async function start(){
   try{
     await laad('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
     await laad('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js');
     await laad('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
     firebase.initializeApp(FB_CONFIG);
-    const c=await firebase.auth().signInAnonymously();
-    uid=c.user.uid;
     db=firebase.firestore();
-    $('uid').textContent=uid;
-    await bepaalRol();
-    await demoLezen();
-    // De vorige teamcode onthouden: je zoekt vrijwel altijd hetzelfde team op.
-    try{ const v=localStorage.getItem('beheer_team'); if(v){ $('teamcode').value=v; zoekTeam(); } }catch(e){}
-    // Meteen ophalen in plaats van wachten op een tik. 'Nog niet opgehaald' en 'er is
-    // niets' zagen er hetzelfde uit, en dat is precies de vraag die je hier hebt.
-    if(magBeheren){ $('haal').click(); $('haalTech').click(); }
-    else {
-      $('cijfers').innerHTML='<p class="hint">Je kunt deze cijfers niet lezen — zie onderaan.</p>';
-      $('techniek').innerHTML='<p class="hint">Je kunt deze cijfers niet lezen — zie onderaan.</p>';
-    }
+
+    firebase.auth().onAuthStateChanged(async user=>{
+      authUser=user;
+      if(!user){
+        magBeheren=false; uid=null;
+        $('loginCard').style.display='block';
+        $('loggedCard').style.display='none';
+        $('rolBadge').textContent='Niet ingelogd';
+        $('rolBadge').className='badge warning';
+        $('beheerStatus').textContent='Niet ingelogd';
+        $('uid').textContent='—';
+        ['bewaar','sluit','open'].forEach(id=>$(id).disabled=true);
+        $('cijfers').innerHTML='<p class="hint">Log eerst in om deze cijfers te bekijken.</p>';
+        $('techniek').innerHTML='<p class="hint">Log eerst in om deze gegevens te bekijken.</p>';
+        return;
+      }
+      uid=user.uid;
+      $('loginCard').style.display='none';
+      $('loggedCard').style.display='block';
+      $('loggedEmail').textContent=user.email||'Beheerder';
+      $('uid').textContent=uid;
+      await bepaalRol();
+      await demoLezen();
+      try{ const v=localStorage.getItem('beheer_team'); if(v){ $('teamcode').value=v; zoekTeam(); } }catch(e){}
+      if(magBeheren){ $('haal').click(); $('haalTech').click(); }
+    });
   }catch(e){
     $('uid').textContent='—';
     $('rolUit').textContent='';
@@ -470,13 +514,34 @@ async function start(){
   }
 }
 
-// Anoniem inloggen geeft per browser een eigen kenmerk. Wis je je browsergegevens,
-// dan krijg je een nieuw kenmerk en moet je het opnieuw in de lijst zetten. Dat is de
-// prijs van inloggen zonder account; voor een pagina die je zelf een paar keer per
-// seizoen opent is dat te overzien.
-//
-// Let op: dit kenmerk is niet hetzelfde als dat van de app op je telefoon. Elke
-// browser en elke app-installatie logt apart anoniem in en krijgt een eigen kenmerk.
+$('loginButton').onclick=async()=>{
+  const email=$('loginEmail').value.trim();
+  const password=$('loginPassword').value;
+  const out=$('loginMessage'); out.innerHTML='';
+  if(!email||!password){out.appendChild(toonFout('Inloggen',new Error('Vul e-mailadres en wachtwoord in.')));return;}
+  $('loginButton').disabled=true; $('loginButton').textContent='Inloggen…';
+  try{
+    await firebase.auth().signInWithEmailAndPassword(email,password);
+  }catch(e){
+    let msg='Inloggen mislukt.';
+    if(e.code==='auth/invalid-credential'||e.code==='auth/wrong-password'||e.code==='auth/user-not-found') msg='E-mailadres of wachtwoord klopt niet.';
+    else if(e.code==='auth/too-many-requests') msg='Te veel pogingen. Probeer later opnieuw.';
+    else if(e.code==='auth/operation-not-allowed') msg='E-mail/wachtwoord-login staat nog niet aan in Firebase Authentication.';
+    out.appendChild(toonFout(msg,e));
+  }finally{ $('loginButton').disabled=false; $('loginButton').textContent='Inloggen'; }
+};
+$('loginPassword').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginButton').click();});
+$('resetButton').onclick=async()=>{
+  const email=$('loginEmail').value.trim(), out=$('loginMessage'); out.innerHTML='';
+  if(!email){out.appendChild(toonFout('Wachtwoord herstellen',new Error('Vul eerst je e-mailadres in.')));return;}
+  try{ await firebase.auth().sendPasswordResetEmail(email); out.innerHTML='<p class="hint">Als dit e-mailadres bij Firebase bekend is, is een herstelmail verstuurd.</p>'; }
+  catch(e){ out.appendChild(toonFout('Wachtwoord herstellen',e)); }
+};
+$('logoutButton').onclick=()=>firebase.auth().signOut();
+
+// De beheerpagina gebruikt bewust GEEN anonieme login. De gewone hockeyapp mag
+// Anonymous blijven gebruiken; deze pagina gebruikt Email/Password zodat jouw
+// beheeridentiteit niet afhankelijk is van Safari, Private Browsing of een toestel.
 async function bepaalRol(){
   try{
     const d=await db.collection('beheer').doc('beheerders').get();
@@ -485,19 +550,14 @@ async function bepaalRol(){
   }catch(e){ magBeheren=false; }
   ['bewaar','sluit','open'].forEach(id=>$(id).disabled=!magBeheren);
   $('rolUit').innerHTML = magBeheren
-    ? 'Je staat in de beheerderslijst. Je kunt de cijfers lezen en de demo omzetten.'
-    : 'Je staat <b>niet</b> in de beheerderslijst. Zet het kenmerk hierboven in de '
-      + 'Firebase-console in <span class="kenmerk">beheer/beheerders</span>, veld '
-      + '<span class="kenmerk">uids</span>, en laad deze pagina opnieuw.';
+    ? 'Je bent ingelogd met een account dat beheerrechten heeft.'
+    : 'Je bent wel ingelogd, maar dit Firebase-account staat nog niet in de beheerderslijst.';
   if(!magBeheren){
     $('geenBeheer').style.display='block';
-    $('geenBeheer').innerHTML='Deze browser staat niet in de beheerderslijst. '
-      +'De demo omzetten en de cijfers lezen lukt daarom niet; een team opzoeken wel. '
-      +'Onderaan deze pagina staat het kenmerk dat je in '
-      +'<span class="kenmerk">beheer/beheerders</span> moet zetten. '
-      +'<b>Let op:</b> dat is een ander kenmerk dan dat van de app op je telefoon — '
-      +'elke browser logt apart anoniem in.';
-  }
+    $('geenBeheer').innerHTML='Je bent ingelogd als <b>'+esc(authUser?.email||'onbekend')+'</b>, maar dit account heeft nog geen beheerrechten. ' +
+      'Voeg eenmalig de Firebase UID hieronder toe aan <span class="kenmerk">beheer/beheerders</span> → <span class="kenmerk">uids</span>: ' +
+      '<span class="kenmerk">'+esc(uid)+'</span>. Daarna kun je uitloggen en opnieuw inloggen.';
+  }else{ $('geenBeheer').style.display='none'; }
 }
 
 // ── Noodrem ────────────────────────────────────────────────────────────────
