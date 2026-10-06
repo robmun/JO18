@@ -100,89 +100,250 @@
     border-radius:10px;padding:10px;font-size:.82rem;margin-top:10px;color:#ffd2c4}
   .let b{color:#fff}
   #geenBeheer{display:none}
+
+  .team-overview{display:grid;grid-template-columns:1.35fr repeat(3,1fr);gap:10px;margin:14px 0}
+  .team-stat{background:rgba(255,255,255,.035);border:1px solid var(--rand);border-radius:14px;padding:14px}
+  .team-stat .num{font-size:1.65rem;font-weight:850;line-height:1.1}
+  .team-stat .label{font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-top:5px}
+  .team-hero{background:linear-gradient(135deg,rgba(255,255,255,.055),rgba(255,255,255,.018));border:1px solid var(--rand);border-radius:16px;padding:16px}
+  .team-hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .team-name{font-size:1.5rem;font-weight:850;margin:0}
+  .team-meta{color:var(--dim);font-size:.82rem;margin-top:4px}
+  .health{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;font-size:.72rem;font-weight:800}
+  .health.good{background:rgba(63,166,106,.16);color:#8ce4ae;border:1px solid rgba(63,166,106,.4)}
+  .health.warn{background:rgba(231,177,64,.14);color:#ffd47b;border:1px solid rgba(231,177,64,.35)}
+  .health.bad{background:rgba(224,103,74,.14);color:#ffb39e;border:1px solid rgba(224,103,74,.4)}
+  .activity{margin-top:12px;font-size:.8rem;color:var(--dim)}
+  .activity strong{color:var(--tekst)}
+  .team-members{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+  .member{display:flex;align-items:center;gap:10px;padding:10px 11px;border:1px solid var(--rand);background:rgba(255,255,255,.025);border-radius:12px;min-width:0}
+  .member-dot{width:9px;height:9px;border-radius:50%;background:var(--dim);flex:0 0 auto}
+  .member-dot.recent{background:var(--groen);box-shadow:0 0 0 3px rgba(63,166,106,.12)}
+  .member-info{min-width:0;flex:1}
+  .member-name{font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .member-sub{font-size:.72rem;color:var(--dim);margin-top:2px}
+  .team-warnings{margin-top:12px}
+  .warning-item{display:flex;gap:9px;align-items:flex-start;padding:9px 10px;border-radius:10px;background:rgba(224,103,74,.09);border:1px solid rgba(224,103,74,.28);font-size:.78rem;margin-top:6px}
+  .warning-item.info{background:rgba(231,177,64,.08);border-color:rgba(231,177,64,.25)}
+  details.team-tech{margin-top:14px;border-top:1px solid var(--rand);padding-top:10px}
+  details.team-tech summary{cursor:pointer;color:var(--dim);font-size:.8rem;font-weight:750}
+  .team-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  @media(max-width:760px){.team-overview{grid-template-columns:repeat(3,1fr)}.team-stat:first-child{grid-column:1/-1}.team-members{grid-template-columns:1fr}.team-hero-top{flex-direction:column}}
+
 </style>
 </head>
 <body>
 
-<h1>Beheer</h1>
-<p class="sub">opstelling &amp; wissels — niet gelinkt vanuit de app</p>
-
-<!-- Alleen zichtbaar als je géén beheerder bent: dan werkt de halve pagina niet en
-     hoor je dat te lezen vóórdat je je afvraagt waarom er niets komt. -->
-<div class="fout" id="geenBeheer" style="margin:0 0 14px"></div>
-
-<!-- ── Team opzoeken ───────────────────────────────────────────────────────── -->
-<div class="kaart">
-  <h2>Team opzoeken</h2>
-  <p class="hint">Een lijst van alle teams is er bewust niet: de beveiliging staat geen
-    opsomming toe, anders zou een onraadbare teamcode niets waard zijn. Je kunt wel
-    één team opzoeken als je de code hebt.</p>
-  <label>Teamcode</label>
-  <div class="rij">
-    <input id="teamcode" placeholder="bijv. k7m2xq9rtb4p" autocapitalize="none" spellcheck="false" style="flex:1">
-    <button id="zoek">Zoek</button>
+<header class="topbar">
+  <div>
+    <div class="eyebrow">HC Gooische · JO18</div>
+    <h1>Beheercentrum</h1>
+    <p class="sub">Opstelling &amp; wissels · technisch beheer</p>
   </div>
-  <div id="team" style="margin-top:12px"></div>
+  <div class="top-status"><span class="dot" id="connectionDot"></span><span id="connectionText">Verbinden…</span></div>
+</header>
+
+<!-- Alleen zichtbaar als je géén beheerder bent -->
+<div class="fout admin-alert" id="geenBeheer"></div>
+
+<nav class="quicknav" aria-label="Snelle navigatie">
+  <a href="#teamkaart">🏑 Team</a>
+  <a href="#demo-kaart">🧪 Demo</a>
+  <a href="#cijfers-kaart">📈 Gebruik</a>
+  <a href="#tech-kaart">📱 Techniek</a>
+</nav>
+
+<section class="kaart hero-card" id="teamkaart">
+  <div class="section-head">
+    <div>
+      <div class="section-kicker">TEAM</div>
+      <h2>Team opzoeken</h2>
+    </div>
+    <span class="badge neutral">Beveiligd</span>
+  </div>
+  <p class="hint compact">Zoek één team met de teamcode. Er is bewust geen lijst van alle teams.</p>
+  <div class="search-row">
+    <input id="teamcode" placeholder="bijv. k7m2xq9rtb4p" autocapitalize="none" spellcheck="false" autocomplete="off">
+    <button class="prim big" id="zoek">Team openen</button>
+  </div>
+  <div id="team" class="result-area"></div>
+</section>
+
+<div class="grid-2">
+  <section class="kaart" id="demo-kaart">
+    <div class="section-head">
+      <div>
+        <div class="section-kicker">DEMO</div>
+        <h2>Demo beheren <span id="demoVlag"></span></h2>
+      </div>
+      <span class="badge warning">Noodrem</span>
+    </div>
+    <p class="hint compact">Sluiten blokkeert wijzigen voor iedereen. Kijken blijft mogelijk.</p>
+
+    <div class="form-grid">
+      <div>
+        <label>Demoperiode</label>
+        <div class="input-suffix"><input id="dagen" type="number" min="1" max="399" value="14"><span>dagen</span></div>
+      </div>
+      <div class="full">
+        <label>Boodschap bij gesloten demo <span class="muted">(optioneel)</span></label>
+        <textarea id="boodschap" maxlength="300" placeholder="Even pauze — mail robertmunnichs@gmail.com."></textarea>
+      </div>
+    </div>
+    <div class="action-row">
+      <button class="prim" id="bewaar" disabled>Bewaar instellingen</button>
+      <button class="gevaar" id="sluit" disabled>Demo sluiten</button>
+      <button id="open" disabled>Demo openen</button>
+    </div>
+    <div id="demoFout"></div>
+  </section>
+
+  <section class="kaart" id="status-kaart">
+    <div class="section-head">
+      <div>
+        <div class="section-kicker">BEHEERSTATUS</div>
+        <h2>Deze browser</h2>
+      </div>
+      <span class="badge neutral" id="rolBadge">Controleren…</span>
+    </div>
+    <div class="status-lines">
+      <div><span>Verbinding</span><strong id="connectionStatus">Controleren…</strong></div>
+      <div><span>Beheerrechten</span><strong id="beheerStatus">Controleren…</strong></div>
+      <div><span>Kenmerk</span><code id="uid">…</code></div>
+    </div>
+    <button id="kopieerUid" class="secondary">Kenmerk kopiëren</button>
+    <p class="hint" id="rolUit">Verbinden…</p>
+  </section>
 </div>
 
-<!-- ── Noodrem ─────────────────────────────────────────────────────────────── -->
-<div class="kaart">
-  <h2>Demo <span id="demoVlag"></span></h2>
-  <p class="hint">Staat de demo dicht, dan kan niemand er nog iets in wijzigen — ook niet
-    wie hem al op zijn beginscherm heeft staan. Kijken kan wel.</p>
-  <label>Demoperiode in dagen</label>
-  <input id="dagen" type="number" min="1" max="399" value="14">
-  <label>Boodschap als de demo dicht staat <span style="font-weight:400">(leeg = standaardtekst)</span></label>
-  <textarea id="boodschap" maxlength="300" placeholder="Even pauze — mail robertmunnichs@gmail.com."></textarea>
-  <div class="rij" style="margin-top:12px">
-    <button class="prim" id="bewaar" disabled>Bewaren</button>
-    <button class="gevaar" id="sluit" disabled>Demo sluiten</button>
-    <button id="open" disabled>Demo openen</button>
+<section class="kaart" id="cijfers-kaart">
+  <div class="section-head">
+    <div>
+      <div class="section-kicker">INZICHT</div>
+      <h2>Gebruik van de demo</h2>
+    </div>
+    <div class="toolbar">
+      <select id="periode" aria-label="Periode gebruik">
+        <option value="14">14 dagen</option>
+        <option value="30" selected>30 dagen</option>
+        <option value="90">90 dagen</option>
+      </select>
+      <button id="haal">Vernieuwen</button>
+    </div>
   </div>
-  <div id="demoFout"></div>
-</div>
+  <div id="cijfers" class="result-area"><p class="hint">Wachten op verbinding…</p></div>
+</section>
 
-<!-- ── Cijfers ─────────────────────────────────────────────────────────────── -->
-<div class="kaart">
-  <h2>Gebruik van de demo</h2>
-  <div class="rij">
-    <label style="margin:0">Laatste</label>
-    <select id="periode" style="width:auto">
-      <option value="14">14 dagen</option>
-      <option value="30" selected>30 dagen</option>
-      <option value="90">90 dagen</option>
-    </select>
-    <button id="haal">Ophalen</button>
+<section class="kaart" id="tech-kaart">
+  <div class="section-head">
+    <div>
+      <div class="section-kicker">TECHNIEK</div>
+      <h2>Toestellen &amp; fouten</h2>
+    </div>
+    <div class="toolbar">
+      <select id="weken" aria-label="Periode techniek">
+        <option value="4">4 weken</option>
+        <option value="8" selected>8 weken</option>
+        <option value="26">26 weken</option>
+      </select>
+      <button id="haalTech">Vernieuwen</button>
+    </div>
   </div>
-  <div id="cijfers" style="margin-top:12px"><p class="hint">Wachten op verbinding…</p></div>
-</div>
+  <div id="techniek" class="result-area"><p class="hint">Wachten op verbinding…</p></div>
+</section>
 
-<!-- ── Techniek en fouten ──────────────────────────────────────────────────── -->
-<div class="kaart">
-  <h2>Toestellen en fouten</h2>
-  <div class="rij">
-    <label style="margin:0">Laatste</label>
-    <select id="weken" style="width:auto">
-      <option value="4">4 weken</option>
-      <option value="8" selected>8 weken</option>
-      <option value="26">26 weken</option>
-    </select>
-    <button id="haalTech">Ophalen</button>
-  </div>
-  <div id="techniek" style="margin-top:12px"><p class="hint">Wachten op verbinding…</p></div>
-</div>
+<footer class="footer">
+  <span>Beheerpagina · niet gelinkt vanuit de app</span>
+  <span>Firebase-regels bepalen de daadwerkelijke toegang</span>
+</footer>
 
-<!-- ── Wie ben ik ──────────────────────────────────────────────────────────── -->
-<!-- Onderaan: dit heb je één keer per browser nodig, en daarna nooit meer. -->
-<div class="kaart">
-  <h2>Jouw kenmerk</h2>
-  <div class="rij">
-    <span class="kenmerk" id="uid">…</span>
-    <button id="kopieerUid">Kopieer</button>
-  </div>
-  <p class="hint" id="rolUit" style="margin-top:10px">Verbinden…</p>
-</div>
-
+<style>
+  /* ── Nieuwe beheer-UI: bestaande JS en IDs blijven bewust intact ── */
+  :root{
+    --bg:#07162e;--kaart:#102747;--kaart2:#0d213f;--rand:rgba(255,255,255,.11);
+    --txt:#edf4ff;--dim:#91a8cb;--accent:#69a0f5;--accent2:#477fd3;
+    --rood:#dc6249;--groen:#3eb779;--oranje:#e3a34d;--r:18px;
+  }
+  body{max-width:1080px;padding:18px 16px 70px;background:
+    radial-gradient(circle at 80% -10%,rgba(74,126,211,.18),transparent 32%),var(--bg)}
+  h1{font-size:1.55rem;margin:0 0 2px;letter-spacing:-.02em}
+  h2{font-size:1.02rem;margin:0}
+  .sub{margin:2px 0 0;color:var(--dim);font-size:.82rem}
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin:4px 0 18px}
+  .eyebrow,.section-kicker{font-size:.68rem;letter-spacing:.12em;font-weight:800;color:#78a9f1}
+  .section-kicker{margin-bottom:4px}
+  .top-status{font-size:.76rem;color:var(--dim);display:flex;align-items:center;gap:7px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--oranje);display:inline-block}
+  .quicknav{display:flex;gap:8px;overflow:auto;margin:0 0 14px;padding-bottom:2px;scrollbar-width:none}
+  .quicknav a{color:var(--txt);text-decoration:none;background:rgba(255,255,255,.055);
+    border:1px solid var(--rand);padding:7px 11px;border-radius:999px;font-size:.75rem;white-space:nowrap}
+  .kaart{background:linear-gradient(145deg,rgba(18,43,76,.98),rgba(13,34,63,.98));
+    border:1px solid var(--rand);border-radius:var(--r);padding:17px;margin-bottom:14px;
+    box-shadow:0 10px 30px rgba(0,0,0,.10)}
+  .hero-card{border-color:rgba(105,160,245,.27)}
+  .grid-2{display:grid;grid-template-columns:1.35fr .65fr;gap:14px}
+  .grid-2 .kaart{margin-bottom:14px}
+  .section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+  .badge{padding:4px 9px;border-radius:999px;font-size:.68rem;font-weight:800;white-space:nowrap}
+  .badge.neutral{background:rgba(105,160,245,.12);color:#a9c9ff;border:1px solid rgba(105,160,245,.25)}
+  .badge.warning{background:rgba(227,163,77,.12);color:#f1bd70;border:1px solid rgba(227,163,77,.25)}
+  .hint{color:var(--dim);font-size:.78rem;line-height:1.45}
+  .compact{margin:0 0 12px}
+  .muted{font-weight:400;color:var(--dim)}
+  label{display:block;font-size:.73rem;color:var(--dim);margin:0 0 5px}
+  input,textarea,select{width:100%;padding:10px 11px;border-radius:11px;border:1px solid var(--rand);
+    background:rgba(255,255,255,.055);color:var(--txt);font:inherit;font-size:.88rem}
+  select{width:auto;min-width:105px}
+  textarea{height:65px;resize:vertical}
+  input:focus,textarea:focus,select:focus{outline:2px solid rgba(105,160,245,.32);outline-offset:1px}
+  .search-row{display:flex;gap:8px}
+  .search-row input{flex:1;min-width:0}
+  button{padding:9px 13px;border-radius:10px;border:1px solid var(--rand);background:rgba(255,255,255,.07);
+    color:var(--txt);font:inherit;font-weight:750;font-size:.78rem;cursor:pointer;white-space:nowrap}
+  button.prim{background:var(--accent);border-color:var(--accent);color:#06152c}
+  button.gevaar{background:var(--rood);border-color:var(--rood);color:#fff}
+  button.secondary{background:rgba(105,160,245,.1);border-color:rgba(105,160,245,.24)}
+  button.big{padding-inline:18px}
+  button:disabled{opacity:.4;cursor:default}
+  .form-grid{display:grid;grid-template-columns:145px 1fr;gap:10px}
+  .form-grid .full{grid-column:1/-1}
+  .input-suffix{position:relative}.input-suffix input{padding-right:48px}
+  .input-suffix span{position:absolute;right:10px;top:10px;color:var(--dim);font-size:.75rem}
+  .action-row,.toolbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+  .action-row{margin-top:13px}
+  .toolbar{justify-content:flex-end}
+  .status-lines{border-top:1px solid var(--rand);margin:8px 0 12px}
+  .status-lines>div{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:.77rem}
+  .status-lines span{color:var(--dim)}.status-lines strong{font-weight:700}
+  code,.kenmerk{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72rem;
+    background:rgba(255,255,255,.07);padding:3px 6px;border-radius:6px;word-break:break-all}
+  .result-area{margin-top:12px}
+  .fout{background:rgba(220,98,73,.13);border:1px solid rgba(220,98,73,.42);border-radius:11px;padding:10px;font-size:.8rem}
+  .admin-alert{display:none;margin:0 0 14px}
+  .let{background:rgba(220,98,73,.10);border:1px solid rgba(220,98,73,.32);border-radius:11px;padding:10px;font-size:.78rem;color:#ffd2c4}
+  .let b{color:#fff}
+  .vlag{display:inline-block;padding:3px 8px;border-radius:999px;font-size:.65rem;font-weight:800;margin-left:5px;vertical-align:2px}
+  .vlag.open{background:rgba(62,183,121,.15);color:#80e1ae;border:1px solid rgba(62,183,121,.35)}
+  .vlag.dicht{background:rgba(220,98,73,.15);color:#ffae9b;border:1px solid rgba(220,98,73,.35)}
+  .tabelhouder{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(255,255,255,.06);border-radius:11px}
+  table{width:100%;border-collapse:collapse;font-size:.76rem}
+  th,td{text-align:right;padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.055);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--dim);font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;background:rgba(255,255,255,.025)}
+  th.sorteer{cursor:pointer} th.sorteer:hover{color:var(--txt)}
+  th.sorteer .pijl{font-size:.7em}
+  tr.totaal td{border-top:2px solid var(--rand);border-bottom:none;font-weight:800}
+  .mini{padding:4px 7px;font-size:.65rem}
+  .footer{display:flex;justify-content:space-between;gap:10px;color:#657d9f;font-size:.65rem;margin:20px 3px}
+  @media(max-width:700px){
+    body{padding:14px 11px 50px}.topbar{align-items:flex-start}.top-status{margin-top:3px}
+    .grid-2{display:block}.grid-2 .kaart:last-child{margin-bottom:14px}
+    .search-row{display:grid;grid-template-columns:1fr}.search-row button{width:100%}
+    .form-grid{grid-template-columns:1fr}.form-grid .full{grid-column:auto}
+    .action-row button{flex:1}.toolbar{width:100%;justify-content:stretch}
+    .toolbar select,.toolbar button{flex:1}.footer{display:block}.footer span{display:block;margin:3px 0}
+  }
+</style>
 <script>
 // De configuratie is dezelfde als in de app; hij staat toch al in index.html en is
 // niet geheim. De beveiliging zit in de regels, niet in het verbergen hiervan.
@@ -529,7 +690,7 @@ async function zoekTeam(){
   const doel=$('team');
   if(!verbonden(doel))return;
   if(!code){ doel.innerHTML='<p class="hint">Vul een teamcode in.</p>'; return; }
-  doel.innerHTML='<p class="hint">Zoeken…</p>';
+  doel.innerHTML='<p class="hint">Teamgegevens ophalen…</p>';
   try{
     const d=await db.collection('teams').doc(code).get();
     if(!d.exists){ doel.innerHTML='<p class="hint">Geen team met deze code.</p>'; return; }
@@ -537,113 +698,110 @@ async function zoekTeam(){
     const v=d.data()||{};
     const eds=Array.isArray(v.editors)?v.editors:[];
     const co=v.coaches||{};
-    const dag=t=>t?new Date(Number(t)).toLocaleString('nl-NL',
-      {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'—';
-
     const ids=[...new Set(Object.keys(co).concat(eds).concat(v.owner?[v.owner]:[]))];
     const rol=id=>(v.owner===id)?'eigenaar':(eds.includes(id)?'coach':'kijker');
-
-    let h='<div class="tabelhouder"><table><thead><tr>'
-      +'<th>naam</th><th>rol</th><th>toestel</th><th>sinds</th><th>laatst actief</th>'
-      +'<th>kenmerk</th><th data-nosort></th></tr></thead><tbody>';
-    if(!ids.length)h+='<tr><td colspan="7">Nog niemand gekoppeld.</td></tr>';
-    // Standaard op 'laatst actief', nieuwste bovenaan: dat is de volgorde waarin je
-    // deze lijst leest als je zoekt wie er onlangs was.
-    ids.sort((a,b)=>Number((co[b]||{}).laatst||0)-Number((co[a]||{}).laatst||0));
-    ids.forEach(id=>{
-      const c=co[id]||{};
-      // Een rang voor de rol, zodat sorteren eigenaar-coach-kijker oplevert in plaats
-      // van de alfabetische volgorde coach-eigenaar-kijker.
-      const r=rol(id), rang={eigenaar:0,coach:1,kijker:2}[r];
-      h+='<tr>'
-        +'<td>'+(c.naam?esc(c.naam):'<span style="color:var(--dim)">geen naam</span>')+'</td>'
-        +'<td data-sort="'+rang+'">'+r+'</td>'
-        +'<td>'+esc(c.toestel||'—')+'</td>'
-        +'<td data-sort="'+Number(c.sinds||0)+'">'+dag(c.sinds)+'</td>'
-        +'<td data-sort="'+Number(c.laatst||0)+'">'+dag(c.laatst)+'</td>'
-        +'<td><span class="kenmerk">'+esc(id)+'</span></td>'
-        +'<td><button class="mini" data-kop="'+esc(id)+'">Kopieer</button></td>'
-        +'</tr>';
+    const dag=t=>t?new Date(Number(t)).toLocaleString('nl-NL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'—';
+    const leeftijd=t=>{
+      const n=Number(t||0); if(!n)return 'nooit actief';
+      const m=Math.max(0,Math.round((Date.now()-n)/60000));
+      if(m<2)return 'zojuist actief'; if(m<60)return m+' min geleden';
+      const h=Math.round(m/60); if(h<24)return h+' uur geleden';
+      const d=Math.round(h/24); return d+' dag'+(d===1?'':'en')+' geleden';
+    };
+    const rang={eigenaar:0,coach:1,kijker:2};
+    const leden=ids.map(id=>({id,c:co[id]||{},r:rol(id)})).sort((a,b)=>{
+      const aa=Number(a.c.laatst||0),bb=Number(b.c.laatst||0); return bb-aa || rang[a.r]-rang[b.r];
     });
-    h+='</tbody></table></div>';
+    const kijkers=leden.filter(x=>x.r==='kijker');
+    const coaches=leden.filter(x=>x.r==='coach'||x.r==='eigenaar');
+    const actief=leden.filter(x=>Number(x.c.laatst||0)>Date.now()-7*24*60*60*1000);
+    const zonderNaam=leden.filter(x=>!String(x.c.naam||'').trim() || ['speler','coach','coach zonder naam'].includes(String(x.c.naam||'').trim().toLowerCase()));
+    const naamMap={};
+    Object.entries(co).forEach(([id,c])=>{const n=String(c.naam||'').trim().toLowerCase();if(n&&!['speler','coach','coach zonder naam'].includes(n))(naamMap[n]=naamMap[n]||[]).push(id);});
+    const dubbeleNamen=Object.entries(naamMap).filter(([,a])=>a.length>1);
+    const naamlozeEditors=eds.filter(id=>!co[id]);
+    const koppelTot=Number(v.koppelTot||0);
+    const waars=[];
+    dubbeleNamen.forEach(([n,a])=>waars.push({type:'bad',icon:'⚠️',txt:'<b>'+esc(co[a[0]]?.naam||n)+'</b> staat '+a.length+' keer geregistreerd met verschillende kenmerken. Waarschijnlijk een herinstallatie.'}));
+    if(naamlozeEditors.length)waars.push({type:'bad',icon:'⚠️',txt:naamlozeEditors.length+' wijzigrechten staan op een kenmerk dat niet in de ledenlijst staat.'});
+    if(koppelTot>Date.now())waars.push({type:'info',icon:'🔓',txt:'Het koppelvenster staat nog <b>'+Math.ceil((koppelTot-Date.now())/60000)+' minuten</b> open.'});
+    if(zonderNaam.length)waars.push({type:'info',icon:'ℹ️',txt:zonderNaam.length+' van de '+leden.length+' bekende toestellen hebben geen echte naam.'});
 
-    // ── Wat er opvalt ──
-    // Twee dingen die je met het oog mist en die allebei echt zijn voorgekomen.
-    const let_=[];
-    // 1. Hetzelfde toestel onder twee kenmerken. Dat is een her-installatie: iOS gooit
-    //    de opslag van de app weg, de app krijgt een nieuw kenmerk én een nieuw
-    //    toestelnummer, en het oude blijft als dode regel staan.
-    // Alleen op échte namen groeperen. 'speler' en 'coach' zijn de namen die de app
-    // zelf invult als er geen is opgegeven: 'speler' voor wie via een kijk-link
-    // binnenkomt, 'coach' voor wie samenwerken instelt zonder zijn naam in te vullen.
-    // Drie spelers die de naamvraag overslaan heten dus alle drie 'speler', en zonder
-    // deze uitzondering meldt de pagina dat als een her-installatie. Een valse melding
-    // is erger dan geen melding: na twee keer negeer je hem, ook wanneer hij klopt.
-    const AUTONAMEN=['speler','coach','coach zonder naam'];
-    const perNaam={};
-    Object.entries(co).forEach(([id,c])=>{
-      const n=(c.naam||'').trim().toLowerCase();
-      if(!n||AUTONAMEN.includes(n))return;
-      (perNaam[n]=perNaam[n]||[]).push([id,c]);
-    });
-    Object.entries(perNaam).forEach(([n,lijst])=>{
-      if(lijst.length<2)return;
-      const oud=lijst.slice().sort((a,b)=>Number(b[1].laatst||0)-Number(a[1].laatst||0)).slice(1);
-      let_.push('<b>'+esc(lijst[0][1].naam)+'</b> staat '+lijst.length+' keer in de lijst, '
-        +'met verschillende kenmerken. Meestal een her-installatie: het oudste kenmerk is dood '
-        +'en kan weg uit <span class="kenmerk">coaches</span> en <span class="kenmerk">editors</span>. '
-        +'Oudste: '+oud.map(([id,c])=>'<span class="kenmerk">'+esc(id)+'</span> ('+dag(c.laatst)+')').join(', '));
-    });
-    // 2. Coachrechten zonder naam: een kenmerk in 'editors' waar geen regel bij hoort.
-    //    Die kun je niet thuisbrengen, en dus ook niet met een gerust hart laten staan.
-    const naamloos=eds.filter(id=>!co[id]);
-    if(naamloos.length)
-      let_.push(naamloos.length+' kenmerk'+(naamloos.length===1?'':'en')+' in '
-        +'<span class="kenmerk">editors</span> zonder naam in <span class="kenmerk">coaches</span>. '
-        +'Die toestellen mogen wijzigen maar zijn niet thuis te brengen: '
-        +naamloos.map(id=>'<span class="kenmerk">'+esc(id)+'</span>').join(', '));
-    // 3. Staat het koppelvenster nog open? Dat hoort een kwartier te duren.
-    const tot=Number(v.koppelTot||0);
-    if(tot>Date.now())
-      let_.push('Het koppelvenster staat nog <b>'+Math.ceil((tot-Date.now())/60000)
-        +' minuten</b> open. Zolang dat zo is kan elk toestel dat de teamcode kent '
-        +'zichzelf als coach toevoegen.');
-    // 4. Hoeveel kijkers heten nog 'speler'? Geen probleem, wel goed om te weten:
-    //    het zegt of de naamvraag aankomt, en het verklaart waarom de lijst regels
-    //    bevat die je niet thuis kunt brengen.
-    const naamloos2=Object.entries(co)
-      .filter(([id,c])=>(c.naam||'').trim().toLowerCase()==='speler').length;
-    if(naamloos2>=2)
-      let_.push(naamloos2+' kijkers heten nog <b>speler</b> — die hebben de vraag naar '
-        +'hun naam overgeslagen of draaien een app van vóór 26.9.104. Ze zijn onderling '
-        +'niet uit elkaar te houden; dat mag, maar je kunt ze ook niet aanspreken.');
-    if(let_.length)
-      h+='<div class="let"><b>Wat opvalt</b><ul style="margin:6px 0 0;padding-left:18px">'
-        +let_.map(t=>'<li style="margin:4px 0">'+t+'</li>').join('')+'</ul></div>';
+    let health='good', healthText='Alles lijkt in orde';
+    if(naamlozeEditors.length || dubbeleNamen.length){health='bad';healthText='Aandacht nodig';}
+    else if(waars.length || koppelTot>Date.now()){health='warn';healthText='Even controleren';}
 
-    h+='<p class="hint" style="margin-top:10px">'
-      +'<b>'+eds.length+'</b> toestel'+(eds.length===1?'':'len')+' met wijzigrechten, '
-      +'<b>'+ids.length+'</b> in totaal bekend. Eigenaar: '
-      +(v.owner?'<span class="kenmerk">'+esc(v.owner)+'</span>':'—')+'.'
-      +'<br>Iemand toevoegen of verwijderen doe je in de Firebase-console: '
-      +'<span class="kenmerk">teams / '+esc(code)+'</span>, veld '
-      +'<span class="kenmerk">editors</span>. Deze pagina kan dat niet — alleen de '
-      +'eigenaar van een team mag die lijst wijzigen, en dat ben jij hier niet. '
-      +'Gebruik de kopieerknop en typ een kenmerk nooit over: een hoofdletter I en een '
-      +'kleine l zijn in de meeste lettertypen niet uit elkaar te houden.</p>';
+    let h='';
+    h+='<div class="team-hero">';
+    h+='<div class="team-hero-top"><div><h3 class="team-name">'+esc(v.naam||code.toUpperCase())+'</h3>';
+    h+='<div class="team-meta">Teamcode <span class="kenmerk">'+esc(code)+'</span> · '+ids.length+' bekende toestellen</div></div>';
+    h+='<span class="health '+health+'">● '+healthText+'</span></div>';
+    const laatste=Math.max(...leden.map(x=>Number(x.c.laatst||0)),0);
+    h+='<div class="activity">Laatste activiteit: <strong>'+ (laatste?leeftijd(laatste)+' ('+dag(laatste)+')':'nog geen activiteit') +'</strong></div>';
+    h+='</div>';
+
+    h+='<div class="team-overview">';
+    h+='<div class="team-stat"><div class="num">'+leden.length+'</div><div class="label">bekend</div></div>';
+    h+='<div class="team-stat"><div class="num">'+coaches.length+'</div><div class="label">coachrechten</div></div>';
+    h+='<div class="team-stat"><div class="num">'+kijkers.length+'</div><div class="label">kijkers</div></div>';
+    h+='<div class="team-stat"><div class="num">'+actief.length+'</div><div class="label">actief 7 dgn</div></div>';
+    h+='</div>';
+
+    if(waars.length){
+      h+='<div class="team-warnings"><div class="section-kicker">AANDACHTSPUNTEN</div>';
+      waars.forEach(w=>h+='<div class="warning-item '+(w.type==='info'?'info':'')+'"><span>'+w.icon+'</span><div>'+w.txt+'</div></div>');
+      h+='</div>';
+    }
+
+    h+='<div class="section-kicker" style="margin-top:16px">LEDEN & TOESTELLEN</div>';
+    h+='<div class="team-members">';
+    if(!leden.length)h+='<div class="hint">Nog niemand gekoppeld.</div>';
+    leden.slice(0,12).forEach(x=>{
+      const naam=x.c.naam?esc(x.c.naam):'<span style="color:var(--dim)">geen naam</span>';
+      const recent=Number(x.c.laatst||0)>Date.now()-7*24*60*60*1000;
+      h+='<div class="member"><span class="member-dot '+(recent?'recent':'')+'"></span><div class="member-info"><div class="member-name">'+naam+'</div><div class="member-sub">'+x.r+' · '+(x.c.toestel?esc(x.c.toestel):'toestel onbekend')+' · '+leeftijd(x.c.laatst)+'</div></div></div>';
+    });
+    if(leden.length>12)h+='<div class="hint">+'+(leden.length-12)+' overige toestellen — zie technische details hieronder.</div>';
+    h+='</div>';
+
+    h+='<div class="team-actions"><button class="secondary" onclick="document.getElementById(\'teamTechniek\').open=true">Technische details</button></div>';
+    h+='<details class="team-tech" id="teamTechniek"><summary>Volledige lijst met kenmerken, tijden en kopieerknoppen</summary>';
+    h+='<div class="tabelhouder"><table><thead><tr><th>naam</th><th>rol</th><th>toestel</th><th>sinds</th><th>laatst actief</th><th>kenmerk</th><th></th></tr></thead><tbody>';
+    leden.forEach(x=>{
+      const rangRol=rang[x.r];
+      h+='<tr><td>'+(x.c.naam?esc(x.c.naam):'<span style="color:var(--dim)">geen naam</span>')+'</td>'
+        +'<td data-sort="'+rangRol+'">'+x.r+'</td>'
+        +'<td>'+esc(x.c.toestel||'—')+'</td>'
+        +'<td data-sort="'+Number(x.c.sinds||0)+'">'+dag(x.c.sinds)+'</td>'
+        +'<td data-sort="'+Number(x.c.laatst||0)+'">'+dag(x.c.laatst)+'</td>'
+        +'<td><span class="kenmerk">'+esc(x.id)+'</span></td>'
+        +'<td><button class="mini" data-kop="'+esc(x.id)+'">Kopieer</button></td></tr>';
+    });
+    h+='</tbody></table></div></details>';
+
+    h+='<p class="hint" style="margin-top:12px">Eigenaar: '+(v.owner?'<span class="kenmerk">'+esc(v.owner)+'</span>':'—')+'. Wijzigrechten beheer je in <span class="kenmerk">teams / '+esc(code)+'</span> via Firebase. Deze pagina kan die rechten bewust niet aanpassen.</p>';
     doel.innerHTML=h;
-    sorteerAlles(doel);
-    doel.querySelectorAll('button[data-kop]').forEach(b=>{
-      b.onclick=()=>kopieer(b.getAttribute('data-kop'),b);
-    });
+    doel.querySelectorAll('button[data-kop]').forEach(b=>b.onclick=()=>kopieer(b.getAttribute('data-kop'),b));
   }catch(e){
-    doel.innerHTML='';
-    doel.appendChild(foutBlok('Team ophalen mislukt',e));
+    doel.innerHTML=''; doel.appendChild(foutBlok('Team ophalen mislukt',e));
   }
 }
 $('zoek').onclick=zoekTeam;
 // Op een telefoon tik je Enter, niet de knop.
 $('teamcode').addEventListener('keydown',e=>{ if(e.key==='Enter')zoekTeam(); });
+
+// UI-status van het nieuwe dashboard, zonder de bestaande beheerlogica te wijzigen.
+const _statusInterval=setInterval(()=>{
+  const online=navigator.onLine;
+  $('connectionDot').style.background=online?'var(--groen)':'var(--rood)';
+  $('connectionText').textContent=online?'Online':'Offline';
+  $('connectionStatus').textContent=online?'Online':'Offline';
+  if(typeof magBeheren!=='undefined'){
+    $('beheerStatus').textContent=magBeheren?'Actief':'Geen toegang';
+    $('rolBadge').textContent=magBeheren?'Beheerder':'Geen beheer';
+    $('rolBadge').className='badge '+(magBeheren?'neutral':'warning');
+  }
+},500);
 
 start();
 </script>
