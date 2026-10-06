@@ -138,6 +138,35 @@
   .logged-card{border-color:rgba(62,183,121,.3)}
   @media(max-width:700px){.login-grid{grid-template-columns:1fr}.login-grid button{width:100%}}
 </style>
+
+<style>
+  .google-login-btn{
+    width:100%;
+    margin-top:10px;
+    min-height:46px;
+    border:1px solid #d7dce3;
+    border-radius:10px;
+    background:#fff;
+    color:#202124;
+    font-weight:700;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    font-size:15px;
+  }
+  .google-login-btn:hover{background:#f7f8fa}
+  .google-icon{
+    width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;
+    font-weight:900;font-size:17px;
+  }
+  .login-divider{
+    display:flex;align-items:center;gap:10px;margin:14px 0;color:#8a93a0;font-size:12px;
+  }
+  .login-divider:before,.login-divider:after{content:"";height:1px;background:#dfe3e8;flex:1}
+</style>
+
 </head>
 <body>
 
@@ -160,7 +189,13 @@
   </div>
   <p class="hint compact">Log in met je vaste beheerdersaccount. Je hoeft geen anoniem beheerderskenmerk meer te kopiëren.</p>
   <div class="login-grid">
-    <input id="loginEmail" type="email" autocomplete="username" placeholder="E-mailadres">
+    
+<button id="googleLoginBtn" class="google-login-btn" type="button" onclick="loginMetGoogle()">
+  <span class="google-icon">G</span>
+  Doorgaan met Google
+</button>
+<div class="login-divider"><span>of</span></div>
+<input id="loginEmail" type="email" autocomplete="username" placeholder="E-mailadres">
     <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Wachtwoord">
     <button class="prim" id="loginButton">Inloggen</button>
   </div>
@@ -864,6 +899,40 @@ const _statusInterval=setInterval(()=>{
 },500);
 
 start();
+
+// Google login — beheerpagina gebruikt bewust géén Anonymous Authentication.
+// Op mobiel gebruiken we redirect i.p.v. popup.
+async function loginMetGoogle(){
+  const btn = document.getElementById('googleLoginBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Verbinden met Google…'; }
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    await auth.signInWithRedirect(provider);
+  } catch (err) {
+    console.error(err);
+    const msg = document.getElementById('loginError');
+    if (msg) msg.textContent = 'Google inloggen mislukt: ' + (err.message || err);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="google-icon">G</span> Doorgaan met Google';
+    }
+  }
+}
+
+
+auth.getRedirectResult().catch(function(err){
+  console.error('Google redirect:', err);
+  const msg = document.getElementById('loginError');
+  if (msg) {
+    if (err && err.code === 'auth/account-exists-with-different-credential') {
+      msg.textContent = 'Dit Google-account bestaat al met een andere inlogmethode. Gebruik Email/Wachtwoord of koppel de accounts eerst.';
+    } else {
+      msg.textContent = 'Google inloggen mislukt: ' + ((err && err.message) || err);
+    }
+  }
+});
+
 </script>
 </body>
 </html>
