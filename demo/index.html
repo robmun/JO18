@@ -1162,9 +1162,18 @@ body.sun .veldstand{border-color:#fff}
    de tekst, niet erboven. */
 .plakveld{position:static}
 
-.veldklok, .zwklok, .grklok{cursor:pointer;-webkit-tap-highlight-color:transparent}
-.veldklok:active, .zwklok:active, .grklok:active{transform:scale(.96)}
-.veldklok, .zwklok, .grklok{transition:transform .12s ease}
+/* De klokken brengen je naar de timer, de stand naar de wedstrijdscore. Bij een kijker
+   is de stand alleen iets om naar te kijken, dus daar geen aanwijzing dat het een knop
+   is — die zou nergens heen leiden. */
+/* Het standvakje op het veld stond bewust op pointer-events:none, zodat een tik erdoorheen
+   het veld raakte. Voor de coach moet het nu juist zelf de tik opvangen; bij een kijker
+   blijft het doorlaten zoals het was. Het vakje ligt op 22% hoogte, in de lege strook
+   onder de bank — daar staat geen enkele spelerschijf, dus er raakt niets bedekt. */
+.veldklok, .zwklok, .grklok, body:not(.viewer) .veldstand, body:not(.viewer) .kb-stand{
+  cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s ease}
+body:not(.viewer) .veldstand{pointer-events:auto}
+.veldklok:active, .zwklok:active, .grklok:active,
+body:not(.viewer) .veldstand:active, body:not(.viewer) .kb-stand:active{transform:scale(.96)}
 /* Spelers die even niet inzetbaar zijn: rechtsboven op het veld, aantikbaar om terug te halen */
 /* Kaarten in hun eigen kleur, zoals een blessure rood is. De aftelling staat achter
    de naam zodat je vanaf de bank ziet wanneer hij weer mag meedoen. */
@@ -6032,6 +6041,47 @@ function klokKlikbaar(el){
     if(e.key==='Enter'||e.key===' '){ e.preventDefault(); naarTimer(); }
   });
 }
+// ── Van de stand naar de plek waar je hem bijwerkt ──
+// Dezelfde afspraak als bij de klok: wat je op het veld ziet staan, brengt je naar
+// het scherm waar je het verandert. Tot nu toe moest de coach bij een doelpunt naar
+// Meer, langs de kop Instellingen scrollen en de kaart openklappen — drie handelingen
+// op het moment dat er juist iets gebeurt.
+function naarScore(){
+  // Een kijker kan de stand niet wijzigen; voor hem is de stand gewoon een vakje.
+  if(isKijker())return;
+  _klapOpen.add('score');                 // openklappen hoort bij de sprong
+  if(activeTab!=='uitleg'){ activeTab='uitleg'; selChip=null; }
+  render();
+  // Pas ná het hertekenen bestaat de kaart. Niet scrollIntoView: dat zet de kaart
+  // onder de vaste kopbalk. De kaart staat bovenaan Instellingen, dus de afstand
+  // tot de bovenkant van de scrollbak is genoeg, met een kleine marge erboven.
+  const v=document.getElementById('view');
+  const d=v?v.querySelector('details[data-klap="score"]'):null;
+  if(!v||!d)return;
+  d.open=true;
+  const kaart=d.closest('.card')||d;
+  // De kop 'Instellingen' staat er vlak boven. Die meenemen scheelt een halve regel
+  // tekst die anders afgesneden bovenaan blijft hangen, en laat zien wáár je bent.
+  const vorige=kaart.previousElementSibling;
+  const doel=(vorige&&vorige.classList.contains('sectiekop'))?vorige:kaart;
+  v.scrollTop=Math.max(0, doel.offsetTop - 12);
+}
+// Koppelt een standvakje aan die sprong. Zelfde opzet als klokKlikbaar: de vakjes
+// worden bij elke hertekening opnieuw opgebouwd, dus de koppeling hoort erbij.
+function standKlikbaar(el){
+  if(!el||el._standGekoppeld||isKijker())return;
+  el._standGekoppeld=true;
+  el.setAttribute('role','button');
+  el.setAttribute('tabindex','0');
+  el.setAttribute('title',U('Naar de wedstrijdscore','To the match score'));
+  // Het stoppen van de bel is nodig op de tablet: daar ligt het standvakje ín de
+  // klokbalk, en die balk brengt je naar de timer. Zonder dit zou één tik allebei
+  // afvuren en kwam je alsnog op de timer uit.
+  el.addEventListener('click',e=>{ e.stopPropagation(); naarScore(); });
+  el.addEventListener('keydown',e=>{
+    if(e.key==='Enter'||e.key===' '){ e.preventDefault(); e.stopPropagation(); naarScore(); }
+  });
+}
 // Digitale klok rechtsboven op de veldtekening; toont dezelfde tijd als de timer.
 function veldKlokHTML(){
   const k=klokTekst(); if(!k)return '';
@@ -9504,6 +9554,11 @@ function bind(v){
   klokKlikbaar(v.querySelector('#veldklok'));
   klokKlikbaar(v.querySelector('#grklok'));
   klokKlikbaar(v.querySelector('#klokbalk'));
+  // En de stand brengt je naar de wedstrijdscore. De klokbalk op de tablet is zelf
+  // al aanklikbaar voor de timer, dus daar wint de stand het van de balk eronder:
+  // een tik op de cijfers hoort naar de score te gaan, niet naar de klok.
+  standKlikbaar(v.querySelector('#veldstand'));
+  standKlikbaar(v.querySelector('#kbStand'));
   // ── Tabblad Meer: klokrichting ──
   v.querySelectorAll('[data-klokstand]').forEach(el=>el.onclick=()=>zetTijdweergave(el.dataset.klokstand));
   // ── Tabblad Meer: taal ──
@@ -10016,8 +10071,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=309;
-const VERSIE_LABEL='26.10.16';
+const APP_VERSION=310;
+const VERSIE_LABEL='26.10.17';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
