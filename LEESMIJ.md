@@ -1,6 +1,6 @@
 # Tests voor "opstelling & wissels"
 
-Negen tests die samen in ongeveer drie minuten nagaan of een release
+Tien tests die samen in ongeveer drie minuten nagaan of een release
 veilig de lucht in kan. Ze draaien tegen de bestanden in deze repository, in een
 nagebootste GitHub Pages — dus op dezelfde adressen als online, met hetzelfde
 gedrag voor onbekende paden.
@@ -25,7 +25,7 @@ node run.js 03        alleen de test waarvan het bestand met 03 begint
 Afsluitcode 0 betekent dat alles in orde is, 1 dat er iets mis is. Daardoor kan
 een GitHub Action hier later op afgaan.
 
-## Wat de negen tests doen
+## Wat de tien tests doen
 
 **01 versienummers** — Controleert of `APP_VERSION`, `TIMER_VERSION` en
 `version.json` hetzelfde getal hebben, of het label de vorm *jaar.maand.volgnummer*
@@ -81,6 +81,14 @@ Controleert even nadrukkelijk het omgekeerde: blader je vooruit naar een kwart d
 moet komen of terug naar een gespeeld kwart, dan blijft het hele plan staan. Op de
 telefoon én op de liggende tablet.
 
+**10 de gebruiksteller** — Schrijft met een nagebootste Firestore mee wat de dagelijkse
+gebruiksteller naar de database stuurt: eerst een set die het weekdocument laat bestaan,
+daarna een update die de tellers als pad ophoogt. Controleert ook de documentnaam, de
+zeven onderwerpen die de beveiligingsregels kennen, en dat er hoogstens acht velden per
+schrijfactie geraakt worden. Hier ligt de fout van oktober 2026 in vast: zonder die
+eerste set gaf Firestore 'permission-denied' in plaats van 'not-found', ontstond het
+weekdocument nooit en kwam er elke dag een foutregel in de diagnosekaart bij.
+
 **05 twee coaches tegelijk** — Twee toestellen, een hele wedstrijd lang. A bedient
 de timer, B kijkt mee en wijzigt ook. Onderweg valt het bereik van B een halve
 minuut weg en wijzigen ze een keer tegelijk — de twee gevallen waarin de standen uit
@@ -92,7 +100,7 @@ de rest is de echte app.
 
 ```
 run.js              draait alles en geeft één uitslag
-tests/              de negen tests
+tests/              de tien tests
 lib/server.js       webserver die GitHub Pages nabootst, inclusief 404.html
 lib/browser.js      zoekt Playwright op en legt het toestelformaat vast
 lib/fbstub.js       nagebootste Firebase voor de test met twee coaches

@@ -3534,20 +3534,28 @@ async function techniekSchrijf(velden){
     const doel={laatst:Date.now()};
     velden.forEach(k=>doel[k]=inc);
     const ref=firebase.firestore().collection('techniek').doc(week());
-    // update(), niet set(). Alleen update() leest een punt in een sleutel als een pad
-    // naar een veld binnen een groepje: 'soort.iphone' wordt dan de teller 'iphone'
-    // binnen 'soort'. Bij set() blijft het een veld dat letterlijk 'soort.iphone'
-    // heet, en dat weigeren de beveiligingsregels — die kennen alleen de zeven
-    // onderwerpen. update() bestaat niet op een document dat er nog niet is, dus bij
-    // de eerste telling van de week eerst een leeg document aanmaken.
-    try{
-      await ref.update(doel);
-    }catch(e){
-      if(e&&e.code==='not-found'){
-        await ref.set({laatst:Date.now()});
-        await ref.update(doel);
-      }else throw e;
-    }
+    // Twee schrijfacties, en dat is met opzet.
+    //
+    // De tellers moeten omhoog met update(): alleen update() leest een punt in een
+    // sleutel als een pad naar een veld binnen een groepje, zodat 'soort.iphone' de
+    // teller 'iphone' binnen 'soort' wordt. Bij set() ontstaat er een veld dat
+    // letterlijk 'soort.iphone' heet, en dat weigeren de beveiligingsregels — die
+    // kennen alleen de zeven onderwerpen.
+    //
+    // Maar update() op een document dat er nog niet is, werkt niet. De regel die
+    // toetst of het om een kleine wijziging gaat, kijkt naar het bestaande document,
+    // en dat is er dan niet; die regel loopt stuk, en een regel die stuk loopt
+    // betekent weigeren. Je krijgt dus 'permission-denied' terug en geen 'not-found'.
+    // Hier hing het aanmaken van het weekdocument precies achter die 'not-found', dus
+    // het kwam nooit aan de beurt: het document ontstond nooit, elke poging strandde
+    // opnieuw, en elke dag kwam er een regel 'Missing or insufficient permissions' bij.
+    //
+    // Daarom eerst een set met samenvoegen. Bestaat het document niet, dan is dit het
+    // aanmaken; bestaat het wel, dan is het een wijziging van één veld. Allebei
+    // toegestaan onder dezelfde regels, zonder dat daar iets aan hoeft te veranderen.
+    // Daarna staat het document er zeker en kan de update erop.
+    await ref.set({laatst:Date.now()},{merge:true});
+    await ref.update(doel);
   }catch(e){
     // Bewust niet via onthoudFout: die telt de fout door naar de teller, en dat is
     // precies wat hier net misging — dan roept hij zichzelf aan. De regel zelf wordt
@@ -10071,8 +10079,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=310;
-const VERSIE_LABEL='26.10.17';
+const APP_VERSION=311;
+const VERSIE_LABEL='26.10.18';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
