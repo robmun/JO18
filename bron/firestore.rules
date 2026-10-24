@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Alleen ingelogde gezinsleden. Accounts maakt alleen de beheerder aan in de Firebase-console;
+    // "Enable create (sign-up)" staat UIT in Authentication › Settings, dus niemand kan zelf een account maken.
+    function lid() {
+      return request.auth != null;
+    }
+    // De beheerder herkennen we aan zijn vaste gebruikers-id in plaats van aan zijn
+    // e-mailadres: deze repository is openbaar en dan hoeft dat adres hier niet in te staan.
+    // Het id vind je terug in de app onder Instellingen › Beheer › Gezinsleden.
+    function beheerder() {
+      return lid() && request.auth.uid == 'j7eE8s1aUzbmuMOoRwnb9NwxBkI3';
+    }
+
+    // Gedeelde recepten (incl. notities): iedereen mag lezen, toevoegen, aanpassen en (zacht) verwijderen
+    match /recipes/{id} {
+      allow read: if lid();
+      allow create, update: if lid() && request.resource.data.updatedBy == request.auth.uid;
+      allow delete: if beheerder();
+    }
+
+    // Eigen foto's bij recepten (verkleind, max ~1 MB per foto)
+    match /photos/{id} {
+      allow read: if lid();
+      allow create, update: if lid()
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.data is string
+        && request.resource.data.data.size() < 1000000;
+      allow delete: if beheerder();
+    }
+
+    // Namen van de gezinsleden (uid -> voornaam), zodat iedereen ziet wie een recept toevoegde.
+    // Alleen de beheerder schrijft dit lijstje bij.
+    // Wat we binnenkort eten: één lijstje voor het hele gezin. Dit is geen mening maar
+    // een afspraak, dus wie het erop zet maakt niet uit — iedereen mag het ook weer weghalen.
+    match /gezin/menu {
+      allow read, write: if lid();
+    }
+
+    match /gezin/{doc} {
+      allow read: if lid();
+      allow create, delete: if beheerder();
+      // ieder gezinslid mag alleen zijn eigen naam bijwerken; de beheerder alles
+      allow update: if beheerder() || (lid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([request.auth.uid]));
+    }
+
+    // Persoonlijke gegevens die iedereen mag zien: notities en duimen, per gezinslid een eigen document.
+    // Schrijven mag alleen in je eigen document (de beheerder mag alles, voor de verhuizing en opruimen).
+    match /gedeeld/{uid} {
+      allow read: if lid();
+      allow write: if beheerder() || (lid() && request.auth.uid == uid);
+    }
+
+    // Miniaturen van de foto's: klein, staan op elk toestel
+    match /thumbs/{id} {
+      allow read: if lid();
+      allow create, update: if lid()
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.data is string
+        && request.resource.data.data.size() < 120000;
+      allow delete: if beheerder();
+    }
+
+    // Gezinsleden en hun gekoppelde toestel
+    match /users/{uid} {
+      allow get: if lid() && (request.auth.uid == uid || beheerder());
+      allow list: if beheerder();
+      allow create: if lid() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['naam','email','deviceId','deviceInfo','gekoppeldOp','laatstGezien','appVersie']);
+      // Een toestel koppelen mag alleen als er nog geen toestel gekoppeld is; ontkoppelen kan alleen de beheerder
+      allow update: if beheerder() || (lid() && request.auth.uid == uid && (
+        resource.data.get('deviceId', '') == ''
+        || request.resource.data.deviceId == resource.data.deviceId));
+      allow delete: if beheerder();
+
+      // Persoonlijk: favorieten en boodschappenlijst
+      match /prive/{doc} {
+        allow read, write: if lid() && request.auth.uid == uid;
+      }
+    }
+  }
+}
