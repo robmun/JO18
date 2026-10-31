@@ -462,6 +462,12 @@ body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
 .wmoment .wline{font-size:var(--fs-sm);padding:2px 0}
 .wmoment .wgeb{font-size:var(--fs-sm)}
 .wmoment .wbench{font-size:var(--fs-xs);margin-top:4px}
+/* Wat al geweest is: onderaan, iets gedempt, maar nog goed leesbaar — voor als er
+   te laat gewisseld wordt. */
+.geweestkop{margin:16px 0 2px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.25);
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.7}
+body.sun .geweestkop{border-top-color:rgba(0,0,0,.25)}
+.wmoment.geweest{opacity:.72}
 /* En dan het moment dat eraan komt. */
 .wmoment.nu{margin:12px 0;padding:11px 12px 9px;border-radius:var(--r-lg);
   background:rgba(140,180,255,.10);border:1px solid rgba(140,180,255,.30)}
@@ -9045,15 +9051,19 @@ function renderQuarter(q){
   // blokken ligt die op 5:50 terwijl er 'na 6 min' staat.
   const alGeweest = grensMin => inLopendKwart && grensMin<=nuMinuut+1e-9;
 
-  // Wissel bij start van kwart (t.o.v. vorige kwart) — weg zodra het kwart loopt
-  if(q>0 && !alGeweest(0)){
+  // Wissel bij start van kwart (t.o.v. vorige kwart). Zodra het kwart loopt schuift
+  // hij naar het blok 'Al geweest' onderaan, zie hieronder.
+  let startGeweest='';
+  if(q>0){
     const d=wisselChains(sch.assignments[qStart-1],sch.assignments[qStart]);
     const prevK=keeperOfQ(sch,q-1), curK=keeperOfQ(sch,q);
     let kLine='';
     if(prevK&&curK&&prevK!==curK){
       kLine=`<div class="wline"><span class="arr in">&#8645;</span><span><b class="pl-in">${esc(pKort(curK))}</b> op doel &middot; <b class="pl-out">${esc(pKort(prevK))}</b> uit het doel</span></div>`;
     }
-    tekst+=`<div class="card startq"><h2>Bij start van Q${q+1}</h2>${kLine}${chainsEmpty(d)?(kLine?'':'<p class="empty">Geen wissels — zelfde elf als eind Q'+q+'.</p>'):wisselLines(d)}</div>`;
+    const inhoud=`${kLine}${chainsEmpty(d)?(kLine?'':'<p class="empty">Geen wissels — zelfde elf als eind Q'+q+'.</p>'):wisselLines(d)}`;
+    if(alGeweest(0))startGeweest=`<div class="wmoment geweest" data-geweest="0"><div class="wtime">${U('Bij start van Q','At the start of Q')}${q+1}</div>${inhoud}</div>`;
+    else tekst+=`<div class="card startq"><h2>Bij start van Q${q+1}</h2>${inhoud}</div>`;
   }
   // Wisselmomenten binnen het kwart
   tekst+=`<div class="card"><h2>${U('Wissels in Q','Substitutions in Q')}${q+1} <span class="sub">${perQ-1}&times; ${U('per kwart','per quarter')}</span></h2>`;
@@ -9075,11 +9085,15 @@ function renderQuarter(q){
   }
   const regels=kwartMomenten(q,sch).map(mo=>({minuut:mo.minuut,soort:'wissel',mo}))
     .concat(zichtbareGebeurtenissen().filter(g=>g.q===q).map(g=>({minuut:g.min,soort:'gebeurtenis',g})))
-    .sort((a,b)=>a.minuut-b.minuut || (a.soort==='wissel'?-1:1))
-    // Gepasseerde wisselmomenten eruit; zie de toelichting bij alGeweest. Blessures
-    // en kaarten blijven wél staan: daar loopt vaak nog een straftijd bij, en je kunt
-    // ze zelf wegtikken met het kruisje.
-    .filter(r=>!(r.soort==='wissel' && alGeweest(r.mo.m*blokMinuten)));
+    .sort((a,b)=>a.minuut-b.minuut || (a.soort==='wissel'?-1:1));
+  // Gepasseerde wisselmomenten gaan uit de rij, zodat het eerstvolgende moment direct
+  // onder het veld staat; zie de toelichting bij alGeweest. Weg zijn ze niet: ze komen
+  // onderaan in 'Al geweest'. Op 31 oktober wisselden de spelers een keer te laat, en
+  // toen was nergens meer te zien wie met wie moest. Blessures en kaarten blijven
+  // gewoon in de rij: daar loopt vaak nog een straftijd bij, en je kunt ze zelf
+  // wegtikken met het kruisje.
+  const gepasseerd=regels.filter(r=>r.soort==='wissel' && alGeweest(r.mo.m*blokMinuten));
+  for(let i=regels.length-1;i>=0;i--)if(gepasseerd.includes(regels[i]))regels.splice(i,1);
   let getoondeWissels=0;
   for(const r of regels){
     if(r.soort==='gebeurtenis'){
@@ -9104,6 +9118,19 @@ function renderQuarter(q){
   // Alles gehad in dit kwart: dat hoort er te staan, anders lijkt de kaart stuk.
   if(!getoondeWissels && inLopendKwart)
     tekst+=`<p class="empty">${U('Alle wisselmomenten van dit kwart zijn geweest.','All substitution points in this quarter have passed.')}</p>`;
+  // ── Al geweest ──
+  // Onder wat nog komt, het laatst gepasseerde moment bovenaan: dat is het moment dat
+  // je zoekt als er te laat gewisseld wordt. Omlaag scrollen en het staat er.
+  if(gepasseerd.length || startGeweest){
+    tekst+=`<div class="geweestkop">${U('Al geweest','Already passed')}</div>`;
+    for(const r of gepasseerd.slice().reverse()){
+      const mo=r.mo;
+      tekst+=`<div class="wmoment geweest" data-geweest="${mo.minuut}"><div class="wtime">${wisselKop(q,mo.minuut)}</div>`;
+      tekst+=chainsEmpty(mo.wissels)?'<p class="empty">'+U('Geen wissels op dit moment.','No substitutions at this point.')+'</p>':wisselLines(mo.wissels);
+      tekst+=`<div class="wbench"><b>${U('Wissels daarna:','On the bench after that:')}</b> ${mo.bankNa.map(pKort).map(esc).join(', ')||'—'}</div></div>`;
+    }
+    tekst+=startGeweest;
+  }
   tekst+=`</div>`;
   // Hier houdt het wisselverhaal op. Op de telefoon wordt de tekst hier in tweeën
   // geknipt: alles ervóór scrollt achter het vastgezette veld door, alles erna komt
@@ -10086,8 +10113,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=312;
-const VERSIE_LABEL='26.10.19';
+const APP_VERSION=313;
+const VERSIE_LABEL='26.10.20';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
