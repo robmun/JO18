@@ -1647,9 +1647,16 @@ function scoreNu(){
 //
 // Zodra er één doelpunt valt verschijnt de stand, en vanaf dat moment blijft hij
 // staan — ook als het later weer 0-0 zou worden, want dat kan niet.
+//
+// Behalve op de kijk-link. Wie thuis meekijkt, ziet anders tot het eerste doelpunt
+// niets en kan niet weten of het 0-0 staat of dat de stand niet bijgehouden wordt.
+// Daar is 0-0 dus wél nieuws: zodra de teams zijn ingevuld staat de stand in beeld.
+// Op het scherm van de coach blijft het zoals het was.
 function scoreActief(){
   const s=scoreNu();
-  return !!((s.thuis||s.uit) && (s.t||s.u));
+  if(!(s.thuis||s.uit))return false;
+  if(typeof isKijker==='function' && isKijker())return true;
+  return !!(s.t||s.u);
 }
 
 /* ============ Hoe de app over spelers schrijft ============ */
@@ -8498,7 +8505,7 @@ function scoreKaart(){
       </div>
     </div>`;
   return klapKaart('score',U('Wedstrijdscore','Match score'),esc(kop),
-    `<p class="hint" style="margin:0 0 10px">${U('Wat je hier invult staat ook op de kijk-link van de spelers, zodat thuis meegekeken kan worden. De stand verschijnt pas als er teams zijn ingevuld én er gescoord is. Bij 0-0 of zonder namen blijft het veld leeg.','What you fill in here also appears on the players’ view link, so people at home can follow along. The score only appears once the teams are filled in and someone has scored. At 0-0, or without names, the pitch stays clean.')}</p>
+    `<p class="hint" style="margin:0 0 10px">${U('Wat je hier invult staat ook op de kijk-link van de spelers, zodat thuis meegekeken kan worden. Op de kijk-link staat de stand er zodra de teams zijn ingevuld, ook bij 0-0. Op je eigen scherm verschijnt hij pas na het eerste doelpunt. Zonder namen blijft het veld overal leeg.','What you fill in here also appears on the players’ view link, so people at home can follow along. On the view link the score shows as soon as the teams are filled in, 0-0 included. On your own screen it appears after the first goal. Without names, the pitch stays clean everywhere.')}</p>
      <div class="scorekaart">
        ${kolom('t',s.thuis,s.t,U('Thuis','Home'))}
        ${kolom('u',s.uit,s.u,U('Uit','Away'))}
@@ -10079,8 +10086,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=311;
-const VERSIE_LABEL='26.10.18';
+const APP_VERSION=312;
+const VERSIE_LABEL='26.10.19';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.

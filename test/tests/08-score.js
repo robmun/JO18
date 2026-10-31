@@ -72,6 +72,23 @@ async function draai({ basis, log }) {
     if (!eerste.actief || !eerste.opVeld) mis.push('na het eerste doelpunt blijft de stand verborgen');
     else log('verborgen zonder namen, verborgen bij 0-0, zichtbaar vanaf het eerste doelpunt');
 
+    // Op de kijk-link wél bij 0-0: de ouders thuis moeten kunnen zien dat het nog
+    // 0-0 staat. Zonder namen blijft het ook daar leeg.
+    const kijker = await pT.evaluate(() => {
+      const rolWas = CLOUD.role; CLOUD.role = 'viewer';
+      state.score = { thuis: 'Gooische', uit: 'Naarden', t: 0, u: 0 }; render();
+      const el = document.querySelector('.veldstand');
+      const nul = { actief: scoreActief(), opVeld: !!el, tekst: el ? el.innerText.replace(/\s+/g, ' ').trim() : '' };
+      state.score = { thuis: '', uit: '', t: 0, u: 0 }; render();
+      const leeg = { actief: scoreActief(), opVeld: !!document.querySelector('.veldstand') };
+      CLOUD.role = rolWas; render();
+      return { nul, leeg };
+    });
+    if (!kijker.nul.actief || !kijker.nul.opVeld) mis.push('op de kijk-link staat 0-0 niet in beeld');
+    else if (!/0\s*–\s*0/.test(kijker.nul.tekst)) mis.push(`op de kijk-link staat bij 0-0 '${kijker.nul.tekst}'`);
+    if (kijker.leeg.actief || kijker.leeg.opVeld) mis.push('op de kijk-link staat een stand zonder teamnamen in beeld');
+    if (!mis.some(m => /kijk-link/.test(m))) log('kijk-link: 0-0 zichtbaar zodra de teams zijn ingevuld');
+
     // ingevuld: wél in beeld, en mee in de gedeelde stand
     const gevuld = await pT.evaluate(() => {
       state.score = { thuis: 'Gooische', uit: 'Naarden', t: 5, u: 1 };
