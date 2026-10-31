@@ -470,6 +470,13 @@ body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
 .wmoment .wline{font-size:var(--fs-sm);padding:2px 0}
 .wmoment .wgeb{font-size:var(--fs-sm)}
 .wmoment .wbench{font-size:var(--fs-xs);margin-top:4px}
+/* Kijk-link: is het beeld nog bij? Klein en rustig zolang het goed is, oranje als niet. */
+.kijkstatus{padding:4px 9px 0;font-size:var(--fs-xs);font-weight:600;color:var(--dim);line-height:1.3}
+.kijkstatus.live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:#3ecf75;margin-right:6px;vertical-align:1px}
+.kijkstatus.weg{margin:4px 5px 0;padding:6px 9px;border-radius:var(--r-sm);
+  background:rgba(232,140,50,.22);border:1px solid rgba(232,140,50,.6);color:#ffd2a3;font-size:var(--fs-sm);font-weight:700}
+body.sun .kijkstatus.weg{color:#8a4300;background:#fff1e0}
 /* Kijk-link: wie er geblesseerd is of een kaart heeft, klein boven het veld. */
 .afwezigregel{padding:4px 9px 6px;font-size:var(--fs-sm);font-weight:600;color:#fff;line-height:1.3}
 body.sun .afwezigregel{color:var(--txt)}
@@ -1888,6 +1895,8 @@ const WB={
   'Je bent nu de eigenaar van dit team':'You are now the owner of this team',
   'Alleen een coach kan een coach toelaten':'Only a coach can allow a coach in',
   'sinds {0} — tijd kan afwijken':'since {0} — time may be off',
+  'geen verbinding sinds {0} — beeld kan achterlopen':'offline since {0} — what you see may be out of date',
+  'live · bijgewerkt {0}':'live · updated {0}',
   'nog {0} min in dit kwart':'{0} min left in this quarter',
   'Je kijkt mee als {0}':'You are following as {0}',
   'Dit toestel staat nog steeds niet in de coachlijst':'This device is still not in the coach list',
@@ -6063,9 +6072,10 @@ function klokBalkHTML(){
 // een melding die heen en weer knippert went snel en wordt dan ook niet meer gelezen
 // als hij wél klopt.
 const VERBINDING_SPELING=5000;
-let _verb={bekend:false,live:false,weg:0,terugTot:0}, _verbT=null;
+let _verb={bekend:false,live:false,weg:0,terugTot:0,bevestigd:0}, _verbT=null;
 function verbindingZet(live){
   const v=_verb, eerste=!v.bekend;
+  if(live)v.bevestigd=Date.now();
   v.bekend=true;
   if(!eerste && live===v.live)return;
   if(!live)v.weg=Date.now();
@@ -6080,13 +6090,85 @@ function verbindingZet(live){
   _verbT=setTimeout(verbindingTonen, live?3100:VERBINDING_SPELING+100);
   verbindingTonen();
 }
-function verbindingVergeten(){ _verb={bekend:false,live:false,weg:0,terugTot:0}; clearTimeout(_verbT); verbindingTonen(); }
+function verbindingVergeten(){ _verb={bekend:false,live:false,weg:0,terugTot:0,bevestigd:0}; clearTimeout(_verbT); verbindingTonen(); }
 // 'live', 'weg', 'terug', of null als er niets te melden valt (geen samenwerken,
 // of nog geen eerste antwoord van de server).
 function verbindingStand(){
   if(!CLOUD.on||!_verb.bekend)return null;
   if(!_verb.live)return (Date.now()-_verb.weg>=VERBINDING_SPELING)?'weg':'live';
   return _verb.terugTot>Date.now()?'terug':'live';
+}
+// ── Eigen controle: komt er nog echt iets binnen? ──
+// Firestore merkt een haperende verbinding niet altijd op. Op 31 oktober hing de iPad
+// langs de lijn aan de hotspot van een iPhone; op een gegeven moment werd het scherm
+// niet meer bijgewerkt, terwijl de app niets meldde. Bij een verbinding die half
+// openstaat blijft Firestore soms minutenlang wachten op een antwoord dat nooit komt,
+// en zolang denkt hij dat alles in orde is.
+//
+// Daarom vraagt de app elke dertig seconden zelf de stand op bij de server, met tien
+// seconden geduld:
+//   • Komt er antwoord, dan is de verbinding bevestigd. Heeft de server een nieuwere
+//     stand dan dit scherm, dan was de luisteraar blijven hangen: opnieuw luisteren,
+//     dan komt de nieuwste stand vanzelf binnen.
+//   • Komt er geen antwoord, dan 'geen verbinding'. Twee keer achter elkaar, en de app
+//     breekt de verbinding helemaal af en bouwt hem opnieuw op; dat maakt een half
+//     open verbinding los.
+// Kosten: één keer lezen per dertig seconden per scherm, alleen zolang de app in beeld
+// is. Bij twintig kijkers een uur lang is dat 2400 keer lezen, ruim binnen wat
+// Firebase gratis toestaat (50.000 per dag).
+const CONTROLE_ELKE=30000, CONTROLE_GEDULD=10000;
+let _controleMis=0, _controleBezig=false;
+async function verbindingControleren(){
+  if(!CLOUD.on||!CLOUD.ref||_controleBezig||document.visibilityState!=='visible')return;
+  _controleBezig=true;
+  try{
+    const snap=await Promise.race([
+      CLOUD.ref.get({source:'server'}),
+      new Promise((_,nee)=>setTimeout(()=>nee(new Error('geen antwoord binnen '+(CONTROLE_GEDULD/1000)+' s')),CONTROLE_GEDULD))
+    ]);
+    _controleMis=0;
+    verbindingZet(true); verbindingTonen();
+    const r=Number((snap&&snap.exists&&snap.data()&&snap.data().rev)||0);
+    if(r>Number(CLOUD.rev||0)){
+      onthoudFout('verbinding','scherm liep achter (stand '+(CLOUD.rev||0)+', server '+r+') · opnieuw verbonden');
+      cloudListen();
+    }
+  }catch(e){
+    _controleMis++;
+    verbindingZet(false); verbindingTonen();
+    // Via foutRegel en niet onthoudFout: een weggevallen verbinding is geen fout in de
+    // app, en onthoudFout zou hem doortellen naar de teller op de server — precies
+    // degene die nu onbereikbaar is.
+    if(_controleMis===1)foutRegel('verbinding','controle mislukt: '+((e&&e.message)||e));
+    if(_controleMis===2){
+      foutRegel('verbinding','twee keer geen antwoord · verbinding opnieuw opgebouwd');
+      try{
+        const db=CLOUD.ref.firestore;
+        await db.disableNetwork(); await db.enableNetwork();
+        cloudListen();
+      }catch(x){ onthoudFout('verbinding',x); }
+    }
+  }finally{ _controleBezig=false; }
+}
+setInterval(verbindingControleren,CONTROLE_ELKE);
+document.addEventListener('visibilitychange',()=>{
+  // Terug in beeld: niet een halve minuut wachten, maar meteen kijken.
+  if(document.visibilityState==='visible')setTimeout(verbindingControleren,1500);
+});
+// De regel boven het veld voor kijkers. Op de iPad stond 'live' al naast de grote klok,
+// maar op de telefoon nergens, en 'live' zegt niet sinds wanneer. Met de tijd van de
+// laatste bevestiging ziet een ouder thuis meteen of het beeld nog bij is.
+function hhmm(t){ const d=new Date(t); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+function kijkStatus(){
+  if(!isKijker()||!CLOUD.on)return null;
+  const s=verbindingStand();
+  if(s==='weg')return {soort:'weg',tekst:Tf('geen verbinding sinds {0} — beeld kan achterlopen',hhmm(_verb.weg))};
+  if(!_verb.bevestigd)return {soort:'wacht',tekst:U('verbinden…','connecting…')};
+  return {soort:'live',tekst:Tf('live · bijgewerkt {0}',hhmm(_verb.bevestigd))};
+}
+function kijkStatusHTML(){
+  const n=kijkStatus(); if(!n)return '';
+  return `<div class="kijkstatus ${n.soort}" id="kijkStatus">${esc(n.tekst)}</div>`;
 }
 function verbindingLabel(s){
   return s==='weg'?U('geen verbinding','offline'):s==='terug'?U('weer verbonden','reconnected'):s==='live'?U('live','live'):'';
@@ -6099,6 +6181,8 @@ function verbindingTonen(){
   if(el){ el.className='kb-verb'+(s?' '+s:''); el.textContent=verbindingLabel(s); }
   const r=document.getElementById('gkRest');
   if(r)r.textContent=klokRestTekst();
+  const ks=document.getElementById('kijkStatus');
+  if(ks){ const n=kijkStatus(); ks.className='kijkstatus'+(n?' '+n.soort:''); ks.textContent=n?n.tekst:''; }
 }
 addEventListener('offline',()=>{ if(CLOUD.on)verbindingZet(false); });
 // 'nog 11,3 minuten in dit kwart'. Bewust de resterende tijd en niet de verstreken:
@@ -9088,6 +9172,7 @@ function renderQuarter(q){
   const inTitel = isQTab(activeTab) && !isWide();
   if(inTitel)zetAppbarKop(kopKort);
   let veld=`<div class="card tight">${inTitel?'':`<h2>${kopTitel} <span class="sub">${kopSub}</span></h2>`}`
+    +kijkStatusHTML()
     +afwezigRegelHTML()
     +(isWide()?`<div class="veldrij">`:'')
     +`<div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>${isWide()?'':veldKlokHTML()+veldStandHTML()}`;
@@ -10278,8 +10363,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=315;
-const VERSIE_LABEL='26.10.22';
+const APP_VERSION=316;
+const VERSIE_LABEL='26.10.23';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.

@@ -1,6 +1,6 @@
 # Tests voor "opstelling & wissels"
 
-Tien tests die samen in ongeveer drie minuten nagaan of een release
+Elf tests die samen in ongeveer drie minuten nagaan of een release
 veilig de lucht in kan. Ze draaien tegen de bestanden in deze repository, in een
 nagebootste GitHub Pages — dus op dezelfde adressen als online, met hetzelfde
 gedrag voor onbekende paden.
@@ -25,7 +25,7 @@ node run.js 03        alleen de test waarvan het bestand met 03 begint
 Afsluitcode 0 betekent dat alles in orde is, 1 dat er iets mis is. Daardoor kan
 een GitHub Action hier later op afgaan.
 
-## Wat de tien tests doen
+## Wat de elf tests doen
 
 **01 versienummers** — Controleert of `APP_VERSION`, `TIMER_VERSION` en
 `version.json` hetzelfde getal hebben, of het label de vorm *jaar.maand.volgnummer*
@@ -88,6 +88,13 @@ dat een wisselmoment wacht tot de vinger los is (maar hoogstens vijf seconden), 
 twee tikken op een dode tabbalk de app vanzelf rechtzetten — terwijl tikken op een leeg
 stuk scherm niets in gang zetten.
 
+**11 verbinding** — Zet een nep-server in de plaats van Firestore en speelt na wat er
+op 31 oktober met de iPad aan een hotspot gebeurde. Antwoordt de server, dan staat er
+voor kijkers 'live · bijgewerkt' met de tijd. Heeft de server een nieuwere stand, dan
+luistert de app opnieuw. Antwoordt de server niet, dan staat er na tien seconden plus
+de speling 'geen verbinding sinds …', en na de tweede keer wordt de verbinding helemaal
+opnieuw opgebouwd. Bij de coach komt de regel er niet.
+
 **05 twee coaches tegelijk** — Twee toestellen, een hele wedstrijd lang. A bedient
 de timer, B kijkt mee en wijzigt ook. Onderweg valt het bereik van B een halve
 minuut weg en wijzigen ze een keer tegelijk — de twee gevallen waarin de standen uit
@@ -99,7 +106,7 @@ de rest is de echte app.
 
 ```
 run.js              draait alles en geeft één uitslag
-tests/              de tien tests
+tests/              de elf tests
 lib/server.js       webserver die GitHub Pages nabootst, inclusief 404.html
 lib/browser.js      zoekt Playwright op en legt het toestelformaat vast
 lib/fbstub.js       nagebootste Firebase voor de test met twee coaches

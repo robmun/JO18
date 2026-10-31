@@ -182,7 +182,10 @@ async function draai({ basis, log, uitvoer }) {
       q: klok.q, sec: klok.sec, rev: CLOUD.rev, status: CLOUD.status,
       aanwezig: state.players.filter(x => x.present).length,
       schema: !!state.schedule,
-      fouten: _fouten.filter(f => !/Firebase|ServiceWorker|techniekteller/i.test(f.wat)).map(f => f.waar + ' · ' + f.wat)
+      // De eigen verbindingscontrole (sinds 26.10.23) merkt de opzettelijke storing van B
+      // op en schrijft dat terecht op; dat is hier de bedoeling, geen fout.
+      fouten: _fouten.filter(f => !/Firebase|ServiceWorker|techniekteller/i.test(f.wat)
+          && !(f.waar === 'verbinding' && /controle mislukt|opnieuw opgebouwd/.test(f.wat))).map(f => f.waar + ' · ' + f.wat)
     }));
     const eA = await eind(A), eB = await eind(B);
 
