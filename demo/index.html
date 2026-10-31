@@ -462,6 +462,9 @@ body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
 .wmoment .wline{font-size:var(--fs-sm);padding:2px 0}
 .wmoment .wgeb{font-size:var(--fs-sm)}
 .wmoment .wbench{font-size:var(--fs-xs);margin-top:4px}
+/* Kijk-link: wie er geblesseerd is of een kaart heeft, klein boven het veld. */
+.afwezigregel{padding:4px 9px 6px;font-size:var(--fs-sm);font-weight:600;color:#fff;line-height:1.3}
+body.sun .afwezigregel{color:var(--txt)}
 /* Wat al geweest is: onderaan, iets gedempt, maar nog goed leesbaar — voor als er
    te laat gewisseld wordt. */
 .geweestkop{margin:16px 0 2px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.25);
@@ -6115,6 +6118,27 @@ function veldKlokHTML(){
 // Op de telefoon een blokje op het veld, net onder de klok; op de liggende tablet in
 // de klokbalk ernaast, in dezelfde kleur als de tijd. Allebei alleen als er echt een
 // stand bijgehouden wordt — zie scoreActief().
+// ── Wie er niet kan spelen, in woorden ──
+// Voor de ouders thuis. Op het veld staan geblesseerden en spelers met een kaart als
+// gekleurde blokjes, en wat die kleur betekent weet de coach, maar thuis niet. Daarom
+// op de kijk-link één regel boven het veld: 'Faas & Levyn geblesseerd · Seb groene
+// kaart'. Alleen als er iets afwijkt; anders staat er niets.
+function namenRij(namen){
+  if(namen.length<2)return namen.join('');
+  return namen.slice(0,-1).join(', ')+' & '+namen[namen.length-1];
+}
+function afwezigRegelHTML(){
+  if(!isKijker())return '';
+  const delen=[];
+  const bles=uitLijst().map(p=>esc(pKort(p.id)));
+  if(bles.length)delen.push(namenRij(bles)+' '+U('geblesseerd','injured'));
+  for(const soort of Object.keys(KAARTEN)){
+    const wie=kaartLijst().filter(p=>p.kaart.soort===soort).map(p=>esc(pKort(p.id)));
+    if(wie.length)delen.push(namenRij(wie)+' '+kaartNaam(soort));
+  }
+  if(!delen.length)return '';
+  return `<div class="afwezigregel">${delen.join(' &middot; ')}</div>`;
+}
 function standRegels(){
   const s=scoreNu();
   return {
@@ -8930,6 +8954,7 @@ function renderQuarter(q){
   const inTitel = isQTab(activeTab) && !isWide();
   if(inTitel)zetAppbarKop(kopKort);
   let veld=`<div class="card tight">${inTitel?'':`<h2>${kopTitel} <span class="sub">${kopSub}</span></h2>`}`
+    +afwezigRegelHTML()
     +(isWide()?`<div class="veldrij">`:'')
     +`<div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>${isWide()?'':veldKlokHTML()+veldStandHTML()}`;
   // Geblesseerden staan gewoon in de banklijst, alleen rood. Ze hadden een eigen
@@ -10113,8 +10138,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=313;
-const VERSIE_LABEL='26.10.20';
+const APP_VERSION=314;
+const VERSIE_LABEL='26.10.21';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.

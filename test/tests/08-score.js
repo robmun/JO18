@@ -89,6 +89,29 @@ async function draai({ basis, log }) {
     if (kijker.leeg.actief || kijker.leeg.opVeld) mis.push('op de kijk-link staat een stand zonder teamnamen in beeld');
     if (!mis.some(m => /kijk-link/.test(m))) log('kijk-link: 0-0 zichtbaar zodra de teams zijn ingevuld');
 
+    // Kijk-link: wie er geblesseerd is of een kaart heeft, staat in woorden boven het
+    // veld. Bij de coach niet, en zonder bijzonderheden ook niet bij de kijker.
+    const afwezig = await pT.evaluate(() => {
+      const rolWas = CLOUD.role;
+      const regel = () => { render(); const e = document.querySelector('.afwezigregel'); return e ? e.innerText.trim() : null; };
+      CLOUD.role = 'viewer';
+      const niets = regel();
+      const [a, b, c] = state.players.filter(x => x.present);
+      a.uit = true; b.uit = true;
+      c.kaart = { soort: 'groen', terug: totaalSec() + 120 };
+      const kijker = regel();
+      CLOUD.role = rolWas;
+      const coach = regel();
+      const namen = [pKort(a.id), pKort(b.id), pKort(c.id)];
+      delete a.uit; delete b.uit; delete c.kaart; render();
+      return { niets, kijker, coach, namen };
+    });
+    const verwacht = `${afwezig.namen[0]} & ${afwezig.namen[1]} geblesseerd · ${afwezig.namen[2]} groene kaart`;
+    if (afwezig.niets !== null) mis.push(`kijk-link: zonder blessures of kaarten staat er toch '${afwezig.niets}' boven het veld`);
+    if (afwezig.kijker !== verwacht) mis.push(`kijk-link: boven het veld staat '${afwezig.kijker}' in plaats van '${verwacht}'`);
+    if (afwezig.coach !== null) mis.push('bij de coach staat de regel met blessures en kaarten ook boven het veld');
+    if (afwezig.kijker === verwacht && afwezig.coach === null) log(`kijk-link boven het veld: ${afwezig.kijker}`);
+
     // ingevuld: wél in beeld, en mee in de gedeelde stand
     const gevuld = await pT.evaluate(() => {
       state.score = { thuis: 'Gooische', uit: 'Naarden', t: 5, u: 1 };
