@@ -62,7 +62,10 @@
    '<link rel="icon" href="icon-ghc-navy.png">'); }catch(e){}
 })();
 </script>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Zoomen uit, net als in de timer. In deze app heeft inzoomen geen nut, en elke keer
+     dat het per ongeluk gebeurde — een dubbeltik, of iOS dat zelf inzoomt bij het typen —
+     voelde het als een vastgelopen app. Zie zoomNakijken voor het vangnet. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <!-- 'black-translucent' liet de app onder de klok en het eilandje doorlopen. Sinds
@@ -136,12 +139,17 @@
   /* Schaal met echte stappen. Stond eerder op 11/12/13/14/16/19/15 — vier van die
      maten lagen binnen vier pixels, waardoor een kaarttitel nauwelijks boven de
      gewone tekst uitkwam en je alles moest lezen om iets te vinden. */
+  --fs-veld:16px;          /* invulvelden: onder 16px zoomt iOS bij het typen in, en zoomt daarna niet terug */
   --fs-xs:11px; --fs-sm:12px; --fs-md:13px; --fs-base:15px; --fs-lg:17px; --fs-xl:19px; --fs-h:18px;
   /* Afstanden */
   --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
+/* Geen dubbeltik-zoom. Twee spelers snel na elkaar aantikken om te ruilen telde iOS
+   als 'dubbeltik om in te zoomen' — op 31 oktober stond het scherm daardoor op 1,6x en
+   leek de app vast te zitten. 'manipulation' laat scrollen gewoon toe. */
+html,body{touch-action:manipulation}
 /* Stadion-achtergrond: vaste schermvullende laag, identiek aan de timer */
 body::before{
   content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
@@ -727,7 +735,7 @@ body.sun .sprij.minder .spnaam,body.sun .sprij.minder .spmin b{color:#a01a10}
   font-size:var(--fs-xs);font-weight:800;letter-spacing:.06em;text-transform:uppercase}
 .scorenaam{width:100%;padding:9px 10px;border-radius:var(--r-md);
   border:1px solid var(--stroke);background:var(--glass);color:var(--txt);
-  font:inherit;font-size:var(--fs-base);font-weight:700;text-align:center}
+  font:inherit;font-size:var(--fs-veld);font-weight:700;text-align:center}
 .scoretel{display:flex;align-items:center;justify-content:center;gap:8px}
 .scoreknop{flex:0 0 auto;width:38px;height:38px;border-radius:var(--r-md);
   border:1px solid var(--stroke);background:var(--glass);color:var(--txt);
@@ -1041,7 +1049,7 @@ body.sun .veldklok{border-color:#fff}
 .editpane .idrow{display:flex;gap:8px;margin-top:2px;margin-bottom:2px}
 .editpane .idrow label.numlbl{flex:0 0 74px}
 .editpane .idrow input{width:100%;background:rgba(255,255,255,.10);border:1px solid var(--stroke);
-  border-radius:var(--r-sm);color:var(--txt);font-size:var(--fs-base);font-weight:700;padding:8px 9px;margin-top:3px}
+  border-radius:var(--r-sm);color:var(--txt);font-size:var(--fs-veld);font-weight:700;padding:8px 9px;margin-top:3px}
 .editpane .idrow input.dupe{border-color:#e8a24a}
 .pname{flex:1;min-width:0}
 .pname b{font-size:var(--fs-h);display:block}
@@ -1060,7 +1068,7 @@ body.sun .veldklok{border-color:#fff}
 .editpane{padding:4px 2px 10px;border-bottom:1px solid rgba(255,255,255,.08)}
 .editpane .frow{display:flex;gap:8px;margin-top:8px}
 .editpane label{flex:1;font-size:var(--fs-xs);color:var(--dim);font-weight:700}
-select,option{font-size:var(--fs-base)}
+select,option{font-size:var(--fs-veld)}
 .sel{
   width:100%;margin-top:4px;appearance:none;-webkit-appearance:none;
   background:rgba(255,255,255,.10) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6"><path d="M1 1l4 4 4-4" stroke="white" stroke-opacity=".6" fill="none" stroke-width="1.5"/></svg>') no-repeat right 10px center;
@@ -1435,7 +1443,7 @@ body.timermode .appbar{display:none}
 .modal{width:100%;max-width:430px;background:rgba(20,40,74,.96);border:1px solid rgba(255,255,255,.16);border-radius:var(--r-xl);padding:18px 18px 16px;box-shadow:var(--shadow-xl), var(--edge-light);animation:slideUp .22s cubic-bezier(.2,.8,.25,1)}
 .modal h3{font-size:17px;font-weight:800;margin-bottom:7px;letter-spacing:-.2px}
 .modal p{font-size:var(--fs-md);color:var(--dim);line-height:1.5;margin-bottom:16px}
-.modal textarea{width:100%;min-height:78px;background:rgba(255,255,255,.08);border:1px solid var(--stroke);border-radius:var(--r-md);color:var(--txt);font-size:var(--fs-base);padding:10px 12px;resize:none;margin-bottom:16px;font-family:inherit}
+.modal textarea{width:100%;min-height:78px;background:rgba(255,255,255,.08);border:1px solid var(--stroke);border-radius:var(--r-md);color:var(--txt);font-size:var(--fs-veld);padding:10px 12px;resize:none;margin-bottom:16px;font-family:inherit}
 .modal .row{display:flex;gap:10px}
 .modal .row .btn{flex:1;padding:13px 16px}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -1503,7 +1511,7 @@ body.sun .warnbox.info .wx{border-color:#12408f;color:#0b2a5c}
 /* Samenwerken-kaart + kijkstand */
 .cloudstat{font-size:var(--fs-sm);color:var(--dim);background:rgba(255,255,255,.05);border:1px solid var(--stroke);border-radius:var(--r-sm);padding:9px 11px;line-height:1.5}
 .clab{display:block;font-size:var(--fs-xs);color:var(--dim);font-weight:700;margin:10px 0 3px}
-.cin{width:100%;background:rgba(255,255,255,.10);border:1px solid var(--stroke);border-radius:var(--r-sm);color:var(--txt);font-size:var(--fs-base);padding:9px 10px;font-family:inherit}
+.cin{width:100%;background:rgba(255,255,255,.10);border:1px solid var(--stroke);border-radius:var(--r-sm);color:var(--txt);font-size:var(--fs-veld);padding:9px 10px;font-family:inherit}
 textarea.cin{resize:vertical}
 /* Het veld om een kijk-link in te plakken. Stond er zonder enkele klasse in en kreeg
    dus het standaardveld van de browser: een smalle witte strook die op iOS en Android
@@ -3466,6 +3474,7 @@ function tikNoteren(e){
     if(_tikken.length>20)_tikken.pop();
     // Na afloop van de afhandeling kijken waar de app terechtkwam.
     setTimeout(()=>{ regel.n=huidigeTab(); tikkenBewaren(); },0);
+    tabTikNakijken(regel);
   }catch(x){}
 }
 function klikNoteren(){
@@ -3475,6 +3484,95 @@ function klikNoteren(){
 }
 addEventListener('pointerdown',tikNoteren,{capture:true,passive:true});
 addEventListener('click',klikNoteren,{capture:true,passive:true});
+
+// ── Hoeveel vingers liggen er op het scherm? ──
+// Twee dingen wachten daarop: het automatisch terugzetten van de zoom (niet midden in
+// het knijpen) en het opnieuw opbouwen bij een wisselmoment (niet onder je vinger).
+let _vingers=0, _laatsteAanraking=0, _laatsteScrol=0;
+function vingersTellen(e){ try{ _vingers=e.touches?e.touches.length:0; _laatsteAanraking=Date.now(); }catch(x){} }
+addEventListener('touchstart',vingersTellen,{capture:true,passive:true});
+addEventListener('touchend',vingersTellen,{capture:true,passive:true});
+addEventListener('touchcancel',vingersTellen,{capture:true,passive:true});
+// Scrollen gebeurt in het inhoudsvak, niet op de pagina; 'scroll' bubbelt niet, dus
+// vangen in de vangfase. Ook het uitrollen na het loslaten telt mee.
+addEventListener('scroll',()=>{ _laatsteScrol=Date.now(); },{capture:true,passive:true});
+function wordtAangeraakt(){ return _vingers>0 || Date.now()-_laatsteScrol<350; }
+
+// ── De zwarte doos ──
+// De foutenlijst en het tikkenlogboek vertellen wat er gebeurde vóór een vastloper,
+// maar niet waar de app op dat moment mee bezig was. Daarom houdt de app bij welke stap
+// hij doet (een paar woorden, bij elke stap overschreven) en schrijft hij elke twee
+// seconden een hartslag weg. Twee dingen worden daarmee zichtbaar onder Diagnose:
+//
+//   • Stond de app even stil en kwam hij daarna weer op gang, dan is er een gat tussen
+//     twee hartslagen. Dat wordt meteen genoteerd, met de stap waarin het gebeurde.
+//   • Hing de app zo vast dat je hem moest wegswipen, dan kon hij niet meer melden dat
+//     hij naar de achtergrond ging. Bij de volgende start staat de laatste hartslag er
+//     dan nog zonder dat afmelden, en weet de app wanneer en tijdens welke stap het was.
+//
+// Kosten: één variabele per stap en één regel van minder dan honderd tekens in de opslag
+// per twee seconden, alleen zolang de app in beeld is.
+const HART_SLEUTEL=SLEUTEL('gw_hartslag');
+let _stap='opstarten', _stapT=Date.now(), _vorigeSlag=Date.now(), _verborgenSinds=0;
+function stap(naam){ _stap=naam; _stapT=Date.now(); }
+function tijdTekst(t){ try{ return new Date(t).toLocaleTimeString(LOCALE()); }catch(e){ return String(t); } }
+function hartslag(weg){
+  try{ localStorage.setItem(HART_SLEUTEL,JSON.stringify({t:Date.now(),s:_stap,st:_stapT,tab:huidigeTab(),weg:!!weg})); }catch(e){}
+}
+try{
+  const vorige=JSON.parse(localStorage.getItem(HART_SLEUTEL)||'null');
+  if(vorige && !vorige.weg && vorige.t){
+    const sinds=Math.max(0,Math.round(((vorige.t)-(vorige.st||vorige.t))/1000));
+    // De volgende tik op de klok is pas na het laden; daarom hier zonder U()/T().
+    foutRegel('vastloper','vorige keer stopte de app om '+tijdTekst(vorige.t)
+      +' zonder naar de achtergrond te gaan · bezig met: '+(vorige.s||'?')
+      +(sinds?' (al '+sinds+' s)':'')+' · tab '+(vorige.tab||'?'));
+  }
+}catch(e){}
+hartslag(false);
+setInterval(()=>{
+  const nu=Date.now(), gat=nu-_vorigeSlag;
+  _vorigeSlag=nu;
+  if(document.visibilityState!=='visible')return;
+  // Een gat telt alleen als de app al die tijd in beeld was; op de achtergrond legt
+  // iOS de klokjes van een pagina gewoon stil.
+  if(gat>6000 && _verborgenSinds<nu-gat)
+    onthoudFout('stilstand','app stond '+Math.round(gat/1000)+' s stil · bezig met: '+_stap);
+  hartslag(false);
+},2000);
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'){ _vorigeSlag=Date.now(); hartslag(false); }
+  else { _verborgenSinds=Date.now(); hartslag(true); }
+});
+addEventListener('pagehide',()=>hartslag(true));
+
+// ── Zelfherstel als de tabbalk niet reageert ──
+// Een tik op een leeg stuk scherm levert op een iPhone nooit een klik op, dus 'GEEN KLIK'
+// op zich zegt weinig. Een tik op de tabbalk die niets doet wel: daar wil je iets. Twee
+// keer binnen acht seconden, en de app zet zichzelf recht — zoom terug, pagina terug op
+// zijn plek, scherm opnieuw opgebouwd — zonder dat je hem hoeft weg te swipen.
+let _doodTab=[];
+function tabTikNakijken(regel){
+  try{
+    if(!regel||!/^tab /.test(regel.w))return;
+    const gewenst=regel.w.slice(4);
+    if(regel.v===gewenst)return;               // tik op het tabblad waar je al bent
+    setTimeout(()=>{
+      // Dood is: er kwam geen klik, én de app staat nog op hetzelfde tabblad als vóór
+      // de tik. Snel achter elkaar tikken (Spelers, meteen Meer) is dus niet dood: daar
+      // kwam wel een klik, en het tabblad veranderde ook — alleen naar het volgende.
+      if(regel.k || huidigeTab()!==regel.v){ _doodTab=[]; return; }
+      const nu=Date.now();
+      _doodTab=_doodTab.filter(t=>nu-t<8000); _doodTab.push(nu);
+      if(_doodTab.length<2)return;
+      _doodTab=[];
+      onthoudFout('herstel','tabbalk reageerde niet (tik op '+gewenst+') · bezig met: '+_stap+' · app hersteld');
+      try{ zoomTerug(); }catch(e){}
+      try{ window.scrollTo(0,0); document.body.scrollTop=0; }catch(e){}
+      try{ activeTab=gewenst; selChip=null; render(); }catch(e){ onthoudFout('herstel',e); }
+    },350);
+  }catch(e){}
+}
 
 // ── Niets glipt er nog stil langs ──
 // Een uitzondering in een knopafhandeling of in een losse belofte kwam nergens
@@ -4191,6 +4289,7 @@ function cloudListen(){
       e=>{ onthoudFout('verbinding volgen',e); verbindingZet(false); });
   }catch(e){ onthoudFout('verbinding volgen',e); }
   CLOUD.unsub=CLOUD.ref.onSnapshot(snap=>{
+    stap('gedeelde stand binnengekomen');
     // Er komt weer iets binnen: de verbinding leeft. De teller voor opnieuw proberen
     // gaat terug naar nul en een eerdere foutmelding op de kaart verdwijnt.
     _herverbindN=0;
@@ -5246,7 +5345,7 @@ function inputDialog(opts){
       <h3>${esc(opts.title||'')}</h3>
       ${opts.body?`<p>${esc(opts.body)}</p>`:''}
       ${opts.enkel
-        ?`<input id="minput" type="text" placeholder="${esc(opts.placeholder||'')}" style="width:100%;padding:11px 12px;border-radius:var(--r-md);border:1px solid var(--stroke);background:var(--glass);color:var(--txt);font:inherit;font-size:var(--fs-md)">`
+        ?`<input id="minput" type="text" placeholder="${esc(opts.placeholder||'')}" style="width:100%;padding:11px 12px;border-radius:var(--r-md);border:1px solid var(--stroke);background:var(--glass);color:var(--txt);font:inherit;font-size:var(--fs-veld)">`
         :`<textarea id="minput" placeholder="${esc(opts.placeholder||'')}"></textarea>`}
       <div class="row">
         <button class="btn ghost" id="mcancel">${T('Annuleren')}</button>
@@ -6163,11 +6262,30 @@ function standBalkHTML(){
   </div>`;
 }
 // Klopt de getoonde opstelling nog met de klok? Zo niet: opnieuw tekenen.
+// Niet onder je vinger. Allebei de schermafdrukken van een vastgelopen app waren van
+// Q2 net na het wisselmoment van 6 minuten: precies wanneer het hele wedstrijdscherm
+// opnieuw wordt opgebouwd. Het scherm vervangen terwijl iOS nog aan het scrollen of
+// uitrollen is, is een bekende bron van haperingen. Dus wachten tot de vinger los is en
+// het scrollen stilstaat; de volgende kloktik (een seconde later) probeert het opnieuw.
+// Nooit langer dan vijf seconden: een duim die op het scherm blijft liggen mag het
+// nieuwe wisselmoment niet tegenhouden.
+let _uitgesteldSinds=0, _uitstelT=null;
 function beeldBijwerken(){
+  clearTimeout(_uitstelT); _uitstelT=null;
   if(!isQTab(activeTab)||!state.schedule)return;
   const q=huidigQ();
   const lb=levendBlok(q), moet=lb==null?0:lb;
-  if(_getoond.q===q && _getoond.blok===moet)return;
+  if(_getoond.q===q && _getoond.blok===moet){ _uitgesteldSinds=0; return; }
+  if(wordtAangeraakt()){
+    if(!_uitgesteldSinds)_uitgesteldSinds=Date.now();
+    if(Date.now()-_uitgesteldSinds<5000){
+      // Niet op de volgende seconde wachten als het scrollen zo klaar is.
+      _uitstelT=setTimeout(beeldBijwerken,400);
+      return;
+    }
+  }
+  _uitgesteldSinds=0;
+  stap('wisselmoment: scherm vernieuwen');
   const v=document.getElementById('view'), y=v?v.scrollTop:0;
   const voor=_getoond.q+'/'+_getoond.blok;
   render();
@@ -6215,16 +6333,20 @@ function zwevendeKlokBijwerken(){
 // zet de zoom terug.
 // Niet meteen alarm slaan: tijdens het knijpen zelf is ingezoomd de bedoeling. Pas na
 // anderhalve seconde stilstaan komt het balkje, en dat zet de zoom met één tik terug.
-// Hoe: de viewport-regel krijgt even een bovengrens van 1, waarna Safari terugklapt;
-// daarna gaat die grens er weer af, zodat inzoomen gewoon mogelijk blijft.
-let _zoomT=null, _zoomGemeld=false;
+//
+// Sinds 26.10.22 staat zoomen uit (zie de viewport-regel bovenin), maar iOS laat
+// knijpen om toegankelijkheidsredenen soms toch toe. Daarom zet de app het nu zelf
+// terug zodra je je vinger optilt, en komt het balkje alleen nog als dat niet lukt.
+// Hoe: de viewport-regel even een net andere waarde geven en dan weer terug; Safari
+// rekent de zoom daarbij opnieuw uit en klapt terug naar 1.
+let _zoomT=null, _zoomGemeld=false, _zoomAutoT=null;
 function zoomTerug(){
   try{
     const m=document.querySelector('meta[name="viewport"]');
     if(!m)return;
     const was=m.getAttribute('content');
-    m.setAttribute('content',was+', maximum-scale=1, user-scalable=no');
-    setTimeout(()=>{ try{ m.setAttribute('content',was); }catch(e){} },400);
+    m.setAttribute('content',was.replace('maximum-scale=1','maximum-scale=1.01'));
+    setTimeout(()=>{ try{ m.setAttribute('content',was); window.scrollTo(0,0); }catch(e){} },60);
   }catch(e){}
 }
 function zoomBalkPlaatsen(bar){
@@ -6239,12 +6361,23 @@ function zoomNakijken(){
   if(!vv||!bar)return;
   const in_=vv.scale>1.02;
   if(!in_){
-    clearTimeout(_zoomT); _zoomT=null;
+    clearTimeout(_zoomT); _zoomT=null; clearTimeout(_zoomAutoT); _zoomAutoT=null;
     bar.classList.remove('toon');
     _zoomGemeld=false;
     return;
   }
   if(bar.classList.contains('toon')){ zoomBalkPlaatsen(bar); return; }
+  // Eerst zelf terugzetten, zodra er geen vinger meer op het scherm ligt. Tijdens het
+  // knijpen zelf niet: dan zou het scherm onder je vingers wegspringen.
+  if(!_zoomAutoT){
+    _zoomAutoT=setTimeout(function probeer(){
+      if(!(window.visualViewport&&window.visualViewport.scale>1.02)){ _zoomAutoT=null; return; }
+      if(_vingers>0){ _zoomAutoT=setTimeout(probeer,300); return; }
+      _zoomAutoT=null;
+      if(!_zoomGemeld){ _zoomGemeld=true; onthoudFout('zoom',U('scherm ingezoomd op ','screen zoomed to ')+(Math.round(window.visualViewport.scale*100)/100)+'x · '+U('vanzelf teruggezet','reset automatically')); }
+      zoomTerug();
+    },500);
+  }
   if(_zoomT)return;
   _zoomT=setTimeout(()=>{
     _zoomT=null;
@@ -8014,6 +8147,7 @@ function volgKlokVanAnder(){
     // vast te zetten. Binnen hetzelfde kwart blijft die keuze dus gewoon staan.
     if(klok.q!==k.q)toonQ=null;
     klok={q:k.q,sec:Math.floor(sec),loopt:loopt};
+    stap('kloktik (meekijken)');
     veldKlokBijwerken(); beeldBijwerken();
   };
   tik();
@@ -9243,6 +9377,7 @@ let zelftestModus=false;
 // vastgehouden. 'finally' zodat de vastgezette waarde ook loslaat als het opbouwen
 // halverwege misgaat — anders zou de app blijven denken dat hij breed of smal is.
 function render(){
+  stap('scherm opbouwen · '+activeTab);
   const eerste=_breedVast===null;
   if(eerste)_breedVast=breedGemeten();
   try{ _render(); }
@@ -9375,7 +9510,12 @@ function _render(){
   // Bij her-renderen op hetzelfde tabblad: scrollpositie behouden
   // (iOS springt anders naar boven zodra de inhoud even inklapt).
   if(_keepY!==null&&_sc&&Math.abs(_sc.scrollTop-_keepY)>2)_sc.scrollTop=_keepY;
-  requestAnimationFrame(()=>{updateScrollUI();fitNames();zwevendeKlokBijwerken();meetKijkbalk();meetGroteKlok();volgWisselTekst();bolletjesNakijken();});
+  stap('scherm opgebouwd · '+activeTab);
+  requestAnimationFrame(()=>{
+    stap('na het opbouwen meten · '+activeTab);
+    updateScrollUI();fitNames();zwevendeKlokBijwerken();meetKijkbalk();meetGroteKlok();volgWisselTekst();bolletjesNakijken();
+    stap('rust · '+activeTab);
+  });
 }
 // Vangnet achter de vorige oplossing. De kwartbolletjes staan op een telefoon in de
 // pagina en op een liggende tablet in de titelbalk; belanden ze ooit toch op de plek
@@ -10138,8 +10278,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=314;
-const VERSIE_LABEL='26.10.21';
+const APP_VERSION=315;
+const VERSIE_LABEL='26.10.22';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
@@ -10936,6 +11076,7 @@ window.addEventListener('message',e=>{
     // straftijd van een kaart evenveel meeschuiven (zie kaartenHerankeren).
     const _klokWasQ=klok.q, _klokWas=totaalSec();
     klok={q:st.q,sec:st.sec,loopt:st.loopt};
+    stap('kloktik');
     kaartenHerankeren(_klokWasQ,_klokWas);
     veldKlokBijwerken();
     // Hier ligt de goedkoopste hartslag die de app heeft: de timer stuurt elke seconde

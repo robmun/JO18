@@ -1,6 +1,6 @@
 # Tests voor "opstelling & wissels"
 
-Negen tests die samen in ongeveer drie minuten nagaan of een release
+Tien tests die samen in ongeveer drie minuten nagaan of een release
 veilig de lucht in kan. Ze draaien tegen de bestanden in deze repository, in een
 nagebootste GitHub Pages — dus op dezelfde adressen als online, met hetzelfde
 gedrag voor onbekende paden.
@@ -25,7 +25,7 @@ node run.js 03        alleen de test waarvan het bestand met 03 begint
 Afsluitcode 0 betekent dat alles in orde is, 1 dat er iets mis is. Daardoor kan
 een GitHub Action hier later op afgaan.
 
-## Wat de negen tests doen
+## Wat de tien tests doen
 
 **01 versienummers** — Controleert of `APP_VERSION`, `TIMER_VERSION` en
 `version.json` hetzelfde getal hebben, of het label de vorm *jaar.maand.volgnummer*
@@ -79,6 +79,15 @@ Controleert even nadrukkelijk het omgekeerde: blader je vooruit naar een kwart d
 moet komen of terug naar een gespeeld kwart, dan blijft het hele plan staan. Op de
 telefoon én op de liggende tablet.
 
+**10 vastloper** — Gaat na wat er op 31 oktober uit Diagnose bleek: het scherm zoomde
+ongemerkt in (1,07x bij typen in een veld van 15 pixels, 1,6x na een dubbeltik) en dat
+voelde als een vastgelopen app. Controleert dat elk invulveld minstens 16 pixels is, dat
+zoomen en dubbeltik-zoom uit staan, dat de zwarte doos een stilstand van zeven seconden
+én een vastgelopen vorige sessie in de foutenlijst zet met de stap waarin het gebeurde,
+dat een wisselmoment wacht tot de vinger los is (maar hoogstens vijf seconden), en dat
+twee tikken op een dode tabbalk de app vanzelf rechtzetten — terwijl tikken op een leeg
+stuk scherm niets in gang zetten.
+
 **05 twee coaches tegelijk** — Twee toestellen, een hele wedstrijd lang. A bedient
 de timer, B kijkt mee en wijzigt ook. Onderweg valt het bereik van B een halve
 minuut weg en wijzigen ze een keer tegelijk — de twee gevallen waarin de standen uit
@@ -90,7 +99,7 @@ de rest is de echte app.
 
 ```
 run.js              draait alles en geeft één uitslag
-tests/              de negen tests
+tests/              de tien tests
 lib/server.js       webserver die GitHub Pages nabootst, inclusief 404.html
 lib/browser.js      zoekt Playwright op en legt het toestelformaat vast
 lib/fbstub.js       nagebootste Firebase voor de test met twee coaches
