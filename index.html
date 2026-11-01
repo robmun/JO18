@@ -480,12 +480,16 @@ body.sun .kijkstatus.weg{color:#8a4300;background:#fff1e0}
 /* Kijk-link: wie er geblesseerd is of een kaart heeft, klein boven het veld. */
 .afwezigregel{padding:4px 9px 6px;font-size:var(--fs-sm);font-weight:600;color:#fff;line-height:1.3}
 body.sun .afwezigregel{color:var(--txt)}
-/* Wat al geweest is: onderaan, iets gedempt, maar nog goed leesbaar — voor als er
-   te laat gewisseld wordt. */
-.geweestkop{margin:16px 0 2px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.25);
-  font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.7}
-body.sun .geweestkop{border-top-color:rgba(0,0,0,.25)}
-.wmoment.geweest{opacity:.72}
+/* Wat al geweest is: op zijn plek in de tijd, boven het moment dat eraan komt, maar
+   ingeklapt. Omlaag trekken op de grote tekst laat het zien; loslaten klapt het weer
+   in. Zie trekGebaar. */
+.verleden{height:0;overflow:hidden}
+.verleden.terug{transition:height .28s cubic-bezier(.2,.8,.2,1)}
+.verleden .wmoment{opacity:.75}
+.verleden .wmoment:first-child{border-top:none}
+.trekhint{display:block;margin:0 0 6px;font-size:var(--fs-xs);font-weight:600;opacity:.7;
+  letter-spacing:.02em}
+.trekvlak{-webkit-user-select:none;user-select:none}
 /* En dan het moment dat eraan komt. */
 .wmoment.nu{margin:12px 0;padding:11px 12px 9px;border-radius:var(--r-lg);
   background:rgba(140,180,255,.10);border:1px solid rgba(140,180,255,.30)}
@@ -9295,8 +9299,8 @@ function renderQuarter(q){
   // blokken ligt die op 5:50 terwijl er 'na 6 min' staat.
   const alGeweest = grensMin => inLopendKwart && grensMin<=nuMinuut+1e-9;
 
-  // Wissel bij start van kwart (t.o.v. vorige kwart). Zodra het kwart loopt schuift
-  // hij naar het blok 'Al geweest' onderaan, zie hieronder.
+  // Wissel bij start van kwart (t.o.v. vorige kwart). Zodra het kwart loopt is hij
+  // het eerste van wat al geweest is, en klapt hij weg met de rest; zie hieronder.
   let startGeweest='';
   if(q>0){
     const d=wisselChains(sch.assignments[qStart-1],sch.assignments[qStart]);
@@ -9330,14 +9334,31 @@ function renderQuarter(q){
   const regels=kwartMomenten(q,sch).map(mo=>({minuut:mo.minuut,soort:'wissel',mo}))
     .concat(zichtbareGebeurtenissen().filter(g=>g.q===q).map(g=>({minuut:g.min,soort:'gebeurtenis',g})))
     .sort((a,b)=>a.minuut-b.minuut || (a.soort==='wissel'?-1:1));
-  // Gepasseerde wisselmomenten gaan uit de rij, zodat het eerstvolgende moment direct
-  // onder het veld staat; zie de toelichting bij alGeweest. Weg zijn ze niet: ze komen
-  // onderaan in 'Al geweest'. Op 31 oktober wisselden de spelers een keer te laat, en
-  // toen was nergens meer te zien wie met wie moest. Blessures en kaarten blijven
-  // gewoon in de rij: daar loopt vaak nog een straftijd bij, en je kunt ze zelf
-  // wegtikken met het kruisje.
+  // ── Wat al geweest is ──
+  // Gepasseerde wisselmomenten blijven op hun plek in de tijd — de start van het kwart,
+  // dan 6 min, dan 12 min — maar klappen weg, zodat het eerstvolgende moment direct
+  // onder het veld staat. Op 31 oktober werd er te laat gewisseld en was nergens meer
+  // te zien wie met wie moest; daarom zijn ze er nog wel: leg je vinger op de grote
+  // tekst en trek omlaag, dan schuiven ze erboven tevoorschijn. Laat je los, dan veren
+  // ze terug. Zie trekGebaar.
+  // Blessures en kaarten klappen niet mee weg: daar loopt vaak nog een straftijd bij,
+  // en je kunt ze zelf wegtikken met het kruisje.
   const gepasseerd=regels.filter(r=>r.soort==='wissel' && alGeweest(r.mo.m*blokMinuten));
   for(let i=regels.length-1;i>=0;i--)if(gepasseerd.includes(regels[i]))regels.splice(i,1);
+  const aantalGeweest=gepasseerd.length+(startGeweest?1:0);
+  const trekHint=aantalGeweest
+    ? `<span class="trekhint">\u25BE ${U('trek omlaag','pull down')} \u00b7 ${aantalGeweest} ${aantalGeweest===1?U('wissel geweest','change passed'):U('wissels geweest','changes passed')}</span>`
+    : '';
+  if(aantalGeweest){
+    tekst+=`<div class="verleden" aria-hidden="true">${startGeweest}`;
+    for(const r of gepasseerd){
+      const mo=r.mo;
+      tekst+=`<div class="wmoment geweest" data-geweest="${mo.minuut}"><div class="wtime">${wisselKop(q,mo.minuut)}</div>`;
+      tekst+=chainsEmpty(mo.wissels)?'<p class="empty">'+U('Geen wissels op dit moment.','No substitutions at this point.')+'</p>':wisselLines(mo.wissels);
+      tekst+=`<div class="wbench"><b>${U('Wissels daarna:','On the bench after that:')}</b> ${mo.bankNa.map(pKort).map(esc).join(', ')||'—'}</div></div>`;
+    }
+    tekst+=`</div>`;
+  }
   let getoondeWissels=0;
   for(const r of regels){
     if(r.soort==='gebeurtenis'){
@@ -9354,27 +9375,16 @@ function renderQuarter(q){
     const kop=wisselKop(q,mo.minuut);
     // data-min: waaraan het meelopen in de kijkstand ziet dat er een ander moment
     // aanstaand is geworden (zie volgWisselTekst).
-    tekst+=`<div class="wmoment${mo.minuut===volgendeMinuut?' nu':''}" data-min="${mo.minuut}"><div class="wtime">${kop}</div>`;
+    const isNu=mo.minuut===volgendeMinuut;
+    tekst+=`<div class="wmoment${isNu?' nu':''}${isNu&&aantalGeweest?' trekvlak':''}" data-min="${mo.minuut}">${isNu?trekHint:''}<div class="wtime">${kop}</div>`;
     tekst+=chainsEmpty(mo.wissels)?'<p class="empty">'+U('Geen wissels op dit moment.','No substitutions at this point.')+'</p>':wisselLines(mo.wissels);
     tekst+=`<div class="wbench"><b>${U('Wissels daarna:','On the bench after that:')}</b> ${mo.bankNa.map(pKort).map(esc).join(', ')||'—'}</div></div>`;
     getoondeWissels++;
   }
   // Alles gehad in dit kwart: dat hoort er te staan, anders lijkt de kaart stuk.
+  // Ook als alles geweest is valt er te trekken: dan aan deze regel.
   if(!getoondeWissels && inLopendKwart)
-    tekst+=`<p class="empty">${U('Alle wisselmomenten van dit kwart zijn geweest.','All substitution points in this quarter have passed.')}</p>`;
-  // ── Al geweest ──
-  // Onder wat nog komt, het laatst gepasseerde moment bovenaan: dat is het moment dat
-  // je zoekt als er te laat gewisseld wordt. Omlaag scrollen en het staat er.
-  if(gepasseerd.length || startGeweest){
-    tekst+=`<div class="geweestkop">${U('Al geweest','Already passed')}</div>`;
-    for(const r of gepasseerd.slice().reverse()){
-      const mo=r.mo;
-      tekst+=`<div class="wmoment geweest" data-geweest="${mo.minuut}"><div class="wtime">${wisselKop(q,mo.minuut)}</div>`;
-      tekst+=chainsEmpty(mo.wissels)?'<p class="empty">'+U('Geen wissels op dit moment.','No substitutions at this point.')+'</p>':wisselLines(mo.wissels);
-      tekst+=`<div class="wbench"><b>${U('Wissels daarna:','On the bench after that:')}</b> ${mo.bankNa.map(pKort).map(esc).join(', ')||'—'}</div></div>`;
-    }
-    tekst+=startGeweest;
-  }
+    tekst+=`<div class="${aantalGeweest?'trekvlak':''}">${trekHint}<p class="empty">${U('Alle wisselmomenten van dit kwart zijn geweest.','All substitution points in this quarter have passed.')}</p></div>`;
   tekst+=`</div>`;
   // Hier houdt het wisselverhaal op. Op de telefoon wordt de tekst hier in tweeën
   // geknipt: alles ervóór scrollt achter het vastgezette veld door, alles erna komt
@@ -10363,8 +10373,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=316;
-const VERSIE_LABEL='26.10.23';
+const APP_VERSION=317;
+const VERSIE_LABEL='26.11.1';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
@@ -11051,6 +11061,51 @@ async function shareQuarterImage(q){
     }
   }catch(e){ if(e&&e.name==='AbortError')return; toast(T('Afbeelding maken lukte niet')); }
 }
+
+/* ============ Oude wissels tevoorschijn trekken ============ */
+// Leg je vinger op de grote wisseltekst en trek omlaag: de wisselmomenten van dit
+// kwart die al geweest zijn, schuiven erboven tevoorschijn, op hun plek in de tijd.
+// Laat je los, dan veren ze terug. Het moment dat eraan komt gaat met je vinger mee
+// omlaag, zodat het voelt alsof je het wegtrekt.
+//
+// Alleen een veeg omlaag die begint op de grote tekst. Omhoog vegen op diezelfde tekst
+// scrolt gewoon, en overal elders werkt omlaag vegen ook gewoon als scrollen. De keuze
+// valt bij de eerste beweging; dan kan het scrollen nog tegengehouden worden.
+let _trek=null;
+document.addEventListener('touchstart',e=>{
+  _trek=null;
+  if(e.touches.length!==1)return;
+  const vlak=e.target.closest&&e.target.closest('.trekvlak');
+  const kaart=vlak&&vlak.closest('.card');
+  const ver=kaart&&kaart.querySelector('.verleden');
+  if(!ver)return;
+  _trek={ver, y:e.touches[0].clientY, x:e.touches[0].clientX, bezig:false, uit:false, vol:ver.scrollHeight};
+},{passive:true,capture:true});
+document.addEventListener('touchmove',e=>{
+  const t=_trek; if(!t||t.uit)return;
+  const dy=e.touches[0].clientY-t.y, dx=e.touches[0].clientX-t.x;
+  if(!t.bezig){
+    if(Math.abs(dy)<4&&Math.abs(dx)<4)return;
+    // Omhoog of opzij: geen trekken, gewoon scrollen of van tabblad wisselen.
+    if(dy<=0||Math.abs(dx)>Math.abs(dy)){ t.uit=true; return; }
+    t.bezig=true;
+    t.ver.classList.remove('terug');
+    stap('oude wissels tevoorschijn trekken');
+  }
+  if(e.cancelable)e.preventDefault();
+  // Tot de volle hoogte één op één met de vinger mee, daarna nog een klein stukje met
+  // weerstand, zodat je voelt dat het einde bereikt is.
+  const h=dy<=t.vol?dy:t.vol+(dy-t.vol)*0.25;
+  t.ver.style.height=Math.max(0,Math.round(h))+'px';
+},{passive:false,capture:true});
+function trekLos(){
+  const t=_trek; _trek=null;
+  if(!t||!t.bezig)return;
+  t.ver.classList.add('terug');
+  t.ver.style.height='0px';
+}
+document.addEventListener('touchend',trekLos,{passive:true,capture:true});
+document.addEventListener('touchcancel',trekLos,{passive:true,capture:true});
 
 /* ============ Swipen tussen tabbladen ============ */
 let _tx=null,_ty=null,_tmulti=false;

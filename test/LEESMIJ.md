@@ -73,10 +73,12 @@ staat er sinds het vastzetten van het veld op de telefoon is teruggedraaid: de t
 is daar hoger dan er scherm overblijft, waardoor de wisseltekst erachter verdween.
 
 **09 gepasseerde wisselmomenten** — Zet de klok midden in een kwart en controleert dat
-een wisselmoment dat geweest is van het scherm verdwijnt, dat de nadruk doorschuift naar
-het eerstvolgende, en dat er aan het eind van het kwart staat dat alles geweest is.
-Controleert even nadrukkelijk het omgekeerde: blader je vooruit naar een kwart dat nog
-moet komen of terug naar een gespeeld kwart, dan blijft het hele plan staan. Op de
+een wisselmoment dat geweest is wegklapt, op zijn plek in de tijd boven het moment dat
+eraan komt, en dat de nadruk doorschuift naar het eerstvolgende. Speelt met echte
+aanraakbewegingen het trekgebaar na: omlaag trekken op de grote tekst haalt de oude
+wissels tevoorschijn, loslaten klapt ze weer in, omhoog vegen of omlaag vegen elders
+doet niets. Controleert ook het omgekeerde: blader je vooruit naar een kwart dat nog
+moet komen of terug naar een gespeeld kwart, dan blijft het hele plan open staan. Op de
 telefoon én op de liggende tablet.
 
 **10 vastloper** — Gaat na wat er op 31 oktober uit Diagnose bleek: het scherm zoomde
