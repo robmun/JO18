@@ -20,7 +20,7 @@ const TELEFOON = { viewport: { width: 393, height: 852 }, hasTouch: true, isMobi
 const TOKEN = 'nep-token-voor-de-test-0123456789abcdefghijklmnopqrstuvwxyz';
 
 // Draait sw.js in een nagebootste worker-omgeving en stuurt er één push naar.
-async function zwToetsen() {
+async function zwToetsen(ua) {
   const fs = require('fs'), path = require('path'), vm = require('vm');
   const code = fs.readFileSync(path.join(__dirname, '..', '..', 'sw.js'), 'utf8');
   const luisteraars = {};
@@ -31,6 +31,7 @@ async function zwToetsen() {
     registration: { showNotification: async (titel, opties) => { uit.getoond = { titel, opties }; } },
     clients: { matchAll: async () => [], openWindow: async u => { uit.geopend = u; }, claim: async () => {} },
     skipWaiting: async () => {},
+    navigator: { userAgent: ua || 'Mozilla/5.0 (Linux; Android 14) Chrome/130' },
   };
   const ctx = { self, caches: { open: async () => ({}), keys: async () => [] }, fetch: async () => ({}), URL, console,
     importScripts: () => { uit.importScripts = true; } };
@@ -38,7 +39,7 @@ async function zwToetsen() {
   if (!luisteraars.push || !luisteraars.notificationclick) return { fout: 'geen luisteraar voor push of notificationclick' };
   let wacht;
   luisteraars.push({ data: { json: () => ({
-    notification: { title: 'TEST · ⚽ Doelpunt voor Gooische!', body: 'Stand: 1-0', tag: 'stand-abc' },
+    notification: { title: 'TEST · 🏑 Doelpunt voor Gooische!', body: 'Stand: 1-0', tag: 'stand-abc' },
     fcmOptions: { link: 'https://robmun.github.io/JO18/t/abc/' } }) }, waitUntil: p => { wacht = p; } });
   await wacht;
   luisteraars.notificationclick({ notification: { close() {}, data: uit.getoond && uit.getoond.opties.data }, waitUntil: p => { wacht = p; } });
@@ -79,7 +80,7 @@ async function draai({ basis, log }) {
       const balk = !!document.querySelector('.meldbalk');
       activeTab = 'uitleg'; render();
       const kaart = document.querySelector('details[data-klap="meldingen"]');
-      const knop = kaart && kaart.querySelector('[data-meld]');
+      const knop = kaart && kaart.querySelector('[data-meld="aan"],[data-meld="uit"]');
       const uit = { balk, staat: meldStaat(), kaart: !!kaart, knop: knop ? knop.dataset.meld : null, tekst: kaart ? kaart.innerText : '' };
       activeTab = 'wedstrijd'; render();
       return uit;
@@ -122,14 +123,21 @@ async function draai({ basis, log }) {
     const testvink = await p.evaluate(() => new Promise(k => {
       activeTab = 'uitleg'; render();
       document.querySelector('details[data-klap="meldingen"]').open = true;
-      const v = document.getElementById('meldTest');
+      const v = document.querySelector('[data-meld="test-aan"]');
       if (!v) return k({ vinkje: false });
-      _db.gezet = null; v.checked = true; v.dispatchEvent(new Event('change', { bubbles: true }));
-      setTimeout(() => { activeTab = 'wedstrijd'; render(); k({ vinkje: true, test: _db.gezet && _db.gezet.d.test }); }, 300);
+      _db.gezet = null; v.click();
+      setTimeout(() => {
+        const d = document.querySelector('details[data-klap="meldingen"]');
+        const tekst = d ? d.innerText : '';
+        const terug = !!document.querySelector('[data-meld="test-uit"]');
+        activeTab = 'wedstrijd'; render();
+        k({ vinkje: true, test: _db.gezet && _db.gezet.d.test, zichtbaar: /✓ Testtoestel/.test(tekst) && terug });
+      }, 300);
     }));
-    if (!testvink.vinkje) mis.push('het vinkje Dit is een testtoestel ontbreekt');
+    if (!testvink.vinkje) mis.push('de knop Maak dit een testtoestel ontbreekt');
+    else if (!testvink.zichtbaar) mis.push('na de knop staat er niet duidelijk ✓ Testtoestel met een knop om het terug te zetten');
     else if (testvink.test !== true) mis.push('na het aanvinken is het toestel niet als testtoestel aangemeld');
-    else log('testtoestel aangevinkt: aanmelding opnieuw weggeschreven met test: true');
+    else log('knop Maak dit een testtoestel: aanmelding opnieuw weggeschreven met test: true, en ✓ Testtoestel in beeld');
 
     // ── 4. Uitzetten ──
     await p.evaluate(() => { activeTab = 'uitleg'; render(); document.querySelector('details[data-klap="meldingen"]').open = true; });
@@ -199,9 +207,14 @@ async function draai({ basis, log }) {
     // niets als de app in beeld stond, en een stille push kan iOS de meldingen laten
     // intrekken.
     const sw = await zwToetsen();
+    // Op een iPhone geen eigen plaatje: met een plaatje zet iOS er 'from JO18-5
+    // view-only' onder en behandelt hij de melding als een bericht van een persoon.
+    const swIos = await zwToetsen('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)');
+    if (!swIos.getoond || 'icon' in swIos.getoond.opties) mis.push('sw.js geeft op een iPhone toch een eigen plaatje mee');
+    if (!sw.getoond || !sw.getoond.opties.icon) mis.push('sw.js geeft op Android geen plaatje mee');
     if (sw.fout) mis.push('sw.js: ' + sw.fout);
     else {
-      if (!sw.getoond || sw.getoond.titel !== 'TEST · ⚽ Doelpunt voor Gooische!' || sw.getoond.opties.body !== 'Stand: 1-0')
+      if (!sw.getoond || sw.getoond.titel !== 'TEST · 🏑 Doelpunt voor Gooische!' || sw.getoond.opties.body !== 'Stand: 1-0')
         mis.push(`sw.js toont de melding niet goed: ${JSON.stringify(sw.getoond)}`);
       if (!sw.getoond || sw.getoond.opties.data.link !== 'https://robmun.github.io/JO18/t/abc/')
         mis.push('sw.js geeft de kijk-link niet mee aan de melding');

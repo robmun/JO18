@@ -80,10 +80,10 @@ function bericht(vorig, nu) {
 
   if (soort === 'doelpunt') {
     if (onsZijde === zijde)
-      return { titel: `⚽ Doelpunt voor ${naam(zijde)}!`, tekst: `Er is gescoord door ons team. Stand: ${stand}`, soort: 'voor' };
+      return { titel: `🏑 Doelpunt voor ${naam(zijde)}!`, tekst: `Er is gescoord door ons team. Stand: ${stand}`, soort: 'voor' };
     if (onsZijde)
       return { titel: 'Tegendoelpunt', tekst: `We hebben helaas een tegendoelpunt moeten incasseren. Stand: ${stand}`, soort: 'tegen' };
-    return { titel: `⚽ Doelpunt voor ${naam(zijde)}`, tekst: `Stand: ${stand}`, soort: 'neutraal' };
+    return { titel: `🏑 Doelpunt voor ${naam(zijde)}`, tekst: `Stand: ${stand}`, soort: 'neutraal' };
   }
   // geannuleerd
   if (onsZijde === zijde)

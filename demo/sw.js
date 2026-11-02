@@ -27,14 +27,17 @@ self.addEventListener('push', e => {
   const link = (d.fcmOptions && d.fcmOptions.link) || (d.fcm_options && d.fcm_options.link)
             || data.link || n.click_action || './';
   const titel = n.title || data.titel || 'Wedstrijdstand';
-  e.waitUntil(self.registration.showNotification(titel, {
-    body: n.body || data.tekst || '',
-    icon: n.icon || './icon-ghc-navy.png',
-    badge: './icon-ghc-navy.png',
-    tag: n.tag || 'stand',
-    renotify: true,
-    data: { link },
-  }));
+  // Op iPhone en iPad géén eigen plaatje. Met een plaatje behandelt iOS de melding als
+  // een bericht van een persoon: het plaatje komt links te staan en er komt een regel
+  // 'from JO18-5 view-only' onder de titel. Zonder plaatje toont iOS gewoon het
+  // pictogram van de app, zoals bij elke andere app. Android heeft het plaatje wél
+  // nodig, anders staat er een grijs vlak.
+  // Een iPad meldt zich in een service worker als 'Macintosh'. Een Mac zonder plaatje
+  // toont gewoon het pictogram van de app, dus die mag in hetzelfde mandje.
+  const ios = /iPhone|iPad|iPod|Macintosh/.test((self.navigator && self.navigator.userAgent) || '');
+  const opties = { body: n.body || data.tekst || '', tag: n.tag || 'stand', renotify: true, data: { link } };
+  if (!ios) { opties.icon = n.icon || './icon-ghc-navy.png'; opties.badge = './icon-ghc-navy.png'; }
+  e.waitUntil(self.registration.showNotification(titel, opties));
 });
 // Tik op de melding: de kijk-app openen (of naar voren halen als hij al open is).
 self.addEventListener('notificationclick', e => {

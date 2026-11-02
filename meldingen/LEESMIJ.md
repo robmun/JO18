@@ -3,7 +3,7 @@
 Kijkers die het aanzetten, krijgen een melding op hun vergrendelscherm als de stand
 verandert:
 
-- **⚽ Doelpunt voor Gooische!** — Er is gescoord door ons team. Stand: Gooische – Amsterdam 1-0
+- **🏑 Doelpunt voor Gooische!** — Er is gescoord door ons team. Stand: Gooische – Amsterdam 1-0
 - **Tegendoelpunt** — We hebben helaas een tegendoelpunt moeten incasseren. Stand: …
 - **Doelpunt geannuleerd** / **Tegendoelpunt geannuleerd** — De stand is weer …
 

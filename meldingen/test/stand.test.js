@@ -2,13 +2,13 @@
 const { bericht } = require('../functions/stand');
 const s = (thuis, uit, t, u) => ({ thuis, uit, t, u });
 const gevallen = [
-  ['wij thuis scoren', s('Gooische', 'Amsterdam', 0, 0), s('Gooische', 'Amsterdam', 1, 0), '⚽ Doelpunt voor Gooische!', 'Er is gescoord door ons team. Stand: Gooische – Amsterdam 1-0'],
-  ['wij uit scoren', s('Amsterdam', 'Gooische', 0, 0), s('Amsterdam', 'Gooische', 0, 1), '⚽ Doelpunt voor Gooische!', 'Er is gescoord door ons team. Stand: Amsterdam – Gooische 0-1'],
+  ['wij thuis scoren', s('Gooische', 'Amsterdam', 0, 0), s('Gooische', 'Amsterdam', 1, 0), '🏑 Doelpunt voor Gooische!', 'Er is gescoord door ons team. Stand: Gooische – Amsterdam 1-0'],
+  ['wij uit scoren', s('Amsterdam', 'Gooische', 0, 0), s('Amsterdam', 'Gooische', 0, 1), '🏑 Doelpunt voor Gooische!', 'Er is gescoord door ons team. Stand: Amsterdam – Gooische 0-1'],
   ['tegendoelpunt', s('Gooische', 'Amsterdam', 0, 0), s('Gooische', 'Amsterdam', 0, 1), 'Tegendoelpunt', 'We hebben helaas een tegendoelpunt moeten incasseren. Stand: Gooische – Amsterdam 0-1'],
   ['ons doelpunt geannuleerd', s('Gooische', 'Amsterdam', 1, 0), s('Gooische', 'Amsterdam', 0, 0), 'Doelpunt geannuleerd', 'Het doelpunt van Gooische telt niet. De stand is weer Gooische – Amsterdam 0-0'],
   ['tegendoelpunt geannuleerd', s('Gooische', 'Amsterdam', 1, 1), s('Gooische', 'Amsterdam', 1, 0), 'Tegendoelpunt geannuleerd', 'Het doelpunt van Amsterdam telt niet. De stand is weer Gooische – Amsterdam 1-0'],
-  ['hoofdletters maken niet uit', s('GOOISCHE JO18-5', 'Huizen', 2, 2), s('GOOISCHE JO18-5', 'Huizen', 3, 2), '⚽ Doelpunt voor GOOISCHE JO18-5!', null],
-  ['geen Gooische: neutraal', s('Amsterdam', 'Zwolle', 0, 0), s('Amsterdam', 'Zwolle', 1, 0), '⚽ Doelpunt voor Amsterdam', 'Stand: Amsterdam – Zwolle 1-0'],
+  ['hoofdletters maken niet uit', s('GOOISCHE JO18-5', 'Huizen', 2, 2), s('GOOISCHE JO18-5', 'Huizen', 3, 2), '🏑 Doelpunt voor GOOISCHE JO18-5!', null],
+  ['geen Gooische: neutraal', s('Amsterdam', 'Zwolle', 0, 0), s('Amsterdam', 'Zwolle', 1, 0), '🏑 Doelpunt voor Amsterdam', 'Stand: Amsterdam – Zwolle 1-0'],
   ['twee tegelijk', s('Gooische', 'Amsterdam', 0, 0), s('Gooische', 'Amsterdam', 1, 1), 'Stand bijgewerkt', 'Stand: Gooische – Amsterdam 1-1'],
   ['terug naar 0-0 vanaf 2-1', s('Gooische', 'Amsterdam', 2, 1), s('Gooische', 'Amsterdam', 0, 0), null, null],
   ['andere tegenstander', s('Gooische', 'Amsterdam', 1, 0), s('Gooische', 'Zwolle', 0, 0), null, null],

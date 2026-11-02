@@ -93,7 +93,7 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
 (async () => {
   let n = verzonden.length;
   await wijzig(AG(0, 1));
-  zeg(verzonden.length === n + 1 && laatste().notification.title === '⚽ Doelpunt voor Gooische!'
+  zeg(verzonden.length === n + 1 && laatste().notification.title === '🏑 Doelpunt voor Gooische!'
       && laatste().notification.body === 'Er is gescoord door ons team. Stand: Amsterdam – Gooische 0-1',
       `1. doelpunt voor ons als uitploeg: '${laatste().notification.title}' / '${laatste().notification.body}'`);
   zeg(laatste().tokens.length === 2, '   naar beide aangemelde toestellen');
@@ -132,7 +132,7 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
   await wijzig({ thuis: 'Gooische', uit: 'Zwolle', t: 0, u: 0 });
   zeg(verzonden.length === n, '7. nieuwe wedstrijd ingevuld: geen melding');
   await wijzig({ thuis: 'Gooische', uit: 'Zwolle', t: 1, u: 0 });
-  zeg(laatste().notification.title === '⚽ Doelpunt voor Gooische!', '   daarna doelpunt voor ons als thuisploeg');
+  zeg(laatste().notification.title === '🏑 Doelpunt voor Gooische!', '   daarna doelpunt voor ons als thuisploeg');
 
   // 8. Schakelaar op 'uit': niets versturen. Een doelpunt in die tijd wordt daarna niet
   //    alsnog gemeld: de laatst verstuurde stand loopt gewoon mee.
@@ -147,7 +147,7 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
   n = verzonden.length;
   await wijzig({ thuis: 'Gooische', uit: 'Zwolle', t: 3, u: 0 });
   zeg(verzonden.length === n + 1 && laatste().tokens.length === 1 && laatste().tokens[0] === T1
-      && laatste().notification.title === 'TEST · ⚽ Doelpunt voor Gooische!',
+      && laatste().notification.title === 'TEST · 🏑 Doelpunt voor Gooische!',
       `9. alleen testtoestellen: ${laatste().tokens.length} toestel, '${laatste().notification.title}'`);
 
   // 10. En weer op 'aan': iedereen, zonder TEST.

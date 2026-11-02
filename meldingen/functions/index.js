@@ -102,7 +102,6 @@ exports.standMelding = functions
         notification: { title: m.titel, body: m.tekst },
         webpush: {
           notification: {
-            icon: `${APP}icon-ghc-navy.png`,
             tag: `stand-${team}`,
             renotify: true,
           },

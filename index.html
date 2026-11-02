@@ -4808,7 +4808,14 @@ function meldKaart(){
   return klapKaart('meldingen',U('Meldingen bij een doelpunt','Notifications for goals'),
     st==='aan'?U('aan','on'):U('uit','off'),
     `<p class="hint" style="margin:0 0 ${u.knop?'10px':'0'}">${u.tekst}</p>`
-    +(u.test?`<label class="selrij" style="margin:0 0 10px"><input type="checkbox" id="meldTest"${meldLees().test?' checked':''}> <span>${U('Dit is een testtoestel','This is a test device')} <span style="opacity:.7">· ${U('krijgt ook de testmeldingen van de coach','also gets the coach’s test notifications')}</span></span></label>`:'')
+    // Testtoestel: een knop met de stand ervóór, geen vinkje. Bij de eerste test stond
+    // hier 'Dit is een testtoestel' naast een leeg vakje; dat las als een vaststelling
+    // en niemand vinkte het aan.
+    +(u.test?(meldLees().test
+      ?`<p class="hint" style="margin:0 0 6px"><b>\u2713 ${U('Testtoestel','Test device')}</b> \u00b7 ${U('krijgt ook de testmeldingen van de coach','also gets the coach’s test notifications')}</p>`
+        +`<button class="btn small ghost" data-meld="test-uit" style="margin:0 0 10px">${U('Geen testtoestel meer','Stop being a test device')}</button>`
+      :`<p class="hint" style="margin:0 0 6px">${U('Testtoestel: <b>nee</b>. Alleen een testtoestel krijgt de testmeldingen van de coach.','Test device: <b>no</b>. Only a test device gets the coach’s test notifications.')}</p>`
+        +`<button class="btn small" data-meld="test-aan" style="margin:0 0 10px">${U('Maak dit een testtoestel','Make this a test device')}</button>`):'')
     +(u.knop?`<button class="btn ${u.knop[0]==='aan'?'':'ghost '}full" data-meld="${u.knop[0]}">${u.knop[1]}</button>`:''),
     st==='kan');
 }
@@ -4819,14 +4826,13 @@ function meldBalkHTML(){
     +`<button class="btn small" data-meld="aan">${U('Aanzetten','Turn on')}</button>`
     +`<button class="btn small ghost" data-meld="later">${U('Niet nu','Not now')}</button></div>`;
 }
-document.addEventListener('change',e=>{
-  if(e.target&&e.target.id==='meldTest')meldTestZetten(e.target.checked);
-});
 document.addEventListener('click',e=>{
   const b=e.target.closest&&e.target.closest('[data-meld]'); if(!b)return;
   const w=b.dataset.meld;
   if(w==='aan')meldingenAan();
   else if(w==='uit')meldingenUit();
+  else if(w==='test-aan')meldTestZetten(true);
+  else if(w==='test-uit')meldTestZetten(false);
   else if(w==='later'){ meldBewaar(Object.assign(meldLees(),{beslist:'later'})); render(); }
 });
 // Verbreken en opnieuw verbinden in één tik. Twee keer op 'Verbinden / verbreken'
@@ -10575,8 +10581,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=321;
-const VERSIE_LABEL='26.11.5';
+const APP_VERSION=322;
+const VERSIE_LABEL='26.11.6';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
