@@ -478,6 +478,14 @@ body.sun .btn.gevaar{border-color:#b3241a;color:#a01a10;background:#fff}
 .wmoment .wline{font-size:var(--fs-sm);padding:2px 0}
 .wmoment .wgeb{font-size:var(--fs-sm)}
 .wmoment .wbench{font-size:var(--fs-xs);margin-top:4px}
+/* Coach: naar wie gaan de meldingen. Drie knoppen naast elkaar. */
+.meldmodus{margin-top:14px;padding-top:12px;border-top:1px solid var(--stroke)}
+.segment{display:flex;gap:4px;margin-top:6px;padding:3px;border-radius:var(--r-md);background:rgba(255,255,255,.06);border:1px solid var(--stroke)}
+.segknop{flex:1 1 0;min-width:0;padding:8px 4px;border-radius:var(--r-sm);border:0;background:transparent;color:var(--txt);
+  font:inherit;font-size:var(--fs-sm);font-weight:700;line-height:1.2}
+.segknop.aan{background:var(--accent);color:#0b1626}
+body.sun .segknop.aan{color:#fff}
+.meldkop{font-size:var(--fs-sm);font-weight:700}
 /* Kijk-link: één keer de vraag of je meldingen wilt. */
 .meldbalk{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 5px 6px;padding:8px 10px;
   border-radius:var(--r-md);background:rgba(140,180,255,.14);border:1px solid rgba(140,180,255,.35);
@@ -4735,8 +4743,16 @@ async function meldToken(){
 function meldRef(id){ return firebase.firestore().collection('teams').doc(CLOUD.team).collection('meldingen').doc(id); }
 async function meldAanmelden(token){
   const id=await vingerafdruk(token), nu=Date.now();
-  await meldRef(id).set({token,uid:firebase.auth().currentUser.uid,sinds:nu,laatst:nu});
+  await meldRef(id).set({token,uid:firebase.auth().currentUser.uid,sinds:nu,laatst:nu,test:!!meldLees().test});
   return id;
+}
+// Testtoestel aan- of uitvinken: de aanmelding opnieuw wegschrijven met de nieuwe waarde.
+async function meldTestZetten(aan){
+  const m=meldLees(); m.test=!!aan; meldBewaar(m);
+  try{ if(meldStaat()==='aan'){ const token=await meldToken(); await meldAanmelden(token); } }
+  catch(e){ onthoudFout('testtoestel',e); }
+  toast(aan?U('Dit toestel krijgt ook testmeldingen','This device also gets test notifications'):U('Geen testmeldingen meer op dit toestel','No more test notifications on this device'));
+  render();
 }
 let _meldBezig=false;
 async function meldingenAan(){
@@ -4778,7 +4794,8 @@ async function meldVernieuwen(){
 }
 function meldUitleg(){
   const st=meldStaat();
-  if(st==='aan')return {tekst:U('Je krijgt een melding als er gescoord wordt, en als een doelpunt wordt afgekeurd.','You get a notification when someone scores, and when a goal is disallowed.'),knop:['uit',U('Meldingen uitzetten','Turn notifications off')]};
+  if(st==='aan')return {tekst:U('Je krijgt een melding als er gescoord wordt, en als een doelpunt wordt afgekeurd.','You get a notification when someone scores, and when a goal is disallowed.')
+    +(meldModus()==='uit'?' '+U('De coach heeft de meldingen op dit moment uitgezet.','The coach has turned notifications off for now.'):''),knop:['uit',U('Meldingen uitzetten','Turn notifications off')],test:true};
   if(st==='kan')return {tekst:U('Een melding op je vergrendelscherm als er gescoord wordt: ‘⚽ Doelpunt voor Gooische!’, een tegendoelpunt, of een afgekeurd doelpunt.','A notification on your lock screen when someone scores: a goal, a goal against, or a disallowed goal.'),knop:['aan','\u{1F514} '+U('Meldingen aanzetten','Turn on notifications')]};
   if(st==='beginscherm')return {tekst:U('Meldingen werken op een iPhone of iPad alleen in de app op je beginscherm. Tik in Safari op de deelknop, kies <b>Zet op beginscherm</b>, open de app vanaf het pictogram en kom hier terug.','On an iPhone or iPad, notifications only work in the app on your Home Screen. In Safari tap the share button, choose <b>Add to Home Screen</b>, open the app from the icon and come back here.')};
   if(st==='geblokkeerd')return {tekst:U('Meldingen zijn op dit toestel geweigerd. Zet ze aan bij <b>Instellingen → Meldingen</b> en kies deze app.','Notifications are blocked on this device. Turn them on in <b>Settings → Notifications</b> and pick this app.')};
@@ -4791,6 +4808,7 @@ function meldKaart(){
   return klapKaart('meldingen',U('Meldingen bij een doelpunt','Notifications for goals'),
     st==='aan'?U('aan','on'):U('uit','off'),
     `<p class="hint" style="margin:0 0 ${u.knop?'10px':'0'}">${u.tekst}</p>`
+    +(u.test?`<label class="selrij" style="margin:0 0 10px"><input type="checkbox" id="meldTest"${meldLees().test?' checked':''}> <span>${U('Dit is een testtoestel','This is a test device')} <span style="opacity:.7">· ${U('krijgt ook de testmeldingen van de coach','also gets the coach’s test notifications')}</span></span></label>`:'')
     +(u.knop?`<button class="btn ${u.knop[0]==='aan'?'':'ghost '}full" data-meld="${u.knop[0]}">${u.knop[1]}</button>`:''),
     st==='kan');
 }
@@ -4801,6 +4819,9 @@ function meldBalkHTML(){
     +`<button class="btn small" data-meld="aan">${U('Aanzetten','Turn on')}</button>`
     +`<button class="btn small ghost" data-meld="later">${U('Niet nu','Not now')}</button></div>`;
 }
+document.addEventListener('change',e=>{
+  if(e.target&&e.target.id==='meldTest')meldTestZetten(e.target.checked);
+});
 document.addEventListener('click',e=>{
   const b=e.target.closest&&e.target.closest('[data-meld]'); if(!b)return;
   const w=b.dataset.meld;
@@ -4996,6 +5017,11 @@ function valideerStand(s){
   if(s.aanspreek!=null&&!['j','m','n'].includes(s.aanspreek)){
     klachten.push(U('onbekende aanspreekvorm','unknown way of addressing players'));
     delete s.aanspreek;
+  }
+
+  if(s.meldingen!=null&&!['uit','test','aan'].includes(s.meldingen)){
+    klachten.push(U('onbekende stand voor meldingen','unknown notification setting'));
+    delete s.meldingen;
   }
 
   // De wedstrijdstand. Namen afkappen en de doelpunten binnen de perken houden: dit
@@ -5216,7 +5242,11 @@ function serializeState(){
     aanspreek:aanspreekvorm(),
     // De wedstrijdstand reist om dezelfde reden mee: de ouders thuis kijken op de
     // kijk-link, en die haalt alles uit deze stand.
-    score:scoreNu()
+    score:scoreNu(),
+    // Naar wie de meldingen bij een doelpunt gaan: 'uit', 'test' (alleen toestellen
+    // die als testtoestel zijn aangevinkt) of 'aan' (iedereen). De meldingen-code bij
+    // Firebase leest dit uit de stand; zonder waarde gaat er niets de deur uit.
+    meldingen:meldModus()
   };
 }
 async function shareState(){
@@ -8880,6 +8910,33 @@ function zetScore(veld,waarde){
   state.score=s;
   save();
 }
+// ── Naar wie gaan de meldingen? ──
+// Een schakelaar voor de coach, bij de wedstrijdscore. Begint op 'uit', zodat er pas
+// iets verstuurd wordt als de coach dat zelf kiest. 'Alleen testtoestellen' is om te
+// proberen zonder alle ouders te storen: alleen kijk-apps waarin 'Dit is een
+// testtoestel' is aangevinkt krijgen dan iets, met 'TEST ·' voor de titel.
+function meldModus(){
+  const m=(typeof state!=='undefined'&&state&&state.meldingen)||'uit';
+  return ['uit','test','aan'].includes(m)?m:'uit';
+}
+function zetMeldModus(m){
+  if(cloudViewerBlocked())return;
+  if(!['uit','test','aan'].includes(m))return;
+  state.meldingen=m; save(); render();
+  toast(m==='uit'?U('Meldingen naar kijkers staan uit','Notifications to viewers are off')
+       :m==='test'?U('Meldingen gaan alleen naar testtoestellen','Notifications go to test devices only')
+       :U('Meldingen gaan naar alle kijkers die ze aanzetten','Notifications go to every viewer who turned them on'));
+}
+function meldSchakelaarHTML(){
+  if(isKijker())return '';
+  const m=meldModus();
+  const knop=(w,l)=>`<button class="segknop${m===w?' aan':''}" data-meldmodus="${w}" aria-pressed="${m===w}">${l}</button>`;
+  return `<div class="meldmodus"><div class="meldkop">\u{1F514} ${U('Meldingen naar kijkers','Notifications to viewers')}</div>
+    <div class="segment">${knop('uit',U('Uit','Off'))}${knop('test',U('Alleen testtoestellen','Test devices only'))}${knop('aan',U('Iedereen','Everyone'))}</div>
+    <p class="hint" style="margin:6px 0 0">${m==='aan'?U('Iedere kijker die meldingen heeft aangezet, krijgt er een bij een doelpunt.','Every viewer who turned notifications on gets one when someone scores.')
+      :m==='test'?U('Alleen kijk-apps waarin <b>Dit is een testtoestel</b> is aangevinkt, krijgen een melding.','Only view apps with <b>This is a test device</b> ticked get a notification.')
+      :U('Er gaan geen meldingen de deur uit.','No notifications are sent.')}</p></div>`;
+}
 function scoreKaart(){
   const s=scoreNu();
   const kop = scoreActief()
@@ -8903,7 +8960,7 @@ function scoreKaart(){
      <div class="scorekaart">
        ${kolom('t',s.thuis,s.t,U('Thuis','Home'))}
        ${kolom('u',s.uit,s.u,U('Uit','Away'))}
-     </div>`);
+     </div>${meldSchakelaarHTML()}`);
 }
 
 // Jongens, meisjes of neutraal. Anders dan de taal hoort dit bij het team en niet bij
@@ -10020,6 +10077,7 @@ function bind(v){
     el.onchange=()=>{ zetScore(el.dataset.scoreGetal, el.value); render(); };
     el.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } };
   });
+  v.querySelectorAll('[data-meldmodus]').forEach(el=>el.onclick=()=>zetMeldModus(el.dataset.meldmodus));
   v.querySelectorAll('[data-score-naam]').forEach(el=>{
     const veld = el.dataset.scoreNaam==='t' ? 'thuis' : 'uit';
     el.onchange=()=>{ zetScore(veld, el.value); render(); };
@@ -10517,8 +10575,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=319;
-const VERSIE_LABEL='26.11.3';
+const APP_VERSION=320;
+const VERSIE_LABEL='26.11.4';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.

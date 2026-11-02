@@ -33,6 +33,17 @@ function leesStand(data) {
   }
 }
 
+// Naar wie gaan de meldingen? De coach kiest het in de app; het staat in de gedeelde
+// stand als 'meldingen'. Zonder waarde: uit, zodat er nooit per ongeluk iets gaat.
+function leesModus(data) {
+  try {
+    const st = typeof (data && data.state) === 'string' ? JSON.parse(data.state) : ((data && data.state) || {});
+    return ['uit', 'test', 'aan'].includes(st && st.meldingen) ? st.meldingen : 'uit';
+  } catch (e) {
+    return 'uit';
+  }
+}
+
 function gelijk(a, b) {
   return !!a && !!b && a.thuis === b.thuis && a.uit === b.uit && a.t === b.t && a.u === b.u;
 }
@@ -82,4 +93,4 @@ function bericht(vorig, nu) {
   return { titel: 'Doelpunt geannuleerd', tekst: `De stand is weer ${stand}`, soort: 'neutraal-geannuleerd' };
 }
 
-module.exports = { leesStand, gelijk, bericht, standTekst };
+module.exports = { leesStand, leesModus, gelijk, bericht, standTekst };

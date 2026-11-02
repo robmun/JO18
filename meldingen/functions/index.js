@@ -11,8 +11,12 @@
 //      het over aan de ronde van die latere wijziging.
 //   4. Vergelijken met de laatst verstuurde stand (meldstand/<team>), niet met de
 //      vorige: zo telt alleen de echte verandering over die tien seconden.
-//   5. Versturen naar iedereen in teams/<team>/meldingen, en wie niet meer bereikbaar
-//      is daaruit opruimen.
+//   5. Naar wie? De coach kiest het in de app (de stand 'meldingen'):
+//        uit  — niets versturen (de laatst verstuurde stand wordt wél bijgewerkt,
+//               zodat er na het weer aanzetten geen oude doelpunten worden gemeld);
+//        test — alleen toestellen met test: true, en 'TEST ·' voor de titel;
+//        aan  — iedereen in teams/<team>/meldingen.
+//      Wie niet meer bereikbaar is, wordt daaruit opgeruimd.
 //
 // Plaatsen: zie meldingen/LEESMIJ.md.
 
@@ -20,7 +24,7 @@ const functions = require('firebase-functions/v1');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
-const { leesStand, gelijk, bericht } = require('./stand');
+const { leesStand, leesModus, gelijk, bericht } = require('./stand');
 
 initializeApp();
 const db = getFirestore();
@@ -58,7 +62,8 @@ exports.standMelding = functions
 
     await slaap(WACHT_MS);
 
-    const nu = leesStand((await db.collection('teams').doc(team).get()).data());
+    const teamNu = (await db.collection('teams').doc(team).get()).data();
+    const nu = leesStand(teamNu);
     if (!gelijk(nu, na)) return null;   // er kwam nog een wijziging; die ronde neemt het over
 
     // Alleen één ronde mag versturen: wie de laatst verstuurde stand bijwerkt.
@@ -73,9 +78,12 @@ exports.standMelding = functions
 
     const m = bericht(vorig, nu);
     if (!m) return null;
+    const modus = leesModus(teamNu);
+    if (modus === 'uit') return null;
+    if (modus === 'test') m.titel = `TEST · ${m.titel}`;
 
     const lijst = await db.collection('teams').doc(team).collection('meldingen').get();
-    const docs = lijst.docs.filter(d => typeof d.get('token') === 'string');
+    const docs = lijst.docs.filter(d => typeof d.get('token') === 'string' && (modus === 'aan' || d.get('test') === true));
     if (!docs.length) return null;
 
     const link = `${APP}t/${encodeURIComponent(team)}/`;
@@ -101,6 +109,6 @@ exports.standMelding = functions
         return deel[j].ref.delete().catch(() => null);
       }));
     }
-    functions.logger.info('stand gemeld', { team: team.slice(0, 3) + '…', soort: m.soort, verstuurd, opgeruimd });
+    functions.logger.info('stand gemeld', { team: team.slice(0, 3) + '…', modus, soort: m.soort, verstuurd, opgeruimd });
     return null;
   });

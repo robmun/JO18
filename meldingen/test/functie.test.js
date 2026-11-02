@@ -68,11 +68,12 @@ Module._load = function (req, ...rest) { return nep[req] || echtLaden.call(this,
 const { standMelding } = require(path.join(F, 'index.js'));
 
 const TEAM = 'Abc123xyz789';
-const teamData = (score, klok) => ({ state: JSON.stringify({ score, players: [] }), klok: klok || { q: 1 }, rev: 1 });
+let MODUS = 'aan';
+const teamData = (score, klok) => ({ state: JSON.stringify({ score, players: [], meldingen: MODUS }), klok: klok || { q: 1 }, rev: 1 });
 let huidig = teamData({ thuis: 'Amsterdam', uit: 'Gooische', t: 0, u: 0 });
 store.set(`teams/${TEAM}`, huidig);
 const T1 = 'token-ouder-1-xxxxxxxxxxxxxxxxxxxx', T2 = 'token-ouder-2-xxxxxxxxxxxxxxxxxxxx';
-store.set(`teams/${TEAM}/meldingen/${'a'.repeat(64)}`, { token: T1, uid: 'u1', sinds: 1, laatst: 1 });
+store.set(`teams/${TEAM}/meldingen/${'a'.repeat(64)}`, { token: T1, uid: 'u1', sinds: 1, laatst: 1, test: true });
 store.set(`teams/${TEAM}/meldingen/${'b'.repeat(64)}`, { token: T2, uid: 'u2', sinds: 1, laatst: 1 });
 
 // Zet een nieuwe stand neer zoals de app dat doet, en start de functie zoals Firebase.
@@ -132,6 +133,27 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
   zeg(verzonden.length === n, '7. nieuwe wedstrijd ingevuld: geen melding');
   await wijzig({ thuis: 'Gooische', uit: 'Zwolle', t: 1, u: 0 });
   zeg(laatste().notification.title === '⚽ Doelpunt voor Gooische!', '   daarna doelpunt voor ons als thuisploeg');
+
+  // 8. Schakelaar op 'uit': niets versturen. Een doelpunt in die tijd wordt daarna niet
+  //    alsnog gemeld: de laatst verstuurde stand loopt gewoon mee.
+  MODUS = 'uit';
+  n = verzonden.length;
+  await wijzig({ thuis: 'Gooische', uit: 'Zwolle', t: 2, u: 0 });
+  zeg(verzonden.length === n, `8. schakelaar uit: ${verzonden.length - n} meldingen`);
+
+  // 9. Schakelaar op 'test': alleen het testtoestel, met TEST · ervoor.
+  MODUS = 'test';
+  store.set(`teams/${TEAM}/meldingen/${'c'.repeat(64)}`, { token: 'token-ouder-3-xxxxxxxxxxxxxxxxxxxx', uid: 'u3', sinds: 1, laatst: 1 });
+  n = verzonden.length;
+  await wijzig({ thuis: 'Gooische', uit: 'Zwolle', t: 3, u: 0 });
+  zeg(verzonden.length === n + 1 && laatste().tokens.length === 1 && laatste().tokens[0] === T1
+      && laatste().notification.title === 'TEST · ⚽ Doelpunt voor Gooische!',
+      `9. alleen testtoestellen: ${laatste().tokens.length} toestel, '${laatste().notification.title}'`);
+
+  // 10. En weer op 'aan': iedereen, zonder TEST.
+  MODUS = 'aan';
+  await wijzig({ thuis: 'Gooische', uit: 'Zwolle', t: 3, u: 1 });
+  zeg(laatste().tokens.length === 2 && laatste().notification.title === 'Tegendoelpunt', `10. iedereen: ${laatste().tokens.length} toestellen, '${laatste().notification.title}'`);
 
   console.log(mis.length ? `\n${mis.length} punt(en) niet in orde` : '\nalles in orde');
   process.exit(mis.length ? 1 : 0);

@@ -7,6 +7,11 @@ verandert:
 - **Tegendoelpunt** — We hebben helaas een tegendoelpunt moeten incasseren. Stand: …
 - **Doelpunt geannuleerd** / **Tegendoelpunt geannuleerd** — De stand is weer …
 
+**Naar wie?** De coach kiest het bij Meer → Wedstrijdscore → *Meldingen naar kijkers*:
+**Uit** (begint hierop), **Alleen testtoestellen** of **Iedereen**. Een testtoestel is
+een kijk-app waarin bij Meer → Meldingen *Dit is een testtoestel* is aangevinkt; in de
+teststand krijgen alleen die een melding, met `TEST ·` voor de titel.
+
 De thuisploeg staat altijd links. Een doelpunt aan de kant van Gooische is altijd een
 doelpunt voor ons, thuis of uit. Speelt Gooische niet mee, dan is de melding neutraal.
 De meldingen-code wacht 10 seconden: +1 en meteen weer −1 geeft geen melding.

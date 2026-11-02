@@ -359,12 +359,15 @@ service cloud.firestore {
     // ── Meldingen bij een doelpunt (sinds november 2026) ──
     // Een kijker die meldingen aanzet, legt hier zijn aanmelding vast:
     //
-    //   teams/<team>/meldingen/<id>  { token, uid, sinds, laatst }
+    //   teams/<team>/meldingen/<id>  { token, uid, sinds, laatst, test }
     //
     // <id> is een vingerafdruk (SHA-256) van het token, zodat hetzelfde toestel bij
     // opnieuw aanzetten zijn eigen regel overschrijft in plaats van een tweede aan te
     // maken. Het token is het adres waarop Firebase de melding aflevert; meer staat er
     // niet in, geen naam en geen telefoonnummer.
+    //
+    // 'test' (true/false): dit toestel krijgt ook de testmeldingen. De coach kiest in de
+    // app of meldingen uit staan, alleen naar testtoestellen gaan, of naar iedereen.
     //
     // Lezen kan niemand vanuit een app. Alleen de meldingen-code bij Firebase leest
     // deze lijst, en die heeft daar geen regels voor nodig.
@@ -379,7 +382,8 @@ service cloud.firestore {
       function geldigeAanmelding() {
         let d = request.resource.data;
         return id.matches('^[0-9a-f]{64}$')
-          && d.keys().hasOnly(['token', 'uid', 'sinds', 'laatst'])
+          && d.keys().hasOnly(['token', 'uid', 'sinds', 'laatst', 'test'])
+          && (!('test' in d) || d.test is bool)
           && d.token is string && d.token.size() > 20 && d.token.size() < 4096
           && d.uid == request.auth.uid
           && d.sinds is int && d.laatst is int;
