@@ -62,9 +62,13 @@ exports.standMelding = functions
 
     await slaap(WACHT_MS);
 
+    // Bij elke ronde die niets verstuurt een regel in het logboek met de reden. Zonder
+    // die regels zag je bij de eerste test alleen 'started' en 'ok', en was niet te
+    // zien wáár hij afhaakte.
+    const log = (reden, extra) => functions.logger.info('geen melding', Object.assign({ team: team.slice(0, 3) + '…', reden }, extra || {}));
     const teamNu = (await db.collection('teams').doc(team).get()).data();
     const nu = leesStand(teamNu);
-    if (!gelijk(nu, na)) return null;   // er kwam nog een wijziging; die ronde neemt het over
+    if (!gelijk(nu, na)) { log('alweer gewijzigd; de volgende ronde neemt het over'); return null; }
 
     // Alleen één ronde mag versturen: wie de laatst verstuurde stand bijwerkt.
     const vorig = await db.runTransaction(async t => {
@@ -74,17 +78,20 @@ exports.standMelding = functions
       t.set(stRef, { stand: nu, sinds: Date.now() });
       return laatst;
     });
-    if (vorig === undefined) return null;
+    if (vorig === undefined) { log('deze stand is al gemeld'); return null; }
 
     const m = bericht(vorig, nu);
-    if (!m) return null;
+    if (!m) { log('geen bericht bij deze verandering', { vorig, nu }); return null; }
     const modus = leesModus(teamNu);
-    if (modus === 'uit') return null;
+    if (modus === 'uit') { log('schakelaar staat op uit', { nu }); return null; }
     if (modus === 'test') m.titel = `TEST · ${m.titel}`;
 
     const lijst = await db.collection('teams').doc(team).collection('meldingen').get();
     const docs = lijst.docs.filter(d => typeof d.get('token') === 'string' && (modus === 'aan' || d.get('test') === true));
-    if (!docs.length) return null;
+    if (!docs.length) {
+      log('niemand om naar te sturen', { modus, aangemeld: lijst.size, test: lijst.docs.filter(d => d.get('test') === true).length });
+      return null;
+    }
 
     const link = `${APP}t/${encodeURIComponent(team)}/`;
     let verstuurd = 0, opgeruimd = 0;
@@ -103,6 +110,9 @@ exports.standMelding = functions
         },
       });
       verstuurd += res.successCount;
+      res.responses.forEach((r, j) => {
+        if (!r.success) functions.logger.warn('versturen mislukt', { code: r.error && r.error.code, tekst: r.error && r.error.message });
+      });
       await Promise.all(res.responses.map((r, j) => {
         if (r.success || !r.error || !WEG.has(r.error.code)) return null;
         opgeruimd++;
