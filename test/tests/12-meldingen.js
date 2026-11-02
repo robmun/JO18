@@ -19,6 +19,33 @@ const traag = false;
 const TELEFOON = { viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true };
 const TOKEN = 'nep-token-voor-de-test-0123456789abcdefghijklmnopqrstuvwxyz';
 
+// Draait sw.js in een nagebootste worker-omgeving en stuurt er één push naar.
+async function zwToetsen() {
+  const fs = require('fs'), path = require('path'), vm = require('vm');
+  const code = fs.readFileSync(path.join(__dirname, '..', '..', 'sw.js'), 'utf8');
+  const luisteraars = {};
+  const uit = { importScripts: false, getoond: null, geopend: null };
+  const self = {
+    location: new URL('https://robmun.github.io/JO18/sw.js'),
+    addEventListener: (soort, f) => { luisteraars[soort] = f; },
+    registration: { showNotification: async (titel, opties) => { uit.getoond = { titel, opties }; } },
+    clients: { matchAll: async () => [], openWindow: async u => { uit.geopend = u; }, claim: async () => {} },
+    skipWaiting: async () => {},
+  };
+  const ctx = { self, caches: { open: async () => ({}), keys: async () => [] }, fetch: async () => ({}), URL, console,
+    importScripts: () => { uit.importScripts = true; } };
+  try { vm.runInNewContext(code, ctx); } catch (e) { return { fout: 'laden mislukt: ' + e.message }; }
+  if (!luisteraars.push || !luisteraars.notificationclick) return { fout: 'geen luisteraar voor push of notificationclick' };
+  let wacht;
+  luisteraars.push({ data: { json: () => ({
+    notification: { title: 'TEST · ⚽ Doelpunt voor Gooische!', body: 'Stand: 1-0', tag: 'stand-abc' },
+    fcmOptions: { link: 'https://robmun.github.io/JO18/t/abc/' } }) }, waitUntil: p => { wacht = p; } });
+  await wacht;
+  luisteraars.notificationclick({ notification: { close() {}, data: uit.getoond && uit.getoond.opties.data }, waitUntil: p => { wacht = p; } });
+  await wacht;
+  return uit;
+}
+
 async function draai({ basis, log }) {
   const mis = [];
   const b = await startBrowser();
@@ -166,6 +193,22 @@ async function draai({ basis, log }) {
 
     await ctx.close();
     paginafouten.forEach(f => mis.push('paginafout: ' + f));
+
+    // ── 8. De service worker toont de melding zelf, altijd ──
+    // Nagebootst zoals Firebase hem aflevert. Zie sw.js: de Firebase-bibliotheek toonde
+    // niets als de app in beeld stond, en een stille push kan iOS de meldingen laten
+    // intrekken.
+    const sw = await zwToetsen();
+    if (sw.fout) mis.push('sw.js: ' + sw.fout);
+    else {
+      if (!sw.getoond || sw.getoond.titel !== 'TEST · ⚽ Doelpunt voor Gooische!' || sw.getoond.opties.body !== 'Stand: 1-0')
+        mis.push(`sw.js toont de melding niet goed: ${JSON.stringify(sw.getoond)}`);
+      if (!sw.getoond || sw.getoond.opties.data.link !== 'https://robmun.github.io/JO18/t/abc/')
+        mis.push('sw.js geeft de kijk-link niet mee aan de melding');
+      if (sw.geopend !== 'https://robmun.github.io/JO18/t/abc/') mis.push(`tik op de melding opent '${sw.geopend}'`);
+      if (sw.importScripts) mis.push('sw.js laadt nog de Firebase-bibliotheek; die toont geen melding als de app in beeld is');
+      if (!mis.some(m => /sw\.js|tik op de melding/.test(m))) log('service worker: toont de melding zelf en opent bij een tik de kijk-link');
+    }
   } finally { await b.close(); }
   return { ok: mis.length === 0, mis };
 }

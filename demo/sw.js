@@ -7,18 +7,47 @@
 // immers voor — en het zou dit bestand bij elke release opnieuw laten uploaden.
 // Nu is sw.js een vast bestand: eenmalig plaatsen en klaar.
 
-// ── Meldingen bij een doelpunt (sinds 26.11.2) ──
+// ── Meldingen bij een doelpunt (sinds 26.11.2, zelf tonen sinds 26.11.5) ──
 // Ontvangt de meldingen die de meldingen-code bij Firebase verstuurt als de stand
-// verandert, en toont ze ook als de app dicht is. De Firebase-bibliotheek doet het
-// tonen zelf, en opent bij een tik de kijk-link die in de melding meekomt.
-// In een try: lukt het laden niet (geen verbinding bij het installeren), dan blijft
-// de rest van deze worker gewoon werken en komt het bij de volgende keer goed.
-try {
-  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
-                'https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
-  firebase.initializeApp({"apiKey":"AIzaSyDwrfF3mDmievts5mme5fOlRJ3O3fhKGb8","authDomain":"hockey-app-teaming.firebaseapp.com","projectId":"hockey-app-teaming","storageBucket":"hockey-app-teaming.firebasestorage.app","messagingSenderId":"527542328518","appId":"1:527542328518:web:e2537891c7941d09568bc7"});
-  firebase.messaging();
-} catch (e) {}
+// verandert, en toont ze — altijd, ook als de app open staat.
+//
+// Eerst deed de Firebase-bibliotheek dat hier. Die toont een melding alleen als de
+// app níet in beeld is; anders geeft hij het bericht stil door aan de app. Bij de
+// eerste test op een iPhone kwam er daardoor niets. En op iOS is een push zonder
+// zichtbare melding bovendien riskant: na een paar daarvan kan iOS de meldingen voor
+// de app intrekken. Dus nu zelf, zonder de bibliotheek.
+//
+// Wat Firebase aflevert is JSON met 'notification' (titel, tekst, pictogram, tag) en
+// 'fcmOptions.link' (de kijk-link). Oudere schrijfwijzen worden ook gelezen.
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (x) { d = {}; }
+  const n = d.notification || {};
+  const data = d.data || {};
+  const link = (d.fcmOptions && d.fcmOptions.link) || (d.fcm_options && d.fcm_options.link)
+            || data.link || n.click_action || './';
+  const titel = n.title || data.titel || 'Wedstrijdstand';
+  e.waitUntil(self.registration.showNotification(titel, {
+    body: n.body || data.tekst || '',
+    icon: n.icon || './icon-ghc-navy.png',
+    badge: './icon-ghc-navy.png',
+    tag: n.tag || 'stand',
+    renotify: true,
+    data: { link },
+  }));
+});
+// Tik op de melding: de kijk-app openen (of naar voren halen als hij al open is).
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const link = new URL((e.notification.data && e.notification.data.link) || './', self.location).href;
+  e.waitUntil((async () => {
+    const ramen = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const r of ramen) {
+      if (r.url.startsWith(link) && 'focus' in r) return r.focus();
+    }
+    if (self.clients.openWindow) return self.clients.openWindow(link);
+  })());
+});
 
 // ── Twee gescheiden caches ──
 // De echte app en de demo delen dezelfde herkomst: robmun.github.io is één
