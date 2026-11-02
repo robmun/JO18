@@ -4697,7 +4697,7 @@ function kijkerUitleg(){
 //
 // VAPID_KEY is de Web Push-sleutel van het Firebase-project (Projectinstellingen →
 // Cloud Messaging → Web Push-certificaten). Niet geheim. Leeg = functie staat uit.
-let VAPID_KEY='';
+let VAPID_KEY='BAaN_xU8j2RGmvLBvV4Ya3b7_ZvDjXJWlOkiScsctRFvhfFWk7hI0rNto7ivHfnCs98sOmAVf3vpoc78O-FlHdw';   // hockey-app-teaming, 2 nov 2026
 const MELD_SLEUTEL=SLEUTEL('gw_melding');
 const FB_MESSAGING='https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js';
 function meldLees(){ try{ return JSON.parse(localStorage.getItem(MELD_SLEUTEL)||'null')||{}; }catch(e){ return {}; } }
@@ -10517,8 +10517,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=318;
-const VERSIE_LABEL='26.11.2';
+const APP_VERSION=319;
+const VERSIE_LABEL='26.11.3';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.

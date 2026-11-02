@@ -35,6 +35,8 @@ async function draai({ basis, log }) {
       const g = [...document.querySelectorAll('button')].find(b => /genereren/i.test(b.textContent));
       if (g) g.click();
       CLOUD.on = true; CLOUD.role = 'viewer'; CLOUD.team = 'testteam12345'; document.body.classList.add('viewer');
+      // De echte sleutel staat er sinds 26.11.3 in; voor stap 1 even weg.
+      window._echteSleutel = VAPID_KEY; VAPID_KEY = '';
       // Nagebootst: toestemming, het token van Firebase en de database.
       let toestemming = 'default';
       Object.defineProperty(Notification, 'permission', { get: () => toestemming, configurable: true });
@@ -62,7 +64,7 @@ async function draai({ basis, log }) {
     else log('zonder sleutel: geen vraag en geen kaart');
 
     // ── 2. Met sleutel: vraag en kaart ──
-    await p.evaluate(() => { VAPID_KEY = 'test-sleutel'; render(); });
+    await p.evaluate(() => { VAPID_KEY = _echteSleutel || 'test-sleutel'; render(); });
     const met = await kijk();
     if (met.staat !== 'kan') mis.push(`met sleutel staat meldingen op '${met.staat}' in plaats van 'kan'`);
     if (!met.balk) mis.push('de vraag op het wedstrijdscherm ontbreekt');
