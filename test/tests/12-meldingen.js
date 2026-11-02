@@ -195,6 +195,36 @@ async function draai({ basis, log }) {
     if (schakel.naTest !== 'test' || schakel.gedeeld !== 'test' || schakel.knopAan !== 'test') mis.push(`na Alleen testtoestellen: stand '${schakel.naTest}', gedeeld '${schakel.gedeeld}', knop '${schakel.knopAan}'`);
     if (!schakel.rommelWeg) mis.push('een onbekende waarde voor meldingen uit een binnenkomende stand blijft staan');
     if (schakel.aantal === 3 && schakel.begin === 'uit' && schakel.gedeeld === 'test') log('coach: schakelaar Uit · Alleen testtoestellen · Iedereen, begint op Uit en reist mee in de gedeelde stand');
+    // ── 7b. Aftrap en einde melden: twee tikken, en alleen met namen en schakelaar aan ──
+    const aank = await p.evaluate(() => new Promise(k => {
+      const u = {};
+      state.score = { thuis: '', uit: '', t: 0, u: 0 }; render();
+      u.zonderNamen = document.querySelector('[data-aankondig="start"]').disabled;
+      state.score = { thuis: 'Gooische', uit: 'Amsterdam', t: 0, u: 0 }; state.meldingen = 'uit'; render();
+      u.schakelaarUit = document.querySelector('[data-aankondig="start"]').disabled;
+      state.meldingen = 'test'; delete state.aankondiging; render();
+      document.querySelector('[data-aankondig="start"]').click();
+      u.naEen = state.aankondiging || null;
+      u.vraag = document.querySelector('[data-aankondig="start"]').textContent;
+      document.querySelector('[data-aankondig="start"]').click();
+      u.naTwee = state.aankondiging || null;
+      u.gedeeld = serializeState().aankondiging;
+      // Na vier seconden zonder tweede tik vervalt de vraag.
+      document.querySelector('[data-aankondig="einde"]').click();
+      setTimeout(() => {
+        u.vervallen = document.querySelector('[data-aankondig="einde"]').textContent;
+        u.nogStart = state.aankondiging && state.aankondiging.soort;
+        k(u);
+      }, 4300);
+    }));
+    if (!aank.zonderNamen) mis.push('Aftrap melden kan zonder ingevulde teams');
+    if (!aank.schakelaarUit) mis.push('Aftrap melden kan met de schakelaar op uit');
+    if (aank.naEen) mis.push('één tik op Aftrap melden verstuurt al');
+    if (!/nogmaals/.test(aank.vraag)) mis.push(`na één tik staat er '${aank.vraag}' in plaats van de vraag om nogmaals te tikken`);
+    if (!aank.naTwee || aank.naTwee.soort !== 'start' || !aank.gedeeld || aank.gedeeld.nr !== aank.naTwee.nr) mis.push('na twee tikken staat de aankondiging niet in de gedeelde stand');
+    if (/nogmaals/.test(aank.vervallen) || aank.nogStart !== 'start') mis.push('de vraag bij Einde melden vervalt niet na vier seconden');
+    if (!mis.some(m => /Aftrap|Einde|aankondiging/.test(m))) log('aftrap en einde: pas na een tweede tik, alleen met teams en schakelaar aan, vraag vervalt na 4 s');
+
     // De kijker ziet de schakelaar niet.
     const kijkerSchakel = await p.evaluate(() => { CLOUD.role = 'viewer'; render(); const n = document.querySelectorAll('[data-meldmodus]').length; CLOUD.role = 'editor'; return n; });
     if (kijkerSchakel) mis.push('een kijker ziet de schakelaar van de coach');

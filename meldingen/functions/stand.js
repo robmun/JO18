@@ -44,6 +44,43 @@ function leesModus(data) {
   }
 }
 
+// De laatste aankondiging van de coach (aftrap of einde), of null.
+function leesAankondiging(data) {
+  try {
+    const st = typeof (data && data.state) === 'string' ? JSON.parse(data.state) : ((data && data.state) || {});
+    const a = st && st.aankondiging;
+    return a && ['start', 'einde'].includes(a.soort) && Number.isFinite(a.nr) ? { soort: a.soort, nr: a.nr } : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Bericht bij een aankondiging. Tegenstander = de ploeg die niet Gooische is.
+function aankondigBericht(soort, nu) {
+  if (!nu || !nu.thuis || !nu.uit) return null;
+  const onsZijde = ONS.test(nu.thuis) ? 't' : ONS.test(nu.uit) ? 'u' : null;
+  const tegen = onsZijde === 't' ? nu.uit : onsZijde === 'u' ? nu.thuis : null;
+  const wedstrijd = `${nu.thuis} – ${nu.uit}`;
+  if (soort === 'start') {
+    return {
+      titel: tegen ? `🏑 De wedstrijd tegen ${tegen} is begonnen` : `🏑 ${wedstrijd} is begonnen`,
+      tekst: `${wedstrijd}. Volg de stand in de app.`,
+      soort: 'aftrap',
+    };
+  }
+  if (soort === 'einde') {
+    const wij = onsZijde === 't' ? nu.t : onsZijde === 'u' ? nu.u : null;
+    const zij = onsZijde === 't' ? nu.u : onsZijde === 'u' ? nu.t : null;
+    const uitkomst = wij == null ? null : wij > zij ? 'gewonnen!' : wij < zij ? 'verloren' : 'gelijkgespeeld';
+    return {
+      titel: uitkomst ? `🏁 Wedstrijd afgelopen: ${uitkomst}` : '🏁 Wedstrijd afgelopen',
+      tekst: `Uitslag: ${standTekst(nu)}`,
+      soort: 'einde',
+    };
+  }
+  return null;
+}
+
 function gelijk(a, b) {
   return !!a && !!b && a.thuis === b.thuis && a.uit === b.uit && a.t === b.t && a.u === b.u;
 }
@@ -93,4 +130,4 @@ function bericht(vorig, nu) {
   return { titel: 'Doelpunt geannuleerd', tekst: `De stand is weer ${stand}`, soort: 'neutraal-geannuleerd' };
 }
 
-module.exports = { leesStand, leesModus, gelijk, bericht, standTekst };
+module.exports = { leesStand, leesModus, leesAankondiging, aankondigBericht, gelijk, bericht, standTekst };

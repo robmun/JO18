@@ -18,13 +18,17 @@
 //        aan  — iedereen in teams/<team>/meldingen.
 //      Wie niet meer bereikbaar is, wordt daaruit opgeruimd.
 //
+// Daarnaast de aankondigingen van de coach: 'aftrap' en 'einde' (knoppen bij de
+// score). Die staan in de stand als 'aankondiging' met een volgnummer; een nieuw
+// volgnummer wordt meteen verstuurd, zonder te wachten. Zelfde schakelaar.
+//
 // Plaatsen: zie meldingen/LEESMIJ.md.
 
 const functions = require('firebase-functions/v1');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
-const { leesStand, leesModus, gelijk, bericht } = require('./stand');
+const { leesStand, leesModus, leesAankondiging, aankondigBericht, gelijk, bericht } = require('./stand');
 
 initializeApp();
 const db = getFirestore();
@@ -41,14 +45,62 @@ const WEG = new Set([
   'messaging/invalid-argument',
 ]);
 
+// Verstuurt een bericht volgens de schakelaar. Geeft de reden terug als er niets ging.
+async function verstuur(team, m, modus, log) {
+  if (modus === 'uit') { log('schakelaar staat op uit', { soort: m.soort }); return; }
+  if (modus === 'test') m = Object.assign({}, m, { titel: `TEST · ${m.titel}` });
+  const lijst = await db.collection('teams').doc(team).collection('meldingen').get();
+  const docs = lijst.docs.filter(d => typeof d.get('token') === 'string' && (modus === 'aan' || d.get('test') === true));
+  if (!docs.length) {
+    log('niemand om naar te sturen', { modus, aangemeld: lijst.size, test: lijst.docs.filter(d => d.get('test') === true).length });
+    return;
+  }
+  const link = `${APP}t/${encodeURIComponent(team)}/`;
+  let verstuurd = 0, opgeruimd = 0;
+  for (let i = 0; i < docs.length; i += 500) {
+    const deel = docs.slice(i, i + 500);
+    const res = await getMessaging().sendEachForMulticast({
+      tokens: deel.map(d => d.get('token')),
+      notification: { title: m.titel, body: m.tekst },
+      webpush: {
+        notification: { tag: `stand-${team}`, renotify: true },
+        fcmOptions: { link },
+      },
+    });
+    verstuurd += res.successCount;
+    res.responses.forEach(r => {
+      if (!r.success) functions.logger.warn('versturen mislukt', { code: r.error && r.error.code, tekst: r.error && r.error.message });
+    });
+    await Promise.all(res.responses.map((r, j) => {
+      if (r.success || !r.error || !WEG.has(r.error.code)) return null;
+      opgeruimd++;
+      return deel[j].ref.delete().catch(() => null);
+    }));
+  }
+  functions.logger.info('stand gemeld', { team: team.slice(0, 3) + '…', modus, soort: m.soort, verstuurd, opgeruimd });
+}
+
 exports.standMelding = functions
   .region('europe-west1')
   .runWith({ timeoutSeconds: 60, memory: '256MB', maxInstances: 10 })
   .firestore.document('teams/{team}')
   .onUpdate(async (change, ctx) => {
     const team = ctx.params.team;
-    const voor = leesStand(change.before.data());
-    const na = leesStand(change.after.data());
+    // Bij elke ronde die niets verstuurt een regel in het logboek met de reden.
+    const log = (reden, extra) => functions.logger.info('geen melding', Object.assign({ team: team.slice(0, 3) + '…', reden }, extra || {}));
+    const voorData = change.before.data(), naData = change.after.data();
+
+    // ── Aankondiging van de coach: aftrap of einde ──
+    const aV = leesAankondiging(voorData), aN = leesAankondiging(naData);
+    if (aN && (!aV || aV.nr !== aN.nr)) {
+      const m = aankondigBericht(aN.soort, leesStand(naData));
+      if (m) await verstuur(team, m, leesModus(naData), log);
+      else log('aankondiging zonder ingevulde teams', { soort: aN.soort });
+    }
+
+    // ── De stand ──
+    const voor = leesStand(voorData);
+    const na = leesStand(naData);
     if (!na || gelijk(voor, na)) return null;
 
     const stRef = db.collection('meldstand').doc(team);
@@ -62,10 +114,6 @@ exports.standMelding = functions
 
     await slaap(WACHT_MS);
 
-    // Bij elke ronde die niets verstuurt een regel in het logboek met de reden. Zonder
-    // die regels zag je bij de eerste test alleen 'started' en 'ok', en was niet te
-    // zien wáár hij afhaakte.
-    const log = (reden, extra) => functions.logger.info('geen melding', Object.assign({ team: team.slice(0, 3) + '…', reden }, extra || {}));
     const teamNu = (await db.collection('teams').doc(team).get()).data();
     const nu = leesStand(teamNu);
     if (!gelijk(nu, na)) { log('alweer gewijzigd; de volgende ronde neemt het over'); return null; }
@@ -82,42 +130,6 @@ exports.standMelding = functions
 
     const m = bericht(vorig, nu);
     if (!m) { log('geen bericht bij deze verandering', { vorig, nu }); return null; }
-    const modus = leesModus(teamNu);
-    if (modus === 'uit') { log('schakelaar staat op uit', { nu }); return null; }
-    if (modus === 'test') m.titel = `TEST · ${m.titel}`;
-
-    const lijst = await db.collection('teams').doc(team).collection('meldingen').get();
-    const docs = lijst.docs.filter(d => typeof d.get('token') === 'string' && (modus === 'aan' || d.get('test') === true));
-    if (!docs.length) {
-      log('niemand om naar te sturen', { modus, aangemeld: lijst.size, test: lijst.docs.filter(d => d.get('test') === true).length });
-      return null;
-    }
-
-    const link = `${APP}t/${encodeURIComponent(team)}/`;
-    let verstuurd = 0, opgeruimd = 0;
-    for (let i = 0; i < docs.length; i += 500) {
-      const deel = docs.slice(i, i + 500);
-      const res = await getMessaging().sendEachForMulticast({
-        tokens: deel.map(d => d.get('token')),
-        notification: { title: m.titel, body: m.tekst },
-        webpush: {
-          notification: {
-            tag: `stand-${team}`,
-            renotify: true,
-          },
-          fcmOptions: { link },
-        },
-      });
-      verstuurd += res.successCount;
-      res.responses.forEach((r, j) => {
-        if (!r.success) functions.logger.warn('versturen mislukt', { code: r.error && r.error.code, tekst: r.error && r.error.message });
-      });
-      await Promise.all(res.responses.map((r, j) => {
-        if (r.success || !r.error || !WEG.has(r.error.code)) return null;
-        opgeruimd++;
-        return deel[j].ref.delete().catch(() => null);
-      }));
-    }
-    functions.logger.info('stand gemeld', { team: team.slice(0, 3) + '…', modus, soort: m.soort, verstuurd, opgeruimd });
+    await verstuur(team, m, leesModus(teamNu), log);
     return null;
   });

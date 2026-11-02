@@ -68,8 +68,8 @@ Module._load = function (req, ...rest) { return nep[req] || echtLaden.call(this,
 const { standMelding } = require(path.join(F, 'index.js'));
 
 const TEAM = 'Abc123xyz789';
-let MODUS = 'aan';
-const teamData = (score, klok) => ({ state: JSON.stringify({ score, players: [], meldingen: MODUS }), klok: klok || { q: 1 }, rev: 1 });
+let MODUS = 'aan', AANK = null;
+const teamData = (score, klok) => ({ state: JSON.stringify({ score, players: [], meldingen: MODUS, aankondiging: AANK }), klok: klok || { q: 1 }, rev: 1 });
 let huidig = teamData({ thuis: 'Amsterdam', uit: 'Gooische', t: 0, u: 0 });
 store.set(`teams/${TEAM}`, huidig);
 const T1 = 'token-ouder-1-xxxxxxxxxxxxxxxxxxxx', T2 = 'token-ouder-2-xxxxxxxxxxxxxxxxxxxx';
@@ -154,6 +154,33 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
   MODUS = 'aan';
   await wijzig({ thuis: 'Gooische', uit: 'Zwolle', t: 3, u: 1 });
   zeg(laatste().tokens.length === 2 && laatste().notification.title === 'Tegendoelpunt', `10. iedereen: ${laatste().tokens.length} toestellen, '${laatste().notification.title}'`);
+
+  // 11. Aftrap melden: meteen, zonder tien seconden te wachten.
+  const nuStand = JSON.parse(huidig.state).score;
+  n = verzonden.length;
+  AANK = { soort: 'start', nr: 1001 };
+  let t1 = Date.now();
+  await wijzig(nuStand);
+  zeg(verzonden.length === n + 1 && laatste().notification.title === '🏑 De wedstrijd tegen Zwolle is begonnen' && Date.now() - t1 < 1000,
+      `11. aftrap: '${laatste().notification.title}' na ${Date.now() - t1} ms`);
+  // Dezelfde aankondiging nog eens (andere wijziging, zelfde nummer): niet opnieuw.
+  n = verzonden.length;
+  await wijzig(nuStand, { q: 3 });
+  zeg(verzonden.length === n, '    zelfde aankondiging niet nog eens verstuurd');
+  // 12. Einde melden, in de teststand.
+  MODUS = 'test';
+  AANK = { soort: 'einde', nr: 1002 };
+  n = verzonden.length;
+  await wijzig(nuStand);
+  zeg(verzonden.length === n + 1 && laatste().notification.title === 'TEST · 🏁 Wedstrijd afgelopen: gewonnen!'
+      && laatste().notification.body === `Uitslag: Gooische – Zwolle ${nuStand.t}-${nuStand.u}` && laatste().tokens.length === 1,
+      `12. einde in de teststand: '${laatste().notification.title}' / '${laatste().notification.body}' naar ${laatste().tokens.length}`);
+  // 13. Schakelaar uit: ook geen aankondiging.
+  MODUS = 'uit';
+  AANK = { soort: 'start', nr: 1003 };
+  n = verzonden.length;
+  await wijzig(nuStand);
+  zeg(verzonden.length === n, '13. aankondiging met de schakelaar op uit: niets');
 
   console.log(mis.length ? `\n${mis.length} punt(en) niet in orde` : '\nalles in orde');
   process.exit(mis.length ? 1 : 0);

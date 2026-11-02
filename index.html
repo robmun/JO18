@@ -5025,6 +5025,10 @@ function valideerStand(s){
     delete s.aanspreek;
   }
 
+  if(s.aankondiging!=null&&!(typeof s.aankondiging==='object'&&['start','einde'].includes(s.aankondiging.soort)&&Number.isFinite(s.aankondiging.nr))){
+    klachten.push(U('onbekende aankondiging','unknown announcement'));
+    delete s.aankondiging;
+  }
   if(s.meldingen!=null&&!['uit','test','aan'].includes(s.meldingen)){
     klachten.push(U('onbekende stand voor meldingen','unknown notification setting'));
     delete s.meldingen;
@@ -5252,7 +5256,10 @@ function serializeState(){
     // Naar wie de meldingen bij een doelpunt gaan: 'uit', 'test' (alleen toestellen
     // die als testtoestel zijn aangevinkt) of 'aan' (iedereen). De meldingen-code bij
     // Firebase leest dit uit de stand; zonder waarde gaat er niets de deur uit.
-    meldingen:meldModus()
+    meldingen:meldModus(),
+    // Laatste aankondiging van de coach (aftrap of einde). De meldingen-code verstuurt
+    // zodra 'nr' verandert; zie aankondigen().
+    aankondiging:state.aankondiging||null
   };
 }
 async function shareState(){
@@ -8940,8 +8947,38 @@ function meldSchakelaarHTML(){
   return `<div class="meldmodus"><div class="meldkop">\u{1F514} ${U('Meldingen naar kijkers','Notifications to viewers')}</div>
     <div class="segment">${knop('uit',U('Uit','Off'))}${knop('test',U('Alleen testtoestellen','Test devices only'))}${knop('aan',U('Iedereen','Everyone'))}</div>
     <p class="hint" style="margin:6px 0 0">${m==='aan'?U('Iedere kijker die meldingen heeft aangezet, krijgt er een bij een doelpunt.','Every viewer who turned notifications on gets one when someone scores.')
-      :m==='test'?U('Alleen kijk-apps waarin <b>Dit is een testtoestel</b> is aangevinkt, krijgen een melding.','Only view apps with <b>This is a test device</b> ticked get a notification.')
-      :U('Er gaan geen meldingen de deur uit.','No notifications are sent.')}</p></div>`;
+      :m==='test'?U('Alleen kijk-apps die bij Meldingen op <b>Maak dit een testtoestel</b> hebben getikt, krijgen een melding.','Only view apps that tapped <b>Make this a test device</b> get a notification.')
+      :U('Er gaan geen meldingen de deur uit.','No notifications are sent.')}</p>${aankondigKnoppenHTML()}</div>`;
+}
+// ── Aftrap en einde melden ──
+// Twee berichten die niet uit de stand volgen maar die de coach zelf afvuurt: de
+// wedstrijd is begonnen, en de wedstrijd is afgelopen met de uitslag. De app zet een
+// 'aankondiging' in de gedeelde stand (soort + een nieuw volgnummer); de meldingen-code
+// bij Firebase ziet het nieuwe nummer en verstuurt meteen, volgens dezelfde schakelaar.
+// Tegen per ongeluk tikken: de eerste tik vraagt om bevestiging, pas de tweede verstuurt.
+let _aankondigBevestig=null, _aankondigT=null;
+function aankondigKnoppenHTML(){
+  if(isKijker())return '';
+  const s=scoreNu(), m=meldModus();
+  const klaar=!!(s.thuis&&s.uit)&&m!=='uit';
+  const knop=(soort,label)=>{
+    const vraag=_aankondigBevestig===soort;
+    return `<button class="btn small${vraag?'':' ghost'}" data-aankondig="${soort}"${klaar?'':' disabled'} style="flex:1 1 0">${vraag?U('Tik nogmaals om te versturen','Tap again to send'):label}</button>`;
+  };
+  return `<div style="display:flex;gap:8px;margin-top:10px">${knop('start','\u{1F4E3} '+U('Aftrap melden','Announce kick-off'))}${knop('einde','\u{1F3C1} '+U('Einde melden','Announce final score'))}</div>`
+    +(klaar?'':`<p class="hint" style="margin:6px 0 0">${m==='uit'?U('Zet de meldingen eerst aan om de aftrap of het einde te melden.','Turn notifications on first to announce kick-off or the final score.'):U('Vul eerst beide teams in.','Fill in both teams first.')}</p>`);
+}
+function aankondigen(soort){
+  if(cloudViewerBlocked())return;
+  if(_aankondigBevestig!==soort){
+    _aankondigBevestig=soort; clearTimeout(_aankondigT);
+    _aankondigT=setTimeout(()=>{ _aankondigBevestig=null; render(); },4000);
+    render(); return;
+  }
+  _aankondigBevestig=null; clearTimeout(_aankondigT);
+  state.aankondiging={soort,nr:Date.now()};
+  save(); render();
+  toast(soort==='start'?U('Aftrap gemeld','Kick-off announced'):U('Einde gemeld','Final score announced'));
 }
 function scoreKaart(){
   const s=scoreNu();
@@ -10084,6 +10121,7 @@ function bind(v){
     el.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } };
   });
   v.querySelectorAll('[data-meldmodus]').forEach(el=>el.onclick=()=>zetMeldModus(el.dataset.meldmodus));
+  v.querySelectorAll('[data-aankondig]').forEach(el=>el.onclick=()=>aankondigen(el.dataset.aankondig));
   v.querySelectorAll('[data-score-naam]').forEach(el=>{
     const veld = el.dataset.scoreNaam==='t' ? 'thuis' : 'uit';
     el.onchange=()=>{ zetScore(veld, el.value); render(); };
@@ -10581,8 +10619,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=322;
-const VERSIE_LABEL='26.11.6';
+const APP_VERSION=323;
+const VERSIE_LABEL='26.11.7';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.

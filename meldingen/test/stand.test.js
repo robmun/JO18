@@ -21,5 +21,22 @@ for (const [naam, vorig, nu, titel, tekst] of gevallen) {
   console.log((ok ? '✓ ' : '✗ ') + naam + (ok ? '' : `: kreeg ${JSON.stringify(b)}`));
   if (!ok) mis++;
 }
+// Aankondigingen van de coach: aftrap en einde.
+const { aankondigBericht } = require('../functions/stand');
+const ank = [
+  ['aftrap, wij thuis', 'start', s('Gooische', 'Amsterdam', 0, 0), '🏑 De wedstrijd tegen Amsterdam is begonnen', 'Gooische – Amsterdam. Volg de stand in de app.'],
+  ['aftrap, wij uit', 'start', s('Amsterdam', 'Gooische', 0, 0), '🏑 De wedstrijd tegen Amsterdam is begonnen', 'Amsterdam – Gooische. Volg de stand in de app.'],
+  ['einde gewonnen (thuis)', 'einde', s('Gooische', 'Amsterdam', 2, 0), '🏁 Wedstrijd afgelopen: gewonnen!', 'Uitslag: Gooische – Amsterdam 2-0'],
+  ['einde verloren (uit)', 'einde', s('Amsterdam', 'Gooische', 2, 0), '🏁 Wedstrijd afgelopen: verloren', 'Uitslag: Amsterdam – Gooische 2-0'],
+  ['einde gelijk', 'einde', s('Gooische', 'Amsterdam', 1, 1), '🏁 Wedstrijd afgelopen: gelijkgespeeld', 'Uitslag: Gooische – Amsterdam 1-1'],
+  ['einde zonder Gooische', 'einde', s('Amsterdam', 'Zwolle', 3, 1), '🏁 Wedstrijd afgelopen', 'Uitslag: Amsterdam – Zwolle 3-1'],
+  ['zonder namen', 'start', s('Gooische', '', 0, 0), null, null],
+];
+for (const [naam, soort, nu, titel, tekst] of ank) {
+  const b = aankondigBericht(soort, nu);
+  const ok = titel === null ? b === null : (b && b.titel === titel && b.tekst === tekst);
+  console.log((ok ? '✓ ' : '✗ ') + naam + (ok ? '' : `: kreeg ${JSON.stringify(b)}`));
+  if (!ok) mis++;
+}
 console.log(mis ? `\n${mis} niet in orde` : '\nalles in orde');
 process.exit(mis ? 1 : 0);

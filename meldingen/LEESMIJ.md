@@ -7,6 +7,10 @@ verandert:
 - **Tegendoelpunt** — We hebben helaas een tegendoelpunt moeten incasseren. Stand: …
 - **Doelpunt geannuleerd** / **Tegendoelpunt geannuleerd** — De stand is weer …
 
+**Aftrap en einde.** Onder de schakelaar staan twee knoppen voor de coach: *Aftrap melden*
+("🏑 De wedstrijd tegen Amsterdam is begonnen") en *Einde melden* ("🏁 Wedstrijd afgelopen:
+gewonnen!", met de uitslag). Pas de tweede tik verstuurt; ze volgen dezelfde schakelaar.
+
 **Naar wie?** De coach kiest het bij Meer → Wedstrijdscore → *Meldingen naar kijkers*:
 **Uit** (begint hierop), **Alleen testtoestellen** of **Iedereen**. Een testtoestel is
 een kijk-app waarin bij Meer → Meldingen *Dit is een testtoestel* is aangevinkt; in de
