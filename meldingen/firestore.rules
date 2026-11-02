@@ -1,0 +1,402 @@
+rules_version = '2';
+
+// ============================================================================
+// Beveiligingsregels voor "opstelling & wissels"
+// Plakken in: Firebase-console > Firestore Database > Regels > Publiceren
+// ============================================================================
+//
+// Het rollenmodel van de app wordt hier afgedwongen, niet alleen in de app zelf:
+//
+//   KIJKER   - ingelogd en kent de teamcode: mag een bekend team lezen, verder niets.
+//   COACH    - staat in 'editors': mag de teaminhoud wijzigen (opstelling, spelers,
+//              regels, klok), maar niet de rechten.
+//   EIGENAAR - staat in 'owner': mag daarnaast de coachlijst beheren en het
+//              koppelvenster openen.
+//   BEHEERDER- staat in 'beheer/beheerders': mag de cijfers lezen en de demo sluiten.
+//
+// Wat er ten opzichte van de vorige versie is veranderd:
+//   1. De regel voor 'coaches' werkt nu echt. Hij toetste op de sleutel
+//      'coaches.<uid>', maar affectedKeys() geeft alleen bovenste-niveau sleutels
+//      terug: bij een update van 'coaches.a7Kf9x' ziet de regel 'coaches'. De route
+//      matchte daardoor nooit, en een kijker kon zijn eigen regel niet schrijven —
+//      precies wat hij wél zou moeten kunnen, zodat de eigenaar ziet wie meekijkt.
+//      Nu wordt op 'coaches' getoetst en daarbinnen op de eigen sleutel.
+//   2. Nieuwe collectie 'beheer': de app leest daaruit of de demo nog open is en hoe
+//      lang de demoperiode duurt. Alleen lezen; schrijven doe je in de console.
+//   3. De gebruikscijfers van de demo zijn leesbaar voor wie in de beheerderslijst
+//      staat. Zo kan een eigen beheerpagina ze tonen zonder dat de regels open gaan.
+//   4. Route B2: ook een gewone coach mag het koppelvenster openzetten (alleen dat
+//      ene veld, en hooguit een uur vooruit). Zonder die route kon een team zichzelf
+//      buitensluiten zodra het kenmerk van de eigenaar verdween - zie de toelichting
+//      bij de route zelf.
+//   5. (november 2026) Kijkers mogen hun aanmelding voor meldingen bij een doelpunt
+//      vastleggen onder teams/<team>/meldingen. Zie het blok onderaan.
+//
+// Sinds november 2026 staan deze regels ook op GitHub (meldingen/firestore.rules) en
+// worden ze samen met de meldingen-code geplaatst. Wijzig ze voortaan daar, niet meer
+// in de console: bij de volgende plaatsing zou een wijziging in de console anders
+// worden overschreven.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Wie mag beheren? Eén document met een lijst kenmerken, zodat je een beheerder
+    // kunt toevoegen zonder de regels opnieuw te publiceren.
+    //   beheer/beheerders -> { uids: ["jouw-kenmerk"] }
+    function isBeheerder() {
+      return request.auth != null
+        && request.auth.uid in get(/databases/$(database)/documents/beheer/beheerders).data.get('uids', []);
+    }
+
+    match /teams/{team} {
+
+      // ---- hulpfuncties -----------------------------------------------------
+
+      function ingelogd() {
+        return request.auth != null;
+      }
+
+      // De coachlijst van dit team; ontbreekt hij, dan een lege lijst.
+      function coaches() {
+        return resource.data.get('editors', []);
+      }
+
+      function isCoach() {
+        return ingelogd() && request.auth.uid in coaches();
+      }
+
+      function isEigenaar() {
+        return ingelogd() && resource.data.get('owner', '') == request.auth.uid;
+      }
+
+      // Welke velden verandert deze schrijfactie werkelijk? Hiermee controleert
+      // Firestore per route expliciet wat er aangeraakt mag worden.
+      function gewijzigd() {
+        return request.resource.data.diff(resource.data).affectedKeys();
+      }
+
+      // Velden die de rechten bepalen. Alleen de eigenaar komt hieraan.
+      function raaktRechten() {
+        return gewijzigd().hasAny(['owner', 'editors', 'koppelTot']);
+      }
+
+      // Naast de lijst met kenmerken ('editors') houdt de app in 'coaches' bij wie
+      // dat kenmerk is: naam, toestel, sinds wanneer en laatst actief. Nodig omdat je
+      // in de console anders alleen 'a7Kf9x…' ziet en niet weet welke regel bij wie
+      // hoort. Elk toestel mag uitsluitend zijn eigen regel aanraken.
+      //
+      // Let op de twee lagen. Buiten: alleen het veld 'coaches' mag veranderen.
+      // Binnen: binnen dat veld alleen de sleutel van het eigen kenmerk. Die tweede
+      // controle was er niet — en zonder de eerste te corrigeren deed hij het ook
+      // niet, want affectedKeys() kent geen puntpaden.
+      // Geen {} als standaardwaarde: de regeltaal kent wel lijst-literalen ([]) maar
+      // geen map-literalen, en daar liep de publicatie op stuk. In plaats daarvan
+      // eerst kijken of het veld er is.
+      function alleenEigenCoachregel() {
+        return gewijzigd().hasOnly(['coaches'])
+          && ('coaches' in request.resource.data)
+          && (
+               !('coaches' in resource.data)
+                 ? request.resource.data.coaches.keys().hasOnly([request.auth.uid])
+                 : request.resource.data.coaches
+                     .diff(resource.data.coaches)
+                     .affectedKeys()
+                     .hasOnly([request.auth.uid])
+             );
+      }
+
+      // Team van voor deze beveiliging: nog geen eigenaar vastgelegd.
+      function nogGeenEigenaar() {
+        return !('owner' in resource.data);
+      }
+
+      // Staat het koppelvenster open? De eigenaar zet dit in de app (een kwartier).
+      function koppelenOpen() {
+        return resource.data.get('koppelTot', 0) > request.time.toMillis();
+      }
+
+      // ---- lezen ------------------------------------------------------------
+
+      // Een bekend team opvragen mag; de code is willekeurig en staat alleen in de
+      // gedeelde link. De collectie opsommen mag niet: dan zou elke ingelogde
+      // gebruiker alle teams kunnen ophalen en was die code waardeloos.
+      allow get:  if ingelogd();
+      allow list: if false;
+
+      // ---- aanmaken ---------------------------------------------------------
+
+      // Wie een team aanmaakt, wordt eigenaar en is de enige coach.
+      allow create: if ingelogd()
+                    && request.resource.data.owner == request.auth.uid
+                    && request.resource.data.editors == [request.auth.uid];
+
+      // ---- wijzigen: vier gescheiden routes ---------------------------------
+
+      allow update: if
+        // A. Coach wijzigt de teaminhoud: opstelling, spelers, regels, klok.
+        //    Alles mag, behalve de velden die over rechten gaan.
+        (isCoach() && !raaktRechten())
+
+        // A2. Elk ingelogd toestel mag zijn eigen regel in 'coaches' bijwerken —
+        //     ook een kijker, zodat de eigenaar ziet wie er meekijkt. Alleen die
+        //     ene regel; andere velden blijven onaangeroerd.
+        || (ingelogd() && alleenEigenCoachregel())
+
+        // B. Eigenaar beheert de rechten: coachlijst en koppelvenster. Hij kan het
+        //    eigenaarschap niet aan zichzelf ontnemen of doorgeven.
+        || (isEigenaar()
+            && gewijzigd().hasOnly(['editors', 'koppelTot'])
+            && request.resource.data.owner == resource.data.owner)
+
+        // B2. Ook een gewone coach mag het koppelvenster openzetten - en verder
+        //     niets. Zonder deze route kan een team zichzelf buitensluiten: het
+        //     kenmerk van de eigenaar zit in de opslag van zijn app, en die gooit
+        //     iOS weg zodra de app opnieuw op het beginscherm wordt gezet of de
+        //     gegevens worden gewist. Zijn nieuwe kenmerk staat dan in niets, route
+        //     B vraagt om het oude, en route D om een venster dat alleen route B kan
+        //     openen. Daarmee was de Firebase-console de enige uitweg.
+        //     Het is een kleine stap: een coach mag de hele opstelling al wijzigen,
+        //     dus een kwartier de deur openzetten voor een collega verandert weinig
+        //     aan wat hij kan. 'editors' blijft nadrukkelijk buiten deze route - de
+        //     coachlijst beheren blijft van de eigenaar. De bovengrens zorgt dat een
+        //     coach het venster niet voor onbepaalde tijd open kan zetten.
+        || (isCoach()
+            && gewijzigd().hasOnly(['koppelTot'])
+            && request.resource.data.koppelTot is number
+            && request.resource.data.koppelTot <= request.time.toMillis() + 3600000)
+
+        // C. Eenmalige claim van een team van voor deze beveiliging. Uitsluitend
+        //    het eigenaarschap vastleggen - verder mag er niets veranderen.
+        || (ingelogd()
+            && nogGeenEigenaar()
+            && gewijzigd().hasOnly(['owner', 'editors'])
+            && request.resource.data.owner == request.auth.uid
+            && request.resource.data.editors == [request.auth.uid])
+
+        // D. Tweede coach koppelt zichzelf binnen het koppelvenster. Alleen de
+        //    coachlijst mag veranderen, en alleen door er zijn eigen kenmerk
+        //    achteraan toe te voegen.
+        || (ingelogd()
+            && koppelenOpen()
+            && gewijzigd().hasOnly(['editors'])
+            && request.resource.data.editors == coaches().concat([request.auth.uid]));
+
+      // ---- verwijderen ------------------------------------------------------
+
+      // Niemand kan een team verwijderen. Let op: dat betekent ook dat gegevens van
+      // spelers niet weg te krijgen zijn zonder de Firebase-console. Wil je aan een
+      // verzoek tot verwijderen kunnen voldoen, laat dit dan aan de eigenaar toe:
+      //   allow delete: if isEigenaar();
+      allow delete: if false;
+    }
+
+    // ── Beheer: de noodrem en de demoperiode ──
+    // Twee documenten die jij in de console beheert en die de app alleen leest.
+    //
+    //   beheer/demo        { open: true, dagen: 14, boodschap: "" }
+    //       open      false zet de demo op slot bij iedereen die hem opent, ook bij
+    //                 wie hem al op zijn beginscherm heeft staan. Dat is de enige
+    //                 manier om hem echt te stoppen: de map van de server halen helpt
+    //                 niet, want de app draait offline verder uit zijn eigen opslag.
+    //       dagen     lengte van de demoperiode; laat je hem weg, dan geldt de
+    //                 veertien dagen uit de app.
+    //       boodschap eigen tekst die de demo toont als hij op slot staat.
+    //
+    //   beheer/beheerders  { uids: ["jouw-kenmerk"] }
+    //       Wie de gebruikscijfers mag lezen en de noodrem mag omzetten. Je kenmerk
+    //       vind je bovenaan de beheerpagina (beheer.html), of in de console onder
+    //       Authentication. Deze lijst kun je alleen in de console wijzigen.
+    //
+    // Lezen mag iedereen: er staat niets gevoeligs in en de app moet het kunnen
+    // ophalen vóórdat er is ingelogd.
+    //
+    // Schrijven mag alleen een beheerder, en alleen aan 'beheer/demo'. De lijst
+    // beheerders zelf blijft dicht: wie erin staat kan er dus niemand bij zetten, ook
+    // zichzelf niet opnieuw. Dat voorkomt dat één gelekt kenmerk zich vermenigvuldigt,
+    // en het houdt de console de enige plek waar je die lijst beheert.
+    // Eén blok in plaats van twee op hetzelfde pad. Twee match-regels die elkaar
+    // overlappen zijn toegestaan, maar dit leest duidelijker en laat geen twijfel
+    // bestaan: schrijven mag alleen aan 'demo', en alleen door een beheerder.
+    match /beheer/{doc} {
+      allow read: if true;
+      allow write: if doc == 'demo'
+        && isBeheerder()
+        && request.resource.data.keys().hasOnly(['open', 'dagen', 'boodschap'])
+        && (!('open' in request.resource.data) || request.resource.data.open is bool)
+        && (!('dagen' in request.resource.data)
+            || (request.resource.data.dagen is int
+                && request.resource.data.dagen > 0 && request.resource.data.dagen < 400))
+        && (!('boodschap' in request.resource.data)
+            || (request.resource.data.boodschap is string
+                && request.resource.data.boodschap.size() <= 300));
+    }
+
+    // ── Gebruiksteller van de demo ──
+    // Eén document per dag met een paar tellers erin. Er staat niets in dat naar een
+    // persoon of toestel te herleiden is, dus dit valt buiten de gegevens die je moet
+    // beschermen.
+    //
+    // De regels controleren ook wát er in de velden komt, niet alleen welke velden
+    // bestaan. Iemand die anoniem inlogt kon eerder tekst in een teller zetten of er
+    // een absurd getal in schrijven. De schade bleef beperkt tot vervuilde cijfers,
+    // maar dit kost niets en houdt het schoon.
+    //
+    // Wat hier bewust NIET wordt afgedwongen: dat een teller met precies één
+    // omhooggaat. De app gebruikt increment(), en dat als 'oud plus één' controleren
+    // betekent dat de app de nieuwe waarde zelf uitrekent en meestuurt — en dus eerst
+    // moet kunnen lezen. Dat maakt het geheel zwakker in plaats van sterker. De
+    // bovengrens hieronder begrenst de schade voldoende.
+    match /demostats/{dag} {
+
+      // Alleen een beheerder leest de cijfers, zodat een eigen beheerpagina ze kan
+      // tonen. De app zelf hoeft ze niet op te vragen — die telt alleen op.
+      allow read: if isBeheerder();
+
+      // Alleen deze velden mogen voorkomen; al het andere wordt geweigerd.
+      function alleenBekendeVelden() {
+        return request.resource.data.keys().hasOnly(
+          ['opening', 'terugkeer', 'vanaf_beginscherm',
+           'schema_gemaakt', 'timer_gestart', 'kaart', 'laatst']);
+      }
+
+      // Een teller is een geheel getal binnen een grens die een echte demo nooit
+      // haalt. Zo blijft de schade bij misbruik een getal dat je meteen als onzin
+      // herkent, in plaats van een miljard.
+      //
+      // Let op: raakt een teller die grens toch, dan wordt élke verdere telling van
+      // die dag geweigerd. De app onthoudt zo'n weigering nu in het diagnoseblok, dus
+      // het valt op in plaats van dat je maandenlang niets telt.
+      function tellerOk(veld) {
+        return !(veld in request.resource.data)
+          || (request.resource.data[veld] is int
+              && request.resource.data[veld] >= 0
+              && request.resource.data[veld] <= 100000);
+      }
+
+      function tellersKloppen() {
+        return tellerOk('opening')
+            && tellerOk('terugkeer')
+            && tellerOk('vanaf_beginscherm')
+            && tellerOk('schema_gemaakt')
+            && tellerOk('timer_gestart')
+            && tellerOk('kaart');
+      }
+
+      // 'laatst' is een tijdstip in milliseconden. Ruime marge: 2020 tot 2100.
+      function laatstKlopt() {
+        return !('laatst' in request.resource.data)
+          || (request.resource.data.laatst is int
+              && request.resource.data.laatst > 1577836800000
+              && request.resource.data.laatst < 4102444800000);
+      }
+
+      allow create, update: if request.auth != null
+        && alleenBekendeVelden()
+        && tellersKloppen()
+        && laatstKlopt();
+
+      // Cijfers verwijderen doe je zelf in de console, niet vanuit de app.
+      allow delete: if false;
+    }
+
+    // ── Techniek- en fouttellers ──
+    // Eén document per week, met per onderwerp een groepje tellers:
+    //
+    //   techniek/2026-W37 -> {
+    //     soort:      { iphone: 45, ipad: 7, android: 3 },
+    //     ios:        { "16": 4, "17": 28, "18": 20 },
+    //     scherm:     { "390x844": 20, "430x932": 12 },
+    //     standalone: { ja: 30, nee: 22 },
+    //     appversie:  { "26_9_45": 48, "26_9_20": 7 },
+    //     omgeving:   { app: 40, demo: 15 },
+    //     fouten:     { opslaan: 3, genereren: 1 }
+    //   }
+    //
+    // Bewust opgeteld in groepen en niet als regel per toestel. Schermmaat plus
+    // iOS-versie plus app-versie is samen behoorlijk uniek; als losse regels zou dat
+    // een vingerafdruk worden en dus een persoonsgegeven in plaats van statistiek.
+    // Bij 'fouten' gaat alleen de categorie mee, nooit de tekst — die kan een
+    // spelersnaam bevatten.
+    match /techniek/{week} {
+
+      // Alleen een beheerder leest mee.
+      allow read: if isBeheerder();
+
+      // Wat er per onderwerp binnenkomt is niet vooraf op te sommen: schermmaten en
+      // app-versies zijn open reeksen. Wat wél kan is begrenzen: alleen deze zeven
+      // onderwerpen, en per schrijfactie hoogstens acht tellers tegelijk. Eén bezoek
+      // raakt er zes aan, een fout één. Iemand die de boel wil vervuilen kan dus geen
+      // duizend velden in één keer aanmaken.
+      function bekendeOnderwerpen() {
+        return request.resource.data.keys().hasOnly(
+          ['soort', 'ios', 'scherm', 'standalone', 'appversie', 'omgeving', 'fouten', 'laatst']);
+      }
+
+      function kleineWijziging() {
+        return request.resource.data.diff(resource.data).affectedKeys().size() <= 8;
+      }
+
+      function laatstKlopt() {
+        return !('laatst' in request.resource.data)
+          || (request.resource.data.laatst is int
+              && request.resource.data.laatst > 1577836800000
+              && request.resource.data.laatst < 4102444800000);
+      }
+
+      allow create: if request.auth != null
+        && week.matches('^[0-9]{4}-W[0-9]{2}$')
+        && bekendeOnderwerpen()
+        && laatstKlopt();
+
+      allow update: if request.auth != null
+        && bekendeOnderwerpen()
+        && kleineWijziging()
+        && laatstKlopt();
+
+      allow delete: if false;
+    }
+
+    // ── Meldingen bij een doelpunt (sinds november 2026) ──
+    // Een kijker die meldingen aanzet, legt hier zijn aanmelding vast:
+    //
+    //   teams/<team>/meldingen/<id>  { token, uid, sinds, laatst }
+    //
+    // <id> is een vingerafdruk (SHA-256) van het token, zodat hetzelfde toestel bij
+    // opnieuw aanzetten zijn eigen regel overschrijft in plaats van een tweede aan te
+    // maken. Het token is het adres waarop Firebase de melding aflevert; meer staat er
+    // niet in, geen naam en geen telefoonnummer.
+    //
+    // Lezen kan niemand vanuit een app. Alleen de meldingen-code bij Firebase leest
+    // deze lijst, en die heeft daar geen regels voor nodig.
+    // Aanmaken mag alleen bij een team dat bestaat: wie de teamcode niet kent, kan
+    // hier niets neerzetten. Bijwerken mag wie hetzelfde token heeft (iOS kan de app-
+    // opslag weggooien, en dan heeft hetzelfde toestel een nieuw kenmerk). Verwijderen
+    // mag het toestel dat de regel aanmaakte.
+    //
+    // 'meldstand/<team>' houdt bij welke stand het laatst is gemeld. Alleen de
+    // meldingen-code komt daaraan; voor apps blijft hij dicht via de regel hieronder.
+    match /teams/{team}/meldingen/{id} {
+      function geldigeAanmelding() {
+        let d = request.resource.data;
+        return id.matches('^[0-9a-f]{64}$')
+          && d.keys().hasOnly(['token', 'uid', 'sinds', 'laatst'])
+          && d.token is string && d.token.size() > 20 && d.token.size() < 4096
+          && d.uid == request.auth.uid
+          && d.sinds is int && d.laatst is int;
+      }
+      allow read: if false;
+      allow create: if request.auth != null
+        && exists(/databases/$(database)/documents/teams/$(team))
+        && geldigeAanmelding();
+      allow update: if request.auth != null
+        && geldigeAanmelding()
+        && request.resource.data.token == resource.data.token;
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
+    // Al het overige binnen dit project is dicht.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

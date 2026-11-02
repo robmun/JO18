@@ -10,9 +10,11 @@ const traag = false;
 
 // verwacht.manifest: welk manifestbestand in de pagina moet staan, of null voor geen.
 const ADRESSEN = [
+  // Sinds 26.11.2 heeft het pad-adres wél een manifest: zonder manifest kent iOS geen
+  // meldingen. Het oude adres met parameters houdt de oude weg, zonder manifest.
   { naam: 'kijk-link (pad)', pad: 't/geheimcode123/', verwacht: {
       status: 404, rol: 'viewer', tabs: 2, team: 'geheimcode123',
-      map: '/JO18/', manifest: null, schermnaam: 'JO18-5 view-only' } },
+      map: '/JO18/', manifest: 'manifest-kijk.webmanifest', schermnaam: 'JO18-5 view-only' } },
   { naam: 'kijk-link (oud)', pad: 'index.html?team=oudestijl99&rol=kijker', verwacht: {
       status: 200, rol: 'viewer', tabs: 2, team: 'oudestijl99',
       map: '/JO18/', manifest: null, schermnaam: 'JO18-5 view-only' } },

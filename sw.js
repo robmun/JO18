@@ -7,6 +7,19 @@
 // immers voor — en het zou dit bestand bij elke release opnieuw laten uploaden.
 // Nu is sw.js een vast bestand: eenmalig plaatsen en klaar.
 
+// ── Meldingen bij een doelpunt (sinds 26.11.2) ──
+// Ontvangt de meldingen die de meldingen-code bij Firebase verstuurt als de stand
+// verandert, en toont ze ook als de app dicht is. De Firebase-bibliotheek doet het
+// tonen zelf, en opent bij een tik de kijk-link die in de melding meekomt.
+// In een try: lukt het laden niet (geen verbinding bij het installeren), dan blijft
+// de rest van deze worker gewoon werken en komt het bij de volgende keer goed.
+try {
+  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
+                'https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+  firebase.initializeApp({"apiKey":"AIzaSyDwrfF3mDmievts5mme5fOlRJ3O3fhKGb8","authDomain":"hockey-app-teaming.firebaseapp.com","projectId":"hockey-app-teaming","storageBucket":"hockey-app-teaming.firebasestorage.app","messagingSenderId":"527542328518","appId":"1:527542328518:web:e2537891c7941d09568bc7"});
+  firebase.messaging();
+} catch (e) {}
+
 // ── Twee gescheiden caches ──
 // De echte app en de demo delen dezelfde herkomst: robmun.github.io is één
 // herkomst voor ál je GitHub Pages-projecten, want het pad telt niet mee. Zonder
