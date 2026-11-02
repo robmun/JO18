@@ -14,7 +14,7 @@
 //   5. Naar wie? De coach kiest het in de app (de stand 'meldingen'):
 //        uit  — niets versturen (de laatst verstuurde stand wordt wél bijgewerkt,
 //               zodat er na het weer aanzetten geen oude doelpunten worden gemeld);
-//        test — alleen toestellen met test: true, en 'TEST ·' voor de titel;
+//        test — alleen toestellen met test: true, en '[TEST]' voor de tekst;
 //        aan  — iedereen in teams/<team>/meldingen.
 //      Wie niet meer bereikbaar is, wordt daaruit opgeruimd.
 //
@@ -48,7 +48,8 @@ const WEG = new Set([
 // Verstuurt een bericht volgens de schakelaar. Geeft de reden terug als er niets ging.
 async function verstuur(team, m, modus, log) {
   if (modus === 'uit') { log('schakelaar staat op uit', { soort: m.soort }); return; }
-  if (modus === 'test') m = Object.assign({}, m, { titel: `TEST · ${m.titel}` });
+  // TEST vóór de tekst en niet vóór de titel: de titel past op iOS maar op één regel.
+  if (modus === 'test') m = Object.assign({}, m, { tekst: `[TEST] ${m.tekst}` });
   const lijst = await db.collection('teams').doc(team).collection('meldingen').get();
   const docs = lijst.docs.filter(d => typeof d.get('token') === 'string' && (modus === 'aan' || d.get('test') === true));
   if (!docs.length) {

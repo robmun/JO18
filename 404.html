@@ -4694,7 +4694,7 @@ function kijkerUitleg(){
     +'<button class="btn full" id="opnieuwBtn" style="margin-top:10px">'+U('Verbind als coach','Connect as a coach')+'</button>';
 }
 // ── Meldingen bij een doelpunt ──
-// Een kijker kan een melding krijgen als de stand verandert: 'Doelpunt voor Gooische!',
+// Een kijker kan een melding krijgen als de stand verandert: 'Gooische scoort!',
 // een tegendoelpunt, of een geannuleerd doelpunt. Het versturen gebeurt bij Firebase
 // (meldingen/functions op GitHub); de app legt alleen vast dat dit toestel meldingen
 // wil, in teams/<team>/meldingen/<vingerafdruk van het token>.
@@ -4796,7 +4796,7 @@ function meldUitleg(){
   const st=meldStaat();
   if(st==='aan')return {tekst:U('Je krijgt een melding als er gescoord wordt, en als een doelpunt wordt afgekeurd.','You get a notification when someone scores, and when a goal is disallowed.')
     +(meldModus()==='uit'?' '+U('De coach heeft de meldingen op dit moment uitgezet.','The coach has turned notifications off for now.'):''),knop:['uit',U('Meldingen uitzetten','Turn notifications off')],test:true};
-  if(st==='kan')return {tekst:U('Een melding op je vergrendelscherm als er gescoord wordt: ‘⚽ Doelpunt voor Gooische!’, een tegendoelpunt, of een afgekeurd doelpunt.','A notification on your lock screen when someone scores: a goal, a goal against, or a disallowed goal.'),knop:['aan','\u{1F514} '+U('Meldingen aanzetten','Turn on notifications')]};
+  if(st==='kan')return {tekst:U('Een melding op je vergrendelscherm bij de aftrap, als er gescoord wordt (‘🏑 Gooische scoort!’), bij een afgekeurd doelpunt en bij het eindsignaal.','A notification on your lock screen at kick-off, when someone scores, when a goal is disallowed, and at full time.'),knop:['aan','\u{1F514} '+U('Meldingen aanzetten','Turn on notifications')]};
   if(st==='beginscherm')return {tekst:U('Meldingen werken op een iPhone of iPad alleen in de app op je beginscherm. Tik in Safari op de deelknop, kies <b>Zet op beginscherm</b>, open de app vanaf het pictogram en kom hier terug.','On an iPhone or iPad, notifications only work in the app on your Home Screen. In Safari tap the share button, choose <b>Add to Home Screen</b>, open the app from the icon and come back here.')};
   if(st==='geblokkeerd')return {tekst:U('Meldingen zijn op dit toestel geweigerd. Zet ze aan bij <b>Instellingen → Meldingen</b> en kies deze app.','Notifications are blocked on this device. Turn them on in <b>Settings → Notifications</b> and pick this app.')};
   if(st==='kan-niet')return {tekst:U('Dit toestel kan geen meldingen ontvangen. Op een iPhone of iPad is iOS 16.4 of nieuwer nodig.','This device cannot receive notifications. An iPhone or iPad needs iOS 16.4 or later.')};
@@ -10619,8 +10619,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=323;
-const VERSIE_LABEL='26.11.7';
+const APP_VERSION=324;
+const VERSIE_LABEL='26.11.8';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.

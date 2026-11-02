@@ -55,6 +55,9 @@ function leesAankondiging(data) {
   }
 }
 
+// De titel staat op iOS op één regel en wordt daarna afgekapt ('Doelpunt voor Gooisc…'),
+// dus titels zijn kort en de details staan in de tekst eronder, die wel doorloopt.
+//
 // Bericht bij een aankondiging. Tegenstander = de ploeg die niet Gooische is.
 function aankondigBericht(soort, nu) {
   if (!nu || !nu.thuis || !nu.uit) return null;
@@ -63,8 +66,8 @@ function aankondigBericht(soort, nu) {
   const wedstrijd = `${nu.thuis} – ${nu.uit}`;
   if (soort === 'start') {
     return {
-      titel: tegen ? `🏑 De wedstrijd tegen ${tegen} is begonnen` : `🏑 ${wedstrijd} is begonnen`,
-      tekst: `${wedstrijd}. Volg de stand in de app.`,
+      titel: tegen ? `🏑 Aftrap tegen ${tegen}` : '🏑 Aftrap',
+      tekst: `De wedstrijd ${wedstrijd} is begonnen. Volg de stand in de app of via de notifications.`,
       soort: 'aftrap',
     };
   }
@@ -73,7 +76,7 @@ function aankondigBericht(soort, nu) {
     const zij = onsZijde === 't' ? nu.u : onsZijde === 'u' ? nu.t : null;
     const uitkomst = wij == null ? null : wij > zij ? 'gewonnen!' : wij < zij ? 'verloren' : 'gelijkgespeeld';
     return {
-      titel: uitkomst ? `🏁 Wedstrijd afgelopen: ${uitkomst}` : '🏁 Wedstrijd afgelopen',
+      titel: uitkomst ? `🏁 Afgelopen: ${uitkomst}` : '🏁 Wedstrijd afgelopen',
       tekst: `Uitslag: ${standTekst(nu)}`,
       soort: 'einde',
     };
@@ -117,10 +120,10 @@ function bericht(vorig, nu) {
 
   if (soort === 'doelpunt') {
     if (onsZijde === zijde)
-      return { titel: `🏑 Doelpunt voor ${naam(zijde)}!`, tekst: `Er is gescoord door ons team. Stand: ${stand}`, soort: 'voor' };
+      return { titel: `🏑 ${naam(zijde)} scoort!`, tekst: `Er is gescoord door ons team. Stand: ${stand}`, soort: 'voor' };
     if (onsZijde)
       return { titel: 'Tegendoelpunt', tekst: `We hebben helaas een tegendoelpunt moeten incasseren. Stand: ${stand}`, soort: 'tegen' };
-    return { titel: `🏑 Doelpunt voor ${naam(zijde)}`, tekst: `Stand: ${stand}`, soort: 'neutraal' };
+    return { titel: `🏑 ${naam(zijde)} scoort`, tekst: `Stand: ${stand}`, soort: 'neutraal' };
   }
   // geannuleerd
   if (onsZijde === zijde)

@@ -3,7 +3,7 @@
 //     node ../test/functie.test.js
 //
 // Speelt na wat er langs de lijn gebeurt:
-//   1. doelpunt voor ons (uitploeg)  → 'Doelpunt voor Gooische!' naar alle aangemelden
+//   1. doelpunt voor ons (uitploeg)  → 'Gooische scoort!' naar alle aangemelden
 //   2. +1 en binnen 10 s weer −1     → niets
 //   3. tegendoelpunt                 → 'Tegendoelpunt'
 //   4. doelpunt geannuleerd          → 'Doelpunt geannuleerd', stand weer terug
@@ -93,7 +93,7 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
 (async () => {
   let n = verzonden.length;
   await wijzig(AG(0, 1));
-  zeg(verzonden.length === n + 1 && laatste().notification.title === '🏑 Doelpunt voor Gooische!'
+  zeg(verzonden.length === n + 1 && laatste().notification.title === '🏑 Gooische scoort!'
       && laatste().notification.body === 'Er is gescoord door ons team. Stand: Amsterdam – Gooische 0-1',
       `1. doelpunt voor ons als uitploeg: '${laatste().notification.title}' / '${laatste().notification.body}'`);
   zeg(laatste().tokens.length === 2, '   naar beide aangemelde toestellen');
@@ -132,7 +132,7 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
   await wijzig({ thuis: 'Gooische', uit: 'Zwolle', t: 0, u: 0 });
   zeg(verzonden.length === n, '7. nieuwe wedstrijd ingevuld: geen melding');
   await wijzig({ thuis: 'Gooische', uit: 'Zwolle', t: 1, u: 0 });
-  zeg(laatste().notification.title === '🏑 Doelpunt voor Gooische!', '   daarna doelpunt voor ons als thuisploeg');
+  zeg(laatste().notification.title === '🏑 Gooische scoort!', '   daarna doelpunt voor ons als thuisploeg');
 
   // 8. Schakelaar op 'uit': niets versturen. Een doelpunt in die tijd wordt daarna niet
   //    alsnog gemeld: de laatst verstuurde stand loopt gewoon mee.
@@ -141,13 +141,13 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
   await wijzig({ thuis: 'Gooische', uit: 'Zwolle', t: 2, u: 0 });
   zeg(verzonden.length === n, `8. schakelaar uit: ${verzonden.length - n} meldingen`);
 
-  // 9. Schakelaar op 'test': alleen het testtoestel, met TEST · ervoor.
+  // 9. Schakelaar op 'test': alleen het testtoestel, met [TEST] voor de tekst.
   MODUS = 'test';
   store.set(`teams/${TEAM}/meldingen/${'c'.repeat(64)}`, { token: 'token-ouder-3-xxxxxxxxxxxxxxxxxxxx', uid: 'u3', sinds: 1, laatst: 1 });
   n = verzonden.length;
   await wijzig({ thuis: 'Gooische', uit: 'Zwolle', t: 3, u: 0 });
   zeg(verzonden.length === n + 1 && laatste().tokens.length === 1 && laatste().tokens[0] === T1
-      && laatste().notification.title === 'TEST · 🏑 Doelpunt voor Gooische!',
+      && laatste().notification.title === '🏑 Gooische scoort!' && laatste().notification.body.startsWith('[TEST] '),
       `9. alleen testtoestellen: ${laatste().tokens.length} toestel, '${laatste().notification.title}'`);
 
   // 10. En weer op 'aan': iedereen, zonder TEST.
@@ -161,7 +161,7 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
   AANK = { soort: 'start', nr: 1001 };
   let t1 = Date.now();
   await wijzig(nuStand);
-  zeg(verzonden.length === n + 1 && laatste().notification.title === '🏑 De wedstrijd tegen Zwolle is begonnen' && Date.now() - t1 < 1000,
+  zeg(verzonden.length === n + 1 && laatste().notification.title === '🏑 Aftrap tegen Zwolle' && Date.now() - t1 < 1000,
       `11. aftrap: '${laatste().notification.title}' na ${Date.now() - t1} ms`);
   // Dezelfde aankondiging nog eens (andere wijziging, zelfde nummer): niet opnieuw.
   n = verzonden.length;
@@ -172,8 +172,8 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
   AANK = { soort: 'einde', nr: 1002 };
   n = verzonden.length;
   await wijzig(nuStand);
-  zeg(verzonden.length === n + 1 && laatste().notification.title === 'TEST · 🏁 Wedstrijd afgelopen: gewonnen!'
-      && laatste().notification.body === `Uitslag: Gooische – Zwolle ${nuStand.t}-${nuStand.u}` && laatste().tokens.length === 1,
+  zeg(verzonden.length === n + 1 && laatste().notification.title === '🏁 Afgelopen: gewonnen!'
+      && laatste().notification.body === `[TEST] Uitslag: Gooische – Zwolle ${nuStand.t}-${nuStand.u}` && laatste().tokens.length === 1,
       `12. einde in de teststand: '${laatste().notification.title}' / '${laatste().notification.body}' naar ${laatste().tokens.length}`);
   // 13. Schakelaar uit: ook geen aankondiging.
   MODUS = 'uit';

@@ -3,18 +3,18 @@
 Kijkers die het aanzetten, krijgen een melding op hun vergrendelscherm als de stand
 verandert:
 
-- **🏑 Doelpunt voor Gooische!** — Er is gescoord door ons team. Stand: Gooische – Amsterdam 1-0
+- **🏑 Gooische scoort!** — Er is gescoord door ons team. Stand: Gooische – Amsterdam 1-0
 - **Tegendoelpunt** — We hebben helaas een tegendoelpunt moeten incasseren. Stand: …
 - **Doelpunt geannuleerd** / **Tegendoelpunt geannuleerd** — De stand is weer …
 
 **Aftrap en einde.** Onder de schakelaar staan twee knoppen voor de coach: *Aftrap melden*
-("🏑 De wedstrijd tegen Amsterdam is begonnen") en *Einde melden* ("🏁 Wedstrijd afgelopen:
-gewonnen!", met de uitslag). Pas de tweede tik verstuurt; ze volgen dezelfde schakelaar.
+("🏑 Aftrap tegen Amsterdam") en *Einde melden* ("🏁 Afgelopen: gewonnen!", met de
+uitslag). Pas de tweede tik verstuurt; ze volgen dezelfde schakelaar.
 
 **Naar wie?** De coach kiest het bij Meer → Wedstrijdscore → *Meldingen naar kijkers*:
 **Uit** (begint hierop), **Alleen testtoestellen** of **Iedereen**. Een testtoestel is
 een kijk-app waarin bij Meer → Meldingen *Dit is een testtoestel* is aangevinkt; in de
-teststand krijgen alleen die een melding, met `TEST ·` voor de titel.
+teststand krijgen alleen die een melding, met `[TEST]` voor de tekst.
 
 De thuisploeg staat altijd links. Een doelpunt aan de kant van Gooische is altijd een
 doelpunt voor ons, thuis of uit. Speelt Gooische niet mee, dan is de melding neutraal.
