@@ -6,8 +6,8 @@ regel, daaronder de wedstrijd, de stand en bij een doelpunt de speeltijd:
 | Wanneer | Titel | Tekst |
 |---|---|---|
 | Aftrap (knop) | 🏑 De wedstrijd is begonnen | Amsterdam – Gooische |
-| Doelpunt voor ons | 🏑 Gooische scoort! | Amsterdam – Gooische / 0 - 1 / Q1 · 02:24 |
-| Tegendoelpunt | 🏑 Tegendoelpunt! | Amsterdam – Gooische / 1 - 1 / Q3 · 16:10 |
+| Doelpunt voor ons | 🏑 Gooische scoort! | Amsterdam – Gooische / 0 - 1 / Q1 - 02:24 |
+| Tegendoelpunt | 🏑 Tegendoelpunt! | Amsterdam – Gooische / 1 - 1 / Q3 - 16:10 |
 | Afgekeurd | Doelpunt afgekeurd / Tegendoelpunt afgekeurd | Amsterdam – Gooische / 0 - 1 |
 | Einde (knop) | 🏁 Wedstrijd beëindigd | Amsterdam – Gooische / 1 - 1 |
 

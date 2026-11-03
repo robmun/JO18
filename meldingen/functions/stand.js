@@ -94,14 +94,14 @@ function standRegels(s) {
 }
 
 // Speeltijd uit de gedeelde klok: { q, basis (s), sinds (ms), loopt }. Verstreken
-// tijd in het kwart, zoals op de klok: 'Q1 · 02:24'. Null als er geen klok loopt.
+// tijd in het kwart, zoals op de klok: 'Q1 - 02:24'. Null als er geen klok loopt.
 function speeltijd(klok, op) {
   if (!klok || !Number.isFinite(klok.q)) return null;
   let sec = Number(klok.basis) || 0;
   if (klok.loopt && Number.isFinite(klok.sinds)) sec += Math.max(0, ((op || Date.now()) - klok.sinds) / 1000);
   sec = Math.max(0, Math.min(17.5 * 60, Math.floor(sec)));
   if (!sec && !klok.loopt) return null;
-  return `Q${klok.q} · ${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+  return `Q${klok.q} - ${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
 }
 
 function standTekst(s) {

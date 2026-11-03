@@ -52,9 +52,9 @@ for (const [naam, vorig, nu] of gevallen) {
 const { speeltijd } = require('../functions/stand');
 const T0 = 1800000000000;
 const tijden = [
-  ['klok loopt', { q: 1, basis: 120, sinds: T0 - 24000, loopt: true }, T0, 'Q1 · 02:24'],
-  ['klok stil', { q: 3, basis: 970, loopt: false }, T0, 'Q3 · 16:10'],
-  ['niet langer dan een kwart', { q: 2, basis: 1000, sinds: T0 - 600000, loopt: true }, T0, 'Q2 · 17:30'],
+  ['klok loopt', { q: 1, basis: 120, sinds: T0 - 24000, loopt: true }, T0, 'Q1 - 02:24'],
+  ['klok stil', { q: 3, basis: 970, loopt: false }, T0, 'Q3 - 16:10'],
+  ['niet langer dan een kwart', { q: 2, basis: 1000, sinds: T0 - 600000, loopt: true }, T0, 'Q2 - 17:30'],
   ['geen klok', null, T0, null],
   ['klok nog niet gestart', { q: 1, basis: 0, loopt: false }, T0, null],
 ];

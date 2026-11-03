@@ -94,7 +94,7 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
   let n = verzonden.length;
   await wijzig(AG(0, 1));
   zeg(verzonden.length === n + 1 && laatste().notification.title === '🏑 Gooische scoort!'
-      && laatste().notification.body === 'Amsterdam – Gooische\n0 - 1\nQ1 · 06:52',
+      && laatste().notification.body === 'Amsterdam – Gooische\n0 - 1\nQ1 - 06:52',
       `1. doelpunt voor ons als uitploeg: '${laatste().notification.title}' / '${laatste().notification.body}'`);
   zeg(laatste().tokens.length === 2, '   naar beide aangemelde toestellen');
   zeg(laatste().webpush.fcmOptions.link === `https://robmun.github.io/JO18/t/${TEAM}/`, '   tik op de melding opent de kijk-link');
@@ -109,7 +109,7 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
   n = verzonden.length;
   await wijzig(AG(1, 1));
   zeg(verzonden.length === n + 1 && laatste().notification.title === '🏑 Tegendoelpunt!'
-      && laatste().notification.body === 'Amsterdam – Gooische\n1 - 1\nQ1 · 06:52',
+      && laatste().notification.body === 'Amsterdam – Gooische\n1 - 1\nQ1 - 06:52',
       `3. tegendoelpunt: '${laatste().notification.title}' / '${laatste().notification.body}'`);
 
   n = verzonden.length;
