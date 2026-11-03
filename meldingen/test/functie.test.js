@@ -69,7 +69,7 @@ const { standMelding } = require(path.join(F, 'index.js'));
 
 const TEAM = 'Abc123xyz789';
 let MODUS = 'aan', AANK = null;
-const teamData = (score, klok) => ({ state: JSON.stringify({ score, players: [], meldingen: MODUS, aankondiging: AANK }), klok: klok || { q: 1 }, rev: 1 });
+const teamData = (score, klok) => ({ state: JSON.stringify({ score, players: [], meldingen: MODUS, aankondiging: AANK }), klok: klok || { q: 1, basis: 412, loopt: false }, rev: 1 });
 let huidig = teamData({ thuis: 'Amsterdam', uit: 'Gooische', t: 0, u: 0 });
 store.set(`teams/${TEAM}`, huidig);
 const T1 = 'token-ouder-1-xxxxxxxxxxxxxxxxxxxx', T2 = 'token-ouder-2-xxxxxxxxxxxxxxxxxxxx';
@@ -82,7 +82,7 @@ function wijzig(score, klok) {
   huidig = teamData(score, klok);
   store.set(`teams/${TEAM}`, huidig);
   const s = d => ({ data: () => d });
-  return standMelding.run({ before: s(voor), after: s(huidig) }, { params: { team: TEAM } });
+  return standMelding.run({ before: s(voor), after: s(huidig) }, { params: { team: TEAM }, timestamp: new Date().toISOString() });
 }
 const mis = [];
 const laatste = () => verzonden[verzonden.length - 1] || { notification: {}, tokens: [], webpush: { fcmOptions: {} } };
@@ -94,7 +94,7 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
   let n = verzonden.length;
   await wijzig(AG(0, 1));
   zeg(verzonden.length === n + 1 && laatste().notification.title === '🏑 Gooische scoort!'
-      && laatste().notification.body === 'Er is gescoord door ons team. Stand: Amsterdam – Gooische 0-1',
+      && laatste().notification.body === 'Amsterdam – Gooische\n0 - 1\nQ1 · 06:52',
       `1. doelpunt voor ons als uitploeg: '${laatste().notification.title}' / '${laatste().notification.body}'`);
   zeg(laatste().tokens.length === 2, '   naar beide aangemelde toestellen');
   zeg(laatste().webpush.fcmOptions.link === `https://robmun.github.io/JO18/t/${TEAM}/`, '   tik op de melding opent de kijk-link');
@@ -108,14 +108,14 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
 
   n = verzonden.length;
   await wijzig(AG(1, 1));
-  zeg(verzonden.length === n + 1 && laatste().notification.title === 'Tegendoelpunt'
-      && laatste().notification.body === 'We hebben helaas een tegendoelpunt moeten incasseren. Stand: Amsterdam – Gooische 1-1',
+  zeg(verzonden.length === n + 1 && laatste().notification.title === '🏑 Tegendoelpunt!'
+      && laatste().notification.body === 'Amsterdam – Gooische\n1 - 1\nQ1 · 06:52',
       `3. tegendoelpunt: '${laatste().notification.title}' / '${laatste().notification.body}'`);
 
   n = verzonden.length;
   await wijzig(AG(1, 0));
-  zeg(verzonden.length === n + 1 && laatste().notification.title === 'Doelpunt geannuleerd'
-      && laatste().notification.body === 'Het doelpunt van Gooische telt niet. De stand is weer Amsterdam – Gooische 1-0',
+  zeg(verzonden.length === n + 1 && laatste().notification.title === 'Doelpunt afgekeurd'
+      && laatste().notification.body === 'Amsterdam – Gooische\n1 - 0',
       `4. geannuleerd: '${laatste().notification.title}' / '${laatste().notification.body}'`);
 
   n = verzonden.length;
@@ -153,7 +153,7 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
   // 10. En weer op 'aan': iedereen, zonder TEST.
   MODUS = 'aan';
   await wijzig({ thuis: 'Gooische', uit: 'Zwolle', t: 3, u: 1 });
-  zeg(laatste().tokens.length === 2 && laatste().notification.title === 'Tegendoelpunt', `10. iedereen: ${laatste().tokens.length} toestellen, '${laatste().notification.title}'`);
+  zeg(laatste().tokens.length === 2 && laatste().notification.title === '🏑 Tegendoelpunt!', `10. iedereen: ${laatste().tokens.length} toestellen, '${laatste().notification.title}'`);
 
   // 11. Aftrap melden: meteen, zonder tien seconden te wachten.
   const nuStand = JSON.parse(huidig.state).score;
@@ -161,7 +161,7 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
   AANK = { soort: 'start', nr: 1001 };
   let t1 = Date.now();
   await wijzig(nuStand);
-  zeg(verzonden.length === n + 1 && laatste().notification.title === '🏑 Aftrap tegen Zwolle' && Date.now() - t1 < 1000,
+  zeg(verzonden.length === n + 1 && laatste().notification.title === '🏑 De wedstrijd is begonnen' && Date.now() - t1 < 1000,
       `11. aftrap: '${laatste().notification.title}' na ${Date.now() - t1} ms`);
   // Dezelfde aankondiging nog eens (andere wijziging, zelfde nummer): niet opnieuw.
   n = verzonden.length;
@@ -172,8 +172,8 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
   AANK = { soort: 'einde', nr: 1002 };
   n = verzonden.length;
   await wijzig(nuStand);
-  zeg(verzonden.length === n + 1 && laatste().notification.title === '🏁 Afgelopen: gewonnen!'
-      && laatste().notification.body === `[TEST] Uitslag: Gooische – Zwolle ${nuStand.t}-${nuStand.u}` && laatste().tokens.length === 1,
+  zeg(verzonden.length === n + 1 && laatste().notification.title === '🏁 Wedstrijd beëindigd'
+      && laatste().notification.body === `[TEST] Gooische – Zwolle\n${nuStand.t} - ${nuStand.u}` && laatste().tokens.length === 1,
       `12. einde in de teststand: '${laatste().notification.title}' / '${laatste().notification.body}' naar ${laatste().tokens.length}`);
   // 13. Schakelaar uit: ook geen aankondiging.
   MODUS = 'uit';

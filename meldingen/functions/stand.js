@@ -57,6 +57,7 @@ function leesAankondiging(data) {
 
 // De titel staat op iOS op één regel en wordt daarna afgekapt ('Doelpunt voor Gooisc…'),
 // dus titels zijn kort en de details staan in de tekst eronder, die wel doorloopt.
+// Een regelovergang (\n) in de tekst toont iOS als een nieuwe regel.
 //
 // Bericht bij een aankondiging. Tegenstander = de ploeg die niet Gooische is.
 function aankondigBericht(soort, nu) {
@@ -66,18 +67,15 @@ function aankondigBericht(soort, nu) {
   const wedstrijd = `${nu.thuis} – ${nu.uit}`;
   if (soort === 'start') {
     return {
-      titel: tegen ? `🏑 Aftrap tegen ${tegen}` : '🏑 Aftrap',
-      tekst: `De wedstrijd ${wedstrijd} is begonnen. Volg de stand in de app of via de notifications.`,
+      titel: '🏑 De wedstrijd is begonnen',
+      tekst: wedstrijd,
       soort: 'aftrap',
     };
   }
   if (soort === 'einde') {
-    const wij = onsZijde === 't' ? nu.t : onsZijde === 'u' ? nu.u : null;
-    const zij = onsZijde === 't' ? nu.u : onsZijde === 'u' ? nu.t : null;
-    const uitkomst = wij == null ? null : wij > zij ? 'gewonnen!' : wij < zij ? 'verloren' : 'gelijkgespeeld';
     return {
-      titel: uitkomst ? `🏁 Afgelopen: ${uitkomst}` : '🏁 Wedstrijd afgelopen',
-      tekst: `Uitslag: ${standTekst(nu)}`,
+      titel: '🏁 Wedstrijd beëindigd',
+      tekst: standRegels(nu),
       soort: 'einde',
     };
   }
@@ -86,6 +84,24 @@ function aankondigBericht(soort, nu) {
 
 function gelijk(a, b) {
   return !!a && !!b && a.thuis === b.thuis && a.uit === b.uit && a.t === b.t && a.u === b.u;
+}
+
+// Indeling van Robert (3 november 2026): de wedstrijd op de ene regel, de stand op
+// de volgende, en bij een doelpunt de speeltijd daaronder. iOS bepaalt kleur,
+// uitlijning en lettergrootte; een app geeft alleen titel en tekst mee.
+function standRegels(s) {
+  return `${s.thuis} – ${s.uit}\n${s.t} - ${s.u}`;
+}
+
+// Speeltijd uit de gedeelde klok: { q, basis (s), sinds (ms), loopt }. Verstreken
+// tijd in het kwart, zoals op de klok: 'Q1 · 02:24'. Null als er geen klok loopt.
+function speeltijd(klok, op) {
+  if (!klok || !Number.isFinite(klok.q)) return null;
+  let sec = Number(klok.basis) || 0;
+  if (klok.loopt && Number.isFinite(klok.sinds)) sec += Math.max(0, ((op || Date.now()) - klok.sinds) / 1000);
+  sec = Math.max(0, Math.min(17.5 * 60, Math.floor(sec)));
+  if (!sec && !klok.loopt) return null;
+  return `Q${klok.q} · ${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
 }
 
 function standTekst(s) {
@@ -105,7 +121,7 @@ function bericht(vorig, nu) {
   // beginnen, geen geannuleerd doelpunt.
   if (nu.t === 0 && nu.u === 0 && vorig.t + vorig.u > 1) return null;
 
-  const stand = standTekst(nu);
+  const stand = standRegels(nu);
   const onsZijde = ONS.test(nu.thuis) ? 't' : ONS.test(nu.uit) ? 'u' : null;
   const naam = z => (z === 't' ? nu.thuis : nu.uit);
   const ander = z => (z === 't' ? 'u' : 't');
@@ -116,21 +132,21 @@ function bericht(vorig, nu) {
   else if (dt === -1 && du === 0) { zijde = 't'; soort = 'geannuleerd'; }
   else if (dt === 0 && du === -1) { zijde = 'u'; soort = 'geannuleerd'; }
 
-  if (!soort) return { titel: 'Stand bijgewerkt', tekst: `Stand: ${stand}`, soort: 'anders' };
+  if (!soort) return { titel: 'Stand bijgewerkt', tekst: stand, soort: 'anders' };
 
   if (soort === 'doelpunt') {
     if (onsZijde === zijde)
-      return { titel: `🏑 ${naam(zijde)} scoort!`, tekst: `Er is gescoord door ons team. Stand: ${stand}`, soort: 'voor' };
+      return { titel: `🏑 ${naam(zijde)} scoort!`, tekst: stand, soort: 'voor' };
     if (onsZijde)
-      return { titel: 'Tegendoelpunt', tekst: `We hebben helaas een tegendoelpunt moeten incasseren. Stand: ${stand}`, soort: 'tegen' };
-    return { titel: `🏑 ${naam(zijde)} scoort`, tekst: `Stand: ${stand}`, soort: 'neutraal' };
+      return { titel: '🏑 Tegendoelpunt!', tekst: stand, soort: 'tegen' };
+    return { titel: `🏑 ${naam(zijde)} scoort`, tekst: stand, soort: 'neutraal' };
   }
   // geannuleerd
   if (onsZijde === zijde)
-    return { titel: 'Doelpunt geannuleerd', tekst: `Het doelpunt van ${naam(zijde)} telt niet. De stand is weer ${stand}`, soort: 'voor-geannuleerd' };
+    return { titel: 'Doelpunt afgekeurd', tekst: stand, soort: 'voor-geannuleerd' };
   if (onsZijde && onsZijde === ander(zijde))
-    return { titel: 'Tegendoelpunt geannuleerd', tekst: `Het doelpunt van ${naam(zijde)} telt niet. De stand is weer ${stand}`, soort: 'tegen-geannuleerd' };
-  return { titel: 'Doelpunt geannuleerd', tekst: `De stand is weer ${stand}`, soort: 'neutraal-geannuleerd' };
+    return { titel: 'Tegendoelpunt afgekeurd', tekst: stand, soort: 'tegen-geannuleerd' };
+  return { titel: 'Doelpunt afgekeurd', tekst: stand, soort: 'neutraal-geannuleerd' };
 }
 
-module.exports = { leesStand, leesModus, leesAankondiging, aankondigBericht, gelijk, bericht, standTekst };
+module.exports = { leesStand, leesModus, leesAankondiging, aankondigBericht, gelijk, bericht, standTekst, standRegels, speeltijd };

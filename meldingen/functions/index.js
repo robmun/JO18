@@ -28,7 +28,7 @@ const functions = require('firebase-functions/v1');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
-const { leesStand, leesModus, leesAankondiging, aankondigBericht, gelijk, bericht } = require('./stand');
+const { leesStand, leesModus, leesAankondiging, aankondigBericht, gelijk, bericht, speeltijd } = require('./stand');
 
 initializeApp();
 const db = getFirestore();
@@ -131,6 +131,12 @@ exports.standMelding = functions
 
     const m = bericht(vorig, nu);
     if (!m) { log('geen bericht bij deze verandering', { vorig, nu }); return null; }
+    // Bij een doelpunt de speeltijd eronder: wanneer de stand veranderde, niet wanneer
+    // de melding na tien seconden wachten de deur uit gaat.
+    if (['voor', 'tegen', 'neutraal'].includes(m.soort)) {
+      const tijd = speeltijd(naData.klok, Date.parse(ctx.timestamp) || Date.now());
+      if (tijd) m.tekst += `\n${tijd}`;
+    }
     await verstuur(team, m, leesModus(teamNu), log);
     return null;
   });
