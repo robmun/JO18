@@ -140,5 +140,5 @@ meldingen vast die daarover gaan. Die worden bewust genegeerd — ze zeggen niet
 app. Alle andere fouten die de app zelf vastlegt, laten een test mislukken.
 
 De verwachtingen in test 03 staan met opzet hard in het bestand, inclusief de naam
-"JO18-5 view-only". Verandert dat bewust, dan hoort die test mee aangepast te worden
+"JO18" (de kijkversie). Verandert dat bewust, dan hoort die test mee aangepast te worden
 — dat is precies de bedoeling: zo kan het niet ongemerkt terugvallen.

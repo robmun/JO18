@@ -29,9 +29,11 @@ self.addEventListener('push', e => {
   const titel = n.title || data.titel || 'Wedstrijdstand';
   // Op iPhone en iPad géén eigen plaatje. Met een plaatje behandelt iOS de melding als
   // een bericht van een persoon: het plaatje komt links te staan en er komt een regel
-  // 'from JO18-5 view-only' onder de titel. Zonder plaatje toont iOS gewoon het
+  // 'from <app>' onder de titel. Zonder plaatje toont iOS gewoon het
   // pictogram van de app, zoals bij elke andere app. Android heeft het plaatje wél
   // nodig, anders staat er een grijs vlak.
+  // (Gebleken op 3 nov 2026: de regel 'from <app>' zet iOS er ook zonder plaatje onder.
+  // Daarom heet de kijkversie sinds 26.11.9 kort 'JO18'.)
   // Een iPad meldt zich in een service worker als 'Macintosh'. Een Mac zonder plaatje
   // toont gewoon het pictogram van de app, dus die mag in hetzelfde mandje.
   const ios = /iPhone|iPad|iPod|Macintosh/.test((self.navigator && self.navigator.userAgent) || '');

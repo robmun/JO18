@@ -14,10 +14,10 @@ const ADRESSEN = [
   // meldingen. Het oude adres met parameters houdt de oude weg, zonder manifest.
   { naam: 'kijk-link (pad)', pad: 't/geheimcode123/', verwacht: {
       status: 404, rol: 'viewer', tabs: 2, team: 'geheimcode123',
-      map: '/JO18/', manifest: 'manifest-kijk.webmanifest', schermnaam: 'JO18-5 view-only' } },
+      map: '/JO18/', manifest: 'manifest-kijk.webmanifest', schermnaam: 'JO18' } },
   { naam: 'kijk-link (oud)', pad: 'index.html?team=oudestijl99&rol=kijker', verwacht: {
       status: 200, rol: 'viewer', tabs: 2, team: 'oudestijl99',
-      map: '/JO18/', manifest: null, schermnaam: 'JO18-5 view-only' } },
+      map: '/JO18/', manifest: null, schermnaam: 'JO18' } },
   { naam: 'coach',           pad: 'index.html', verwacht: {
       status: 200, rol: 'editor', tabs: 5, team: '(leeg)',
       map: '/JO18/', manifest: 'manifest.webmanifest', schermnaam: 'JO18-5' } },
