@@ -2,14 +2,14 @@
 const { bericht } = require('../functions/stand');
 const s = (thuis, uit, t, u) => ({ thuis, uit, t, u });
 const gevallen = [
-  ['wij thuis scoren', s('Gooische', 'Amsterdam', 0, 0), s('Gooische', 'Amsterdam', 1, 0), '🏑 Gooische scoort!', 'Gooische – Amsterdam\n1 - 0'],
-  ['wij uit scoren', s('Amsterdam', 'Gooische', 0, 0), s('Amsterdam', 'Gooische', 0, 1), '🏑 Gooische scoort!', 'Amsterdam – Gooische\n0 - 1'],
-  ['tegendoelpunt', s('Gooische', 'Amsterdam', 0, 0), s('Gooische', 'Amsterdam', 0, 1), '🏑 Tegendoelpunt!', 'Gooische – Amsterdam\n0 - 1'],
-  ['ons doelpunt geannuleerd', s('Gooische', 'Amsterdam', 1, 0), s('Gooische', 'Amsterdam', 0, 0), 'Doelpunt afgekeurd', 'Gooische – Amsterdam\n0 - 0'],
-  ['tegendoelpunt geannuleerd', s('Gooische', 'Amsterdam', 1, 1), s('Gooische', 'Amsterdam', 1, 0), 'Tegendoelpunt afgekeurd', 'Gooische – Amsterdam\n1 - 0'],
+  ['wij thuis scoren', s('Gooische', 'Amsterdam', 0, 0), s('Gooische', 'Amsterdam', 1, 0), '🏑 Gooische scoort!', 'Gooische – Amsterdam\n𝟭 - 𝟬'],
+  ['wij uit scoren', s('Amsterdam', 'Gooische', 0, 0), s('Amsterdam', 'Gooische', 0, 1), '🏑 Gooische scoort!', 'Amsterdam – Gooische\n𝟬 - 𝟭'],
+  ['tegendoelpunt', s('Gooische', 'Amsterdam', 0, 0), s('Gooische', 'Amsterdam', 0, 1), '🏑 Tegendoelpunt!', 'Gooische – Amsterdam\n𝟬 - 𝟭'],
+  ['ons doelpunt geannuleerd', s('Gooische', 'Amsterdam', 1, 0), s('Gooische', 'Amsterdam', 0, 0), 'Doelpunt afgekeurd', 'Gooische – Amsterdam\n𝟬 - 𝟬'],
+  ['tegendoelpunt geannuleerd', s('Gooische', 'Amsterdam', 1, 1), s('Gooische', 'Amsterdam', 1, 0), 'Tegendoelpunt afgekeurd', 'Gooische – Amsterdam\n𝟭 - 𝟬'],
   ['hoofdletters maken niet uit', s('GOOISCHE JO18-5', 'Huizen', 2, 2), s('GOOISCHE JO18-5', 'Huizen', 3, 2), '🏑 GOOISCHE JO18-5 scoort!', null],
-  ['geen Gooische: neutraal', s('Amsterdam', 'Zwolle', 0, 0), s('Amsterdam', 'Zwolle', 1, 0), '🏑 Amsterdam scoort', 'Amsterdam – Zwolle\n1 - 0'],
-  ['twee tegelijk', s('Gooische', 'Amsterdam', 0, 0), s('Gooische', 'Amsterdam', 1, 1), 'Stand bijgewerkt', 'Gooische – Amsterdam\n1 - 1'],
+  ['geen Gooische: neutraal', s('Amsterdam', 'Zwolle', 0, 0), s('Amsterdam', 'Zwolle', 1, 0), '🏑 Amsterdam scoort', 'Amsterdam – Zwolle\n𝟭 - 𝟬'],
+  ['twee tegelijk', s('Gooische', 'Amsterdam', 0, 0), s('Gooische', 'Amsterdam', 1, 1), 'Stand bijgewerkt', 'Gooische – Amsterdam\n𝟭 - 𝟭'],
   ['terug naar 0-0 vanaf 2-1', s('Gooische', 'Amsterdam', 2, 1), s('Gooische', 'Amsterdam', 0, 0), null, null],
   ['andere tegenstander', s('Gooische', 'Amsterdam', 1, 0), s('Gooische', 'Zwolle', 0, 0), null, null],
   ['naam nog leeg', s('Gooische', '', 0, 0), s('Gooische', '', 1, 0), null, null],
@@ -26,10 +26,10 @@ const { aankondigBericht } = require('../functions/stand');
 const ank = [
   ['aftrap, wij thuis', 'start', s('Gooische', 'Amsterdam', 0, 0), '🏑 De wedstrijd is begonnen', 'Gooische – Amsterdam'],
   ['aftrap, wij uit', 'start', s('Amsterdam', 'Gooische', 0, 0), '🏑 De wedstrijd is begonnen', 'Amsterdam – Gooische'],
-  ['einde gewonnen (thuis)', 'einde', s('Gooische', 'Amsterdam', 2, 0), '🏁 Wedstrijd beëindigd', 'Gooische – Amsterdam\n2 - 0'],
-  ['einde verloren (uit)', 'einde', s('Amsterdam', 'Gooische', 2, 0), '🏁 Wedstrijd beëindigd', 'Amsterdam – Gooische\n2 - 0'],
-  ['einde gelijk', 'einde', s('Gooische', 'Amsterdam', 1, 1), '🏁 Wedstrijd beëindigd', 'Gooische – Amsterdam\n1 - 1'],
-  ['einde zonder Gooische', 'einde', s('Amsterdam', 'Zwolle', 3, 1), '🏁 Wedstrijd beëindigd', 'Amsterdam – Zwolle\n3 - 1'],
+  ['einde gewonnen (thuis)', 'einde', s('Gooische', 'Amsterdam', 2, 0), '🏁 Wedstrijd beëindigd', 'Gooische – Amsterdam\neinduitslag 𝟮 - 𝟬'],
+  ['einde verloren (uit)', 'einde', s('Amsterdam', 'Gooische', 2, 0), '🏁 Wedstrijd beëindigd', 'Amsterdam – Gooische\neinduitslag 𝟮 - 𝟬'],
+  ['einde gelijk', 'einde', s('Gooische', 'Amsterdam', 1, 1), '🏁 Wedstrijd beëindigd', 'Gooische – Amsterdam\neinduitslag 𝟭 - 𝟭'],
+  ['einde zonder Gooische', 'einde', s('Amsterdam', 'Zwolle', 3, 1), '🏁 Wedstrijd beëindigd', 'Amsterdam – Zwolle\neinduitslag 𝟯 - 𝟭'],
   ['zonder namen', 'start', s('Gooische', '', 0, 0), null, null],
 ];
 for (const [naam, soort, nu, titel, tekst] of ank) {

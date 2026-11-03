@@ -135,7 +135,7 @@ exports.standMelding = functions
     // de melding na tien seconden wachten de deur uit gaat.
     if (['voor', 'tegen', 'neutraal'].includes(m.soort)) {
       const tijd = speeltijd(naData.klok, Date.parse(ctx.timestamp) || Date.now());
-      if (tijd) m.tekst += `\n${tijd}`;
+      if (tijd) m.tekst += `\ntijdstip van score ${tijd}`;
     }
     await verstuur(team, m, leesModus(teamNu), log);
     return null;

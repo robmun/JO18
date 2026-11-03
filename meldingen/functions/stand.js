@@ -75,7 +75,7 @@ function aankondigBericht(soort, nu) {
   if (soort === 'einde') {
     return {
       titel: '🏁 Wedstrijd beëindigd',
-      tekst: standRegels(nu),
+      tekst: eindRegels(nu),
       soort: 'einde',
     };
   }
@@ -89,8 +89,18 @@ function gelijk(a, b) {
 // Indeling van Robert (3 november 2026): de wedstrijd op de ene regel, de stand op
 // de volgende, en bij een doelpunt de speeltijd daaronder. iOS bepaalt kleur,
 // uitlijning en lettergrootte; een app geeft alleen titel en tekst mee.
+//
+// 'Vet': een melding kent geen opmaak, dus de cijfers van de stand zijn de vette
+// cijfertekens uit Unicode (𝟬 𝟭 𝟮 …, U+1D7EC e.v.). iPhones tonen ze goed; VoiceOver
+// leest ze mogelijk niet als gewone cijfers voor. Afspraak met Robert, 3 nov 2026.
+function vet(tekst) {
+  return String(tekst).replace(/[0-9]/g, c => String.fromCodePoint(0x1D7EC + Number(c)));
+}
 function standRegels(s) {
-  return `${s.thuis} – ${s.uit}\n${s.t} - ${s.u}`;
+  return `${s.thuis} – ${s.uit}\n${vet(`${s.t} - ${s.u}`)}`;
+}
+function eindRegels(s) {
+  return `${s.thuis} – ${s.uit}\neinduitslag ${vet(`${s.t} - ${s.u}`)}`;
 }
 
 // Speeltijd uit de gedeelde klok: { q, basis (s), sinds (ms), loopt }. Verstreken
@@ -149,4 +159,4 @@ function bericht(vorig, nu) {
   return { titel: 'Doelpunt afgekeurd', tekst: stand, soort: 'neutraal-geannuleerd' };
 }
 
-module.exports = { leesStand, leesModus, leesAankondiging, aankondigBericht, gelijk, bericht, standTekst, standRegels, speeltijd };
+module.exports = { leesStand, leesModus, leesAankondiging, aankondigBericht, gelijk, bericht, standTekst, standRegels, speeltijd, vet };
