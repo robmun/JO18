@@ -75,7 +75,7 @@ async function draai({ basis, log }) {
     await p.waitForTimeout(2600);
     const naStil = (await fouten(p)).find(f => /^stilstand/.test(f));
     if (!naStil) mis.push('een stilstand van 7 seconden staat niet in de foutenlijst');
-    else if (!/test: zware klus/.test(naStil)) mis.push(`de stilstand noemt de stap niet: '${naStil}'`);
+    else if (!/vast tijdens: test: zware klus/.test(naStil)) mis.push(`de stilstand noemt de stap niet: '${naStil}'`);
     else log('stilstand binnen de sessie: ' + naStil.replace(/^stilstand · /, ''));
 
     // ── 3b. Vastgelopen vorige sessie ──
@@ -146,6 +146,81 @@ async function draai({ basis, log }) {
       setTimeout(() => k({ nieuw: _fouten.length - voor, tab: activeTab === tab }), 600);
     }));
     if (leeg.nieuw || !leeg.tab) mis.push('tikken op een leeg stuk scherm zetten het zelfherstel in gang');
+
+    // ── 6. Tikken op het optillen van de vinger (26.11.10) ──
+    const optil = await p.evaluate(() => new Promise(klaar => {
+      const uit = {};
+      const pe = (soort, el, x, y) => el.dispatchEvent(new PointerEvent(soort, { bubbles: true, cancelable: true, pointerType: 'touch', clientX: x, clientY: y, isPrimary: true }));
+      activeTab = 'wedstrijd'; render();
+      // a. tab: alleen pointerdown + pointerup, géén klik van 'iOS'
+      let k = document.querySelector('.tabbar [data-tab="regels"]');
+      pe('pointerdown', k, 10, 10); pe('pointerup', k, 12, 11);
+      uit.tabOptil = activeTab;
+      // b. tab: iOS neemt de aanraking over (pointercancel) → na een halve seconde alsnog
+      k = document.querySelector('.tabbar [data-tab="spelers"]');
+      pe('pointerdown', k, 10, 10); pe('pointercancel', k, 10, 10);
+      uit.tabMeteen = activeTab;
+      setTimeout(() => {
+        uit.tabNaHalf = activeTab;
+        // c. score +: optillen telt één keer, ook als de klik van iOS er nog achteraan komt
+        activeTab = 'uitleg'; render();
+        state.score = { thuis: 'Gooische', uit: 'Huizen', t: 0, u: 0 }; render();
+        let plus = document.querySelector('[data-score-plus="t"]');
+        pe('pointerdown', plus, 50, 50); pe('pointerup', plus, 51, 50);
+        plus = document.querySelector('[data-score-plus="t"]');
+        plus.click();                       // de late klik van iOS
+        uit.naPlus = scoreNu().t;
+        // d. vegen (meer dan 12 px bewogen) is geen tik
+        setTimeout(() => {
+          const p2 = document.querySelector('[data-score-plus="t"]');
+          pe('pointerdown', p2, 50, 50); pe('pointermove', p2, 50, 80); pe('pointerup', p2, 50, 80);
+          uit.naVeeg = scoreNu().t;
+          // e. bij pointercancel op + gebeurt niets, ook niet na een halve seconde
+          pe('pointerdown', p2, 50, 50); pe('pointercancel', p2, 50, 50);
+          setTimeout(() => { uit.naCancel = scoreNu().t; uit.log = _tikken.slice(0, 6).map(r => r.w); klaar(uit); }, 650);
+        }, 800);
+      }, 600);
+    }));
+    if (optil.tabOptil !== 'regels') mis.push(`tab via optillen: staat op '${optil.tabOptil}' in plaats van regels`);
+    if (optil.tabMeteen !== 'regels' || optil.tabNaHalf !== 'spelers') mis.push(`tab na pointercancel: meteen '${optil.tabMeteen}', na een halve seconde '${optil.tabNaHalf}'`);
+    if (optil.naPlus !== 1) mis.push(`+ via optillen met een late klik erachteraan: stand ${optil.naPlus} in plaats van 1`);
+    if (optil.naVeeg !== 1) mis.push(`een veeg over + telde als tik: stand ${optil.naVeeg}`);
+    if (optil.naCancel !== 1) mis.push(`+ na pointercancel telde toch: stand ${optil.naCancel}`);
+    if (!optil.log.some(w => /gered na een halve seconde/.test(w))) mis.push('het logboek toont niet dat een tab-tik gered is');
+    if (!mis.some(m => /optillen|pointercancel|veeg|gered/.test(m))) log('tikken op optillen: tab zonder klik, tab na pointercancel, + precies één keer, veeg en cancel tellen niet');
+
+    // ── 7. Start/pauze in de timer reageert ook op optillen ──
+    const tf = p.frames().find(f => /timer\.html/.test(f.url()));
+    if (!tf) mis.push('timervenster niet gevonden');
+    else {
+      const t = await tf.evaluate(() => new Promise(klaar => {
+        const b = document.getElementById('start');
+        const voor = b.textContent.trim();
+        const pe = soort => b.dispatchEvent(new PointerEvent(soort, { bubbles: true, cancelable: true, pointerType: 'touch', clientX: 5, clientY: 5 }));
+        pe('pointerdown'); pe('pointerup');
+        const na = b.textContent.trim();
+        b.click();                         // late klik van iOS: mag niet terugschakelen
+        const naKlik = b.textContent.trim();
+        pe('pointerdown'); pe('pointerup');  // en weer terug op pauze
+        klaar({ voor, na, naKlik, terug: b.textContent.trim() });
+      }));
+      if (t.na === t.voor || t.naKlik !== t.na || t.terug !== t.voor) mis.push(`timer start/pauze via optillen: '${t.voor}' → '${t.na}' → na late klik '${t.naKlik}' → '${t.terug}'`);
+      else log(`timer start/pauze via optillen: '${t.voor}' → '${t.na}', late klik genegeerd`);
+    }
+
+    // ── 8. De zwarte doos wijst de boosdoener aan ──
+    const uitleg = await p.evaluate(() => {
+      const T = 1800000000000;
+      return {
+        vast: stilstandUitleg(T, T + 30000, [[T - 500, 'kloktik'], [T - 400, 'klaar'], [T + 1000, 'gedeelde stand binnengekomen'], [T + 25000, 'klaar']]),
+        ios: stilstandUitleg(T, T + 30000, [[T - 500, 'kloktik'], [T - 400, 'klaar'], [T + 29000, 'kloktik']]),
+        totNu: stilstandUitleg(T, T + 30000, [[T + 500, 'scherm opbouwen · wedstrijd']]),
+      };
+    });
+    if (!/^vast tijdens: gedeelde stand binnengekomen .*daarna: klaar/.test(uitleg.vast)) mis.push(`zwarte doos, vast in een stap: '${uitleg.vast}'`);
+    if (!/^niets in uitvoering/.test(uitleg.ios)) mis.push(`zwarte doos, iOS pauzeerde: '${uitleg.ios}'`);
+    if (!/^vast tijdens: scherm opbouwen · wedstrijd .*tot nu/.test(uitleg.totNu)) mis.push(`zwarte doos, nog bezig: '${uitleg.totNu}'`);
+    if (!mis.some(m => /zwarte doos/.test(m))) log('zwarte doos: onderscheidt "vast tijdens een stap" van "iOS legde de app stil"');
 
     await ctx.close();
     paginafouten.forEach(f => mis.push('paginafout: ' + f));

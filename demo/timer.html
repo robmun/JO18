@@ -1268,7 +1268,7 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     // Meldt welke versie dit bestand heeft, zodat de hoofd-app kan waarschuwen
     // als timer.html niet is meegeüpload en dus achterloopt.
-    var TIMER_VERSION = 325;
+    var TIMER_VERSION = 326;
     try { parent.postMessage({ ghcTimerVersie: TIMER_VERSION }, location.origin); } catch (e) {}
     var _lastSent = '';
     // ---- Gedeelde klok ----
@@ -1561,6 +1561,27 @@ body.dark .time{text-shadow:0 0 22px rgba(150,185,255,.35), 0 2px 6px rgba(0,0,0
 
     document.getElementById('plusMin').addEventListener('click', function () { nudgeMinute(60); });
     document.getElementById('minusMin').addEventListener('click', function () { nudgeMinute(-60); });
+    // Start/pauze reageert op het optillen van de vinger, niet op de klik van iOS. Die
+    // laat iOS soms vallen als de vinger een paar pixels beweegt (zie in index.html bij
+    // 'Tikken op het optillen'). Komt de klik daarna alsnog, dan wordt hij opgevangen.
+    (function () {
+      var s = null, slikTot = 0, eigen = false;
+      startBtn.addEventListener('pointerdown', function (e) {
+        s = e.pointerType === 'mouse' ? null : { x: e.clientX, y: e.clientY, t: Date.now(), bewogen: false };
+      }, { passive: true });
+      startBtn.addEventListener('pointermove', function (e) {
+        if (s && (Math.abs(e.clientX - s.x) > 12 || Math.abs(e.clientY - s.y) > 12)) s.bewogen = true;
+      }, { passive: true });
+      startBtn.addEventListener('pointerup', function () {
+        var x = s; s = null;
+        if (!x || x.bewogen || Date.now() - x.t > 1200) return;
+        slikTot = Date.now() + 700;
+        eigen = true; try { startBtn.click(); } finally { eigen = false; }
+      }, { passive: true });
+      startBtn.addEventListener('click', function (e) {
+        if (!eigen && Date.now() < slikTot) { slikTot = 0; e.stopImmediatePropagation(); e.preventDefault(); }
+      }, true);
+    })();
     startBtn.addEventListener('click', function () {
       if (bekekenQuarter === currentQuarter) { toggleStartPause(); return; }
       if (!magBedienen()) { vraagOvernemen(); return; }

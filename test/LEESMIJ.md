@@ -88,7 +88,11 @@ zoomen en dubbeltik-zoom uit staan, dat de zwarte doos een stilstand van zeven s
 én een vastgelopen vorige sessie in de foutenlijst zet met de stap waarin het gebeurde,
 dat een wisselmoment wacht tot de vinger los is (maar hoogstens vijf seconden), en dat
 twee tikken op een dode tabbalk de app vanzelf rechtzetten — terwijl tikken op een leeg
-stuk scherm niets in gang zetten.
+stuk scherm niets in gang zetten. Sinds 26.11.10 ook: de tabbalk, + en − bij de score en start/pauze
+in de timer reageren op het optillen van de vinger (een late klik van iOS telt niet dubbel,
+een veeg telt niet), een tab-tik die iOS overneemt wordt na een halve seconde alsnog
+uitgevoerd, en de zwarte doos onderscheidt 'vast tijdens een stap' van 'iOS legde de app
+stil'.
 
 **11 verbinding** — Zet een nep-server in de plaats van Firestore en speelt na wat er
 op 31 oktober met de iPad aan een hotspot gebeurde. Antwoordt de server, dan staat er

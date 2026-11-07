@@ -3454,6 +3454,7 @@ function foutRegel(waar,wat){
       d:String(nu.getDate()).padStart(2,'0')+'-'+String(nu.getMonth()+1).padStart(2,'0'),
       v:versieNu(),
       c:foutContext(),
+      ms:nu.getTime(),   // om fouten en stilstanden aan elkaar te kunnen koppelen
       waar,wat:String(wat)});
     if(_fouten.length>20)_fouten.pop();
     foutenBewaren();
@@ -3519,6 +3520,66 @@ function klikNoteren(){
 addEventListener('pointerdown',tikNoteren,{capture:true,passive:true});
 addEventListener('click',klikNoteren,{capture:true,passive:true});
 
+// ── Tikken op het optillen van de vinger ──
+// Op 7 november stond drie keer 'tab … · GEEN KLIK' in het logboek: de vinger raakte de
+// tabknop, de app zag dat, maar iOS maakte er geen klik van. iOS laat een klik vallen
+// als de vinger een paar pixels beweegt, en onderaan het scherm, waar het gebaar naar
+// het beginscherm zit, wacht hij eerst af. De tabbalk staat precies daar.
+// Voor de knoppen die er tijdens de wedstrijd toe doen — de tabbalk en + en − bij de
+// score — wacht de app daarom niet op de klik van iOS: bij het optillen van de vinger
+// (minder dan 12 pixels bewogen) voert hij de klik zelf uit. Komt de klik van iOS daarna
+// alsnog, dan wordt die opgevangen, zodat er niets dubbel gebeurt.
+// En op de tabbalk nog een vangnet: neemt iOS de aanraking over (pointercancel), dan
+// wisselt de app na een halve seconde alsnog van tabblad. Bij + en − niet: daar moet je
+// zeker weten dat het een tik was.
+const SNEL='.tabbar [data-tab],[data-score-plus],[data-score-min]';
+let _snel=null, _slik=null, _eigenKlik=false;
+function snelSleutel(el){
+  if(el.dataset.tab)return 'tab:'+el.dataset.tab;
+  if(el.dataset.scorePlus!=null)return 'plus:'+el.dataset.scorePlus;
+  return 'min:'+el.dataset.scoreMin;
+}
+function snelZoek(sl){ return [...document.querySelectorAll(SNEL)].find(e=>snelSleutel(e)===sl)||null; }
+function snelKlik(el,hoe){
+  const regel=_tikken[0];
+  _slik={sl:snelSleutel(el),tot:Date.now()+700,kwam:false};
+  const s=_slik;
+  _eigenKlik=true; try{ el.click(); } finally { _eigenKlik=false; }
+  // Kwam de klik van iOS niet, dan heeft deze route de tik gered: zichtbaar in het logboek.
+  setTimeout(()=>{ if(!s.kwam&&regel){ regel.w+=' · '+hoe; tikkenBewaren(); } },750);
+}
+addEventListener('pointerdown',e=>{
+  if(e.pointerType==='mouse'){ _snel=null; return; }
+  const el=e.target&&e.target.closest&&e.target.closest(SNEL);
+  if(!el){ _snel=null; return; }
+  const sl=snelSleutel(el);
+  const s=_snel={sl,x:e.clientX,y:e.clientY,t:Date.now(),klaar:false,bewogen:false};
+  if(sl.startsWith('tab:'))setTimeout(()=>{
+    if(_snel!==s||s.klaar||s.bewogen)return;
+    const doel=snelZoek(sl); if(!doel)return;
+    s.klaar=true; snelKlik(doel,'gered na een halve seconde');
+  },500);
+},{capture:true,passive:true});
+addEventListener('pointermove',e=>{
+  const s=_snel; if(!s)return;
+  if(Math.abs(e.clientX-s.x)>12||Math.abs(e.clientY-s.y)>12)s.bewogen=true;
+},{capture:true,passive:true});
+addEventListener('pointerup',e=>{
+  const s=_snel; if(!s||s.klaar||s.bewogen||Date.now()-s.t>1200)return;
+  const onder=e.target&&e.target.closest&&e.target.closest(SNEL);
+  const doel=(onder&&snelSleutel(onder)===s.sl)?onder:snelZoek(s.sl);
+  if(!doel)return;
+  s.klaar=true; snelKlik(doel,'klik via optillen');
+},{capture:true,passive:true});
+addEventListener('pointercancel',()=>{ const s=_snel; if(s&&!s.sl.startsWith('tab:'))_snel=null; },{capture:true,passive:true});
+addEventListener('click',e=>{
+  if(_eigenKlik||!_slik||Date.now()>_slik.tot)return;
+  const el=e.target&&e.target.closest&&e.target.closest(SNEL);
+  if(!el||snelSleutel(el)!==_slik.sl)return;
+  _slik.kwam=true;
+  e.stopImmediatePropagation(); e.preventDefault();   // de klik van iOS: al uitgevoerd
+},true);
+
 // ── Hoeveel vingers liggen er op het scherm? ──
 // Twee dingen wachten daarop: het automatisch terugzetten van de zoom (niet midden in
 // het knijpen) en het opnieuw opbouwen bij een wisselmoment (niet onder je vinger).
@@ -3547,8 +3608,32 @@ function wordtAangeraakt(){ return _vingers>0 || Date.now()-_laatsteScrol<350; }
 // Kosten: één variabele per stap en één regel van minder dan honderd tekens in de opslag
 // per twee seconden, alleen zolang de app in beeld is.
 const HART_SLEUTEL=SLEUTEL('gw_hartslag');
-let _stap='opstarten', _stapT=Date.now(), _vorigeSlag=Date.now(), _verborgenSinds=0;
-function stap(naam){ _stap=naam; _stapT=Date.now(); }
+let _stap='opstarten', _stapT=Date.now(), _vorigeSlag=Date.now(), _verborgenSinds=0, _laatsteStilstand=0;
+// Sinds 26.11.10 ook een korte lijst met tijden, en een 'klaar' na een stap. Eerder bleef
+// de laatste stap staan tot er een nieuwe begon, dus 'bezig met' zei alleen wat er als
+// laatste was begonnen, niet waar de app op vastzat. Met de tijden is te zien welke stap
+// het lange gat veroorzaakte — of dat er niets liep en iOS de app gewoon pauzeerde.
+const _stappen=[];
+function stap(naam){ _stap=naam; _stapT=Date.now(); _stappen.push([_stapT,naam]); if(_stappen.length>40)_stappen.shift(); }
+function stapKlaar(){ const t=Date.now(); _stappen.push([t,'klaar']); if(_stappen.length>40)_stappen.shift(); _stap='rust (na: '+_stap.replace(/^rust \(na: |\)$/g,'')+')'; }
+// Wat gebeurde er tussen t0 (laatste hartslag) en t1 (nu)? Zoekt het grootste gat
+// tussen twee opeenvolgende stappen: de stap vóór dat gat is de boosdoener. Was dat
+// een 'klaar', dan liep er niets en heeft iOS de app stilgelegd.
+function stilstandUitleg(t0,t1,lijst){
+  const l=(lijst||_stappen).filter(x=>x[0]<=t1);
+  const voor=l.filter(x=>x[0]<t0).slice(-1);
+  const rij=voor.concat(l.filter(x=>x[0]>=t0)).concat([[t1,'nu']]);
+  let best=null;
+  for(let i=0;i<rij.length-1;i++){
+    const gat=rij[i+1][0]-Math.max(rij[i][0],t0);
+    if(!best||gat>best.gat)best={gat,naam:rij[i][1],na:rij[i+1][1],begin:Math.max(rij[i][0],t0)};
+  }
+  if(!best)return 'onbekend';
+  const sinds=tijdTekst(best.begin);
+  if(best.naam==='klaar'||/^rust/.test(best.naam))
+    return 'niets in uitvoering vanaf '+sinds+' — iOS legde de app stil';
+  return 'vast tijdens: '+best.naam+' (vanaf '+sinds+(best.na==='nu'?', tot nu':', daarna: '+best.na)+')';
+}
 function tijdTekst(t){ try{ return new Date(t).toLocaleTimeString(LOCALE()); }catch(e){ return String(t); } }
 function hartslag(weg){
   try{ localStorage.setItem(HART_SLEUTEL,JSON.stringify({t:Date.now(),s:_stap,st:_stapT,tab:huidigeTab(),weg:!!weg})); }catch(e){}
@@ -3570,8 +3655,11 @@ setInterval(()=>{
   if(document.visibilityState!=='visible')return;
   // Een gat telt alleen als de app al die tijd in beeld was; op de achtergrond legt
   // iOS de klokjes van een pagina gewoon stil.
-  if(gat>6000 && _verborgenSinds<nu-gat)
-    onthoudFout('stilstand','app stond '+Math.round(gat/1000)+' s stil · bezig met: '+_stap);
+  if(gat>6000 && _verborgenSinds<nu-gat){
+    _laatsteStilstand=nu;
+    const dbFout=_fouten.some(f=>/records from database/.test(f.wat||'')&&Date.now()-(f.ms||0)<6000);
+    onthoudFout('stilstand','app stond '+Math.round(gat/1000)+' s stil · '+stilstandUitleg(nu-gat,nu)+(dbFout?' · databasefout tegelijk':''));
+  }
   hartslag(false);
 },2000);
 document.addEventListener('visibilitychange',()=>{
@@ -3595,7 +3683,10 @@ function tabTikNakijken(regel){
       // Dood is: er kwam geen klik, én de app staat nog op hetzelfde tabblad als vóór
       // de tik. Snel achter elkaar tikken (Spelers, meteen Meer) is dus niet dood: daar
       // kwam wel een klik, en het tabblad veranderde ook — alleen naar het volgende.
-      if(regel.k || huidigeTab()!==regel.v){ _doodTab=[]; return; }
+      // (Sinds 26.11.10 telt een klik niet meer als bewijs van leven: de app voert zelf
+      // klikken uit bij het optillen, en een klik die het tabblad niet verandert is
+      // juist het geval waar dit om gaat.)
+      if(huidigeTab()===gewenst || huidigeTab()!==regel.v){ _doodTab=[]; return; }
       const nu=Date.now();
       _doodTab=_doodTab.filter(t=>nu-t<8000); _doodTab.push(nu);
       if(_doodTab.length<2)return;
@@ -3622,7 +3713,10 @@ addEventListener('error',e=>{
 });
 addEventListener('unhandledrejection',e=>{
   const r=e&&e.reason;
-  onthoudFout('belofte',(r&&r.message)||String(r||'afgewezen'));
+  const tekst=(r&&r.message)||String(r||'afgewezen');
+  // Valt een databasefout vlak na een stilstand, dan noteren we dat erbij: op 2 en 3
+  // november vielen ze steeds in dezelfde seconde.
+  onthoudFout('belofte',tekst+(/records from database/.test(tekst)&&Date.now()-_laatsteStilstand<6000?' · kort na een stilstand':''));
 });
 
 // ── Techniek- en fouttellers ──
@@ -4323,7 +4417,7 @@ function cloudListen(){
       s=>verbindingZet(!s.metadata.fromCache),
       e=>{ onthoudFout('verbinding volgen',e); verbindingZet(false); });
   }catch(e){ onthoudFout('verbinding volgen',e); }
-  CLOUD.unsub=CLOUD.ref.onSnapshot(snap=>{
+  const _verwerkStand=snap=>{
     stap('gedeelde stand binnengekomen');
     // Er komt weer iets binnen: de verbinding leeft. De teller voor opnieuw proberen
     // gaat terug naar nul en een eerdere foutmelding op de kaart verdwijnt.
@@ -4396,7 +4490,9 @@ function cloudListen(){
       CLOUD.applying=false;
       render();
     }catch(e){CLOUD.applying=false;}
-  }, err=>{
+  };
+  // Na het verwerken altijd 'klaar' in de zwarte doos, ook bij een vroege return.
+  CLOUD.unsub=CLOUD.ref.onSnapshot(snap=>{ try{ _verwerkStand(snap); } finally { stapKlaar(); } }, err=>{
     CLOUD.status='fout'; cloudUpdateCard();
     onthoudFout('samenwerken',err);
     // Eén melding per halve minuut. Bij een aanhoudende storing kwam dezelfde toast
@@ -8425,6 +8521,7 @@ function volgKlokVanAnder(){
     klok={q:k.q,sec:Math.floor(sec),loopt:loopt};
     stap('kloktik (meekijken)');
     veldKlokBijwerken(); beeldBijwerken();
+    stapKlaar();
   };
   tik();
   if(CLOUD.klok&&CLOUD.klok.loopt)_volgT=setInterval(tik,1000);
@@ -9856,7 +9953,7 @@ function _render(){
   requestAnimationFrame(()=>{
     stap('na het opbouwen meten · '+activeTab);
     updateScrollUI();fitNames();zwevendeKlokBijwerken();meetKijkbalk();meetGroteKlok();volgWisselTekst();bolletjesNakijken();
-    stap('rust · '+activeTab);
+    stapKlaar();
   });
 }
 // Vangnet achter de vorige oplossing. De kwartbolletjes staan op een telefoon in de
@@ -10622,8 +10719,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=325;
-const VERSIE_LABEL='26.11.9';
+const APP_VERSION=326;
+const VERSIE_LABEL='26.11.10';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
@@ -11476,6 +11573,7 @@ window.addEventListener('message',e=>{
     // We vergelijken met wat er echt getekend is, niet met de vorige klokstand — zo
     // herstelt de app zichzelf ook als hij een blokwissel gemist heeft.
     beeldBijwerken();
+    stapKlaar();
     // De tips hangen aan de klok en niet aan het hertekenen: tijdens een wedstrijd
     // wordt er lang niet opnieuw getekend, en dan zou de uitleg nooit verschijnen.
     if(DEMO)demoTips();
