@@ -1838,11 +1838,7 @@ const WB={
   'Kan niet tijdens een wedstrijd':'Not possible during a match',
   'Kan niet tijdens een wedstrijd \u2014 meld de speler af op Spelers':'Not possible during a match \u2014 mark the player unavailable under Players',
   'Tik nu de speler aan om mee te ruilen':'Now tap the player to swap with',
-  'Melding weggedrukt \u2014 schud om terug te halen':'Notice dismissed \u2014 shake to bring it back',
-  'Schudden staat aan':'Shake is on',
-  'Schudden staat al aan':'Shake is already on',
-  'Dit toestel heeft geen bewegingssensor':'This device has no motion sensor',
-  'Toestemming geweigerd':'Permission denied',
+  'Melding weggedrukt \u2014 Ongedaan maken haalt hem terug':'Notice dismissed \u2014 Undo brings it back',
   // ── Gebeurtenissen tijdens de wedstrijd ──
   'groene kaart':'green card', 'gele kaart':'yellow card', 'het veld':'the pitch',
   '{0} krijgt een {1} en staat {2} minuten buiten het veld':'{0} gets a {1} and is off the pitch for {2} minutes',
@@ -2001,7 +1997,6 @@ const WB={
   'Goed om te weten':'Good to know',
   'Delen met co-coach':'Share with your co-coach',
   'Back-up':'Backup',
-  'Schudden om ongedaan te maken':'Shake to undo',
   // ── Knoppen ──
   'Sluiten':'Close', 'Annuleren':'Cancel', 'Bewaren':'Save',
   'Opstelling genereren':'Generate line-up',
@@ -7578,15 +7573,16 @@ function renderSpelers(){
     html+='<div style="text-align:center;color:var(--dim);font-size:11px;margin:16px 0 4px">'+esc(kopApp())+' &middot; demo &middot; '+U('versie','version')+' '+VERSIE_LABEL+'</div>';
     return html;
   }
-  // 'Delen met co-coach' stond hier, naast Samenwerken. Nu samenwerken de gewone weg
-  // is — één gedeelde versie in plaats van een link heen en weer sturen — is delen
-  // nog wel een vangnet maar geen dagelijkse handeling meer. Het staat daarom bij het
-  // andere onderhoud op Meer, boven Back-up: dat zijn de twee knoppen die met
-  // 'een kopie ergens anders heen' te maken hebben.
-  // De status staat in de kop en niet alleen in de kaart: dichtgeklapt moet je nog
-  // steeds kunnen zien of je verbonden bent. cloudUpdateCard() werkt hem los bij,
-  // want die functie hertekent bewust niet het hele scherm.
-  html+=klapKaart('samenwerken',T('Samenwerken'),
+  // Samenwerken stond hier, onderaan Spelers. Sinds 26.11.12 staat het op Meer, onder
+  // Onderhoud: het is iets wat je één keer instelt, niet iets voor bij de selectie.
+  return html;
+}
+// ── Samenwerken ──
+// De status staat in de kop en niet alleen in de kaart: dichtgeklapt moet je nog
+// steeds kunnen zien of je verbonden bent. cloudUpdateCard() werkt hem los bij,
+// want die functie hertekent bewust niet het hele scherm.
+function samenwerkenKaart(){
+  return klapKaart('samenwerken',T('Samenwerken'),
     `<span id="cloudSub">${cloudKorteStatus()}</span>`,
     `<p class="hint" style="margin:0 0 10px">${U('E&#233;n gedeelde versie voor coach en manager, met live-sync. Je mede-coach hoeft alleen dezelfde teamcode in te vullen. Standaard staat dit uit; je huidige werkwijze verandert niet tot je verbindt.','One shared version for coach and manager, kept in sync live. Your co-coach only has to enter the same team code. This is off by default; nothing about the way you work now changes until you connect.')}</p>
     <div id="cloudStatus" class="cloudstat">${T('Uit — alleen deze telefoon')}</div>
@@ -7595,7 +7591,6 @@ function renderSpelers(){
     <button class="btn ghost full" id="cloudShareView" style="margin-top:8px">${ico("oog")}${U('Deel kijk-link voor spelers','Share a view link for players')}</button>
     <button class="btn ghost full" id="cloudShareCoach" style="margin-top:8px">${ico("persoon")}${U('Deel coach-link (mag wijzigen)','Share a coach link (can edit)')}</button>
     <p class="hint" style="margin-top:10px">${U('De kijk-link geeft spelers alleen leesrechten; ze zien altijd de laatste stand, maar kunnen niets wijzigen. De coach-link is voor je mede-coach.','The view link gives players read-only access; they always see the latest state but cannot change anything. The coach link is for your co-coach.')}</p>`);
-  return html;
 }
 function dupNum(p){return p.num!==''&&p.num!=null&&state.players.filter(x=>x.num===p.num).length>1;}
 // De opties voor één voorkeursvakje.
@@ -8299,7 +8294,7 @@ function beschrijfHerplan(oud,nieuw,vanaf,perQ,later){
 // 12 minuten, en niet dat er op 8 minuten iemand van het veld ging.
 function gebeurtenissen(){ if(!Array.isArray(state.gebeurtenissen))state.gebeurtenissen=[]; return state.gebeurtenissen; }
 // Wat er in beeld hoort te komen: alles wat de coach niet zelf heeft weggedrukt.
-// Weggedrukte gebeurtenissen blijven wél in de opslag staan, zodat schudden ze
+// Weggedrukte gebeurtenissen blijven wél in de opslag staan, zodat Ongedaan maken ze
 // terughaalt en een gedeelde stand niet ineens anders is dan bij de ander.
 function zichtbareGebeurtenissen(){ return gebeurtenissen().filter(g=>!g.weg); }
 function noteerGebeurtenis(q,tekst,kern){
@@ -8315,7 +8310,7 @@ function gebeurtenisWeg(id){
   if(!g)return;
   snapshot('melding weggedrukt');
   g.weg=true; save(); render();
-  toast(T('Melding weggedrukt \u2014 schud om terug te halen'));
+  toast(T('Melding weggedrukt \u2014 Ongedaan maken haalt hem terug'));
 }
 function wisGebeurtenissen(){ state.gebeurtenissen=[]; }
 // ── Noodwissel bij een acute blessure ──
@@ -8673,7 +8668,7 @@ const UITLEG=[
    +'getal erbij in plaats van er stilletjes onderdoor te gaan.'],
   ['u4','Bijsturen',
    'Niet tevreden over een detail? Tik twee spelers aan en ze ruilen van plek \u2014 ook met '
-   +'iemand van de bank. Schud je telefoon om de laatste actie ongedaan te maken; er worden '
+   +'iemand van de bank. Met \u2018Ongedaan maken\u2019 draai je de laatste actie terug; er worden '
    +'tien stappen bewaard. Verandert er iets v\u00f3\u00f3r de wedstrijd, zet dan het schuifje om en '
    +'kies \u2018Herplan vanaf dit kwart\u2019: gespeelde kwarten blijven staan.'],
   ['u5','Tijdens de wedstrijd',
@@ -8717,7 +8712,7 @@ const UITLEG_EN=[
    +'number rather than quietly ducking under it.'],
   ['u4','Adjusting',
    'Not happy with a detail? Tap two players and they swap places \u2014 including with someone on '
-   +'the bench. Shake your phone to undo the last action; ten steps are kept. If something '
+   +'the bench. \u2018Undo\u2019 takes back the last action; ten steps are kept. If something '
    +'changes before the match, flip the switch and choose \u2018Replan from this quarter\u2019: quarters '
    +'already played stay as they are.'],
   ['u5','During the match',
@@ -9290,7 +9285,7 @@ function selectieVerwijderen(){
     title:lijst+' uit de selectie halen?',
     bodyHtml:(namen.length===1?V('Hij')+' verdwijnt':'Zij verdwijnen')+' uit het team, niet alleen uit deze wedstrijd.'
       +(gevolgen.length?'<br><br>'+gevolgen.map(t=>'&bull; '+esc(t)).join('<br>'):'')
-      +'<br><br>Schud je telefoon of gebruik Ongedaan maken als je je bedenkt.',
+      +'<br><br>Gebruik Ongedaan maken als je je bedenkt.',
     okLabel:'Verwijderen', danger:true,
     onOk:()=>{
       snapshot('speler verwijderd');
@@ -9397,6 +9392,9 @@ function renderUitleg(){
       true);
   }
   h+=`<h2 class="sectiekop">${U('Onderhoud','Maintenance')}</h2>`;
+  // Samenwerken (sinds 26.11.12 hier in plaats van onderaan Spelers). Kijkers hebben
+  // er niets aan, en de demo werkt alleen op het eigen toestel.
+  if(!DEMO && !isKijker())h+=samenwerkenKaart();
   // Delen met co-coach stond op Spelers, naast Samenwerken. Sinds samenwerken de
   // gewone manier is om met z'n twee\u00ebn in dezelfde opstelling te werken, is een link
   // heen en weer sturen geen dagelijkse handeling meer maar een uitwijk \u2014 net als de
@@ -9405,22 +9403,13 @@ function renderUitleg(){
     `<button class="btn ghost full" id="shareState">${ico("delen")}${U('Deel actuele stand','Share current state')}</button>
     <button class="btn ghost full" id="importShare" style="margin-top:8px">${ico("ontvangen")}${U('Gedeelde link overnemen','Take over a shared link')}&#8230;</button>
     ${U(`<p class="hint" style="margin-top:10px">Stuur de link in de coachgroep. De ontvanger tikt op de link, of kopieert hem en kiest hier &quot;Gedeelde link overnemen&quot;. Aanwezigheid, regels en het schema gaan allemaal mee.</p>
-    <p class="hint" style="margin-top:10px">Werk je met <b>Samenwerken</b> (op het tabblad Spelers), dan heb je dit meestal niet nodig: daar zien jij en je mede-coach dezelfde opstelling zonder iets te sturen.</p>`,
+    <p class="hint" style="margin-top:10px">Werk je met <b>Samenwerken</b> (hierboven), dan heb je dit meestal niet nodig: daar zien jij en je mede-coach dezelfde opstelling zonder iets te sturen.</p>`,
     `<p class="hint" style="margin-top:10px">Send the link in the coaches\u2019 group. The person receiving it taps the link, or copies it and chooses &quot;Take over a shared link&quot; here. Availability, rules and the plan all come along.</p>
-    <p class="hint" style="margin-top:10px">If you use <b>Working together</b> (on the Players tab) you usually will not need this: there you and your co-coach see the same line-up without sending anything.</p>`)}`);
+    <p class="hint" style="margin-top:10px">If you use <b>Working together</b> (above) you usually will not need this: there you and your co-coach see the same line-up without sending anything.</p>`)}`);
   h+=klapKaart('backup',T('Back-up'),'',
     `<button class="btn ghost full" id="backupExport">${ico("opslaan")}${U('Opslaan als back-upbestand','Save as a backup file')}</button>
     <button class="btn ghost full" id="backupImport" style="margin-top:8px">${ico("map")}${U('Herstel uit back-up','Restore from a backup')}&#8230;</button>
     <p class="hint" style="margin-top:10px">${U('Je spelers, regels en schema staan alleen op dit toestel. Maak af en toe een back-up, zodat je niets kwijtraakt als je de browsergegevens wist of van telefoon wisselt.','Your players, rules and plan are stored on this device only. Make a backup now and then, so you lose nothing if you clear your browser data or switch phones.')}</p>`);
-  // Schudden vraagt op iOS eenmalig toestemming. Wordt die geweigerd of gemist, dan
-  // komt die vraag nooit meer vanzelf terug — vandaar deze knop.
-  h+=klapKaart('schudden',T('Schudden om ongedaan te maken'),'undo',
-    `<p class="hint" style="margin-bottom:10px">${
-      _schudStatus==='aan'?'&#10003; '+U('Staat aan. Schud je telefoon om de laatste actie terug te draaien.','On. Shake your phone to undo the last action.')
-      :_schudStatus==='geweigerd'?ico("kruis",16)+U('Je hebt de bewegingssensor geweigerd. Tik hieronder om het opnieuw te vragen; lukt dat niet, zet dan Bewegen en ori&#235;ntatie aan bij Instellingen &rarr; Safari.','You refused the motion sensor. Tap below to ask again; if that does not work, switch on Motion &amp; Orientation under Settings &rarr; Safari.')
-      :_schudStatus==='kan niet'?U('Dit toestel heeft geen bruikbare bewegingssensor.','This device has no usable motion sensor.')
-      :U('Nog niet aangezet. iOS vraagt eenmalig toestemming voor de bewegingssensor.','Not switched on yet. iOS asks once for permission to use the motion sensor.')}</p>
-    <button class="btn ghost full" id="schudBtn">${ico("telefoon")}${_schudStatus==='aan'?U('Schudden opnieuw instellen','Set up shake again'):U('Schudden aanzetten','Switch shake on')}</button>`);
   h+=diagnoseKaart();
   return h;
 }
@@ -10234,8 +10223,6 @@ function bind(v){
   };
   const dgw=v.querySelector('#diagWis');
   if(dgw)dgw.onclick=()=>{_fouten.length=0;render();};
-  const shb=v.querySelector('#schudBtn');
-  if(shb)shb.onclick=()=>{_schudActief=false;schuddenAanzetten(true);};
   // De klokken op het veld brengen je naar de timer.
   klokKlikbaar(v.querySelector('#veldklok'));
   klokKlikbaar(v.querySelector('#grklok'));
@@ -10759,8 +10746,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=327;
-const VERSIE_LABEL='26.11.11';
+const APP_VERSION=328;
+const VERSIE_LABEL='26.11.12';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
@@ -11677,83 +11664,8 @@ setTimeout(function(){
 document.getElementById('shareTopBtn').onclick=()=>{
   if(isQTab(activeTab))shareQuarterImage(huidigQ());
 };
-// ── Schudden om ongedaan te maken ──
-// Zoals in Mail: even schudden en je krijgt de vraag of je de laatste actie terug wilt.
-// iOS vraagt sinds versie 13 eerst toestemming voor de bewegingssensor, en dat mag
-// alleen vanuit een aanraking — daarom haken we aan op de eerste tik in de app.
-// Drempel: doorgerekend met echte schudwaarden. Een stevige beweging levert rond de
-// 800 op, een normale hanteling van de telefoon blijft ruim onder de 300. 550 vraagt
-// een duidelijk gebaar zonder dat je moet zwaaien.
-const SCHUD_DREMPEL=450;
-let _schudActief=false, _schudLaatst=0, _schudTeller=0, _schudVorige=null, _schudStatus='uit';
-function schudGebeurtenis(e){
-  const a=e.accelerationIncludingGravity||e.acceleration;
-  if(!a||a.x==null)return;
-  const nu=Date.now();
-  if(_schudVorige){
-    const dt=nu-_schudVorige.t;
-    if(dt>90){
-      const verschil=Math.abs(a.x-_schudVorige.x)+Math.abs(a.y-_schudVorige.y)+Math.abs(a.z-_schudVorige.z);
-      const kracht=verschil/dt*1000;
-      if(kracht>SCHUD_DREMPEL){
-        _schudTeller++;
-        if(_schudTeller>=2&&nu-_schudLaatst>2500){
-          _schudLaatst=nu; _schudTeller=0;
-          schudVraag();
-        }
-      }
-      if(nu-_schudLaatst>3000&&_schudTeller>0&&dt>600)_schudTeller=0;
-      _schudVorige={x:a.x,y:a.y,z:a.z,t:nu};
-    }
-  }else _schudVorige={x:a.x,y:a.y,z:a.z,t:nu};
-}
-function schudVraag(){
-  if(document.querySelector('#modalHost .modal'))return;   // er staat al een venster open
-  if(isKijker())return;
-  if(!canUndo()){return;}                                   // niets om terug te draaien: niet storen
-  if('vibrate' in navigator)navigator.vibrate(30);
-  confirmDialog({
-    title:'Ongedaan maken?',
-    body:'Laatste actie: '+undoLabel()+(_undoStack.length>1?' (daarna nog '+(_undoStack.length-1)+' stap'+(_undoStack.length>2?'pen':'')+' terug mogelijk)':''),
-    okLabel:'Ongedaan maken',
-    cancelLabel:'Laat maar',
-    onOk:doUndo
-  });
-}
-function schuddenAanzetten(vanKnop){
-  if(_schudActief){ if(vanKnop)toast(T('Schudden staat al aan')); return; }
-  const zet=()=>{ _schudActief=true; _schudStatus='aan'; window.addEventListener('devicemotion',schudGebeurtenis);
-    if(vanKnop){toast(T('Schudden staat aan'));render();} };
-  try{
-    if(typeof DeviceMotionEvent==='undefined'){ _schudStatus='kan niet'; if(vanKnop)toast(T('Dit toestel heeft geen bewegingssensor')); return; }
-    if(typeof DeviceMotionEvent.requestPermission==='function'){
-      // iOS vraagt toestemming, en dat mag alleen direct na een aanraking.
-      DeviceMotionEvent.requestPermission()
-        .then(r=>{ if(r==='granted')zet(); else {_schudStatus='geweigerd'; if(vanKnop){toast(T('Toestemming geweigerd'));render();}} })
-        .catch(e=>{
-          _schudStatus='geweigerd';
-          try{ localStorage.setItem(SLEUTEL('gw_schudnee'),'1'); }catch(x){}
-          // Op iOS mag de vraag om de bewegingssensor alleen direct ná een aanraking,
-          // en 'pointerdown' telt daar niet altijd als zodanig. Dat is geen storing —
-          // via de knop op Meer lukt het wel. Alleen melden als de coach er zelf om
-          // vroeg, anders vult de foutenlijst zich bij elke start.
-          if(vanKnop){ onthoudFout('bewegingssensor',e); render(); }
-        });
-    }else zet();
-  }catch(e){ _schudStatus='kan niet'; onthoudFout('bewegingssensor',e); }
-}
-// Na één weigering niet meer uit zichzelf proberen; de knop op Meer blijft werken.
-document.addEventListener('pointerdown',function eerste(){
-  document.removeEventListener('pointerdown',eerste);
-  let eerderGeweigerd=false;
-  try{ eerderGeweigerd=localStorage.getItem(SLEUTEL('gw_schudnee'))==='1'; }catch(e){}
-  if(!eerderGeweigerd)schuddenAanzetten(false);
-},{once:true});
-
-// ── Zonstand ──
-// 'stil' laat het bericht naar de timer achterwege. Nodig als de wissel juist dáár
-// vandaan komt: anders sturen we zijn eigen keuze meteen weer terug en overschrijven
-// we bijvoorbeeld zijn donkere stand met 'licht'.
+// (Schudden om ongedaan te maken is in 26.11.12 verwijderd: niemand gebruikte het,
+// en het vroeg op iOS om toestemming voor de bewegingssensor.)
 function zetZon(aan,stil){
   document.body.classList.toggle('sun',!!aan);
   try{localStorage.setItem(SLEUTEL('gw_zon'),aan?'1':'0');}catch(e){}
