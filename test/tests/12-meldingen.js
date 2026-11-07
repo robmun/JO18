@@ -225,6 +225,25 @@ async function draai({ basis, log }) {
     if (/nogmaals/.test(aank.vervallen) || aank.nogStart !== 'start') mis.push('de vraag bij Einde melden vervalt niet na vier seconden');
     if (!mis.some(m => /Aftrap|Einde|aankondiging/.test(m))) log('aftrap en einde: pas na een tweede tik, alleen met teams en schakelaar aan, vraag vervalt na 4 s');
 
+    // ── 7c. Overzicht voor de eigenaar: kijkers met beginscherm en meldingen ──
+    const ov = await p.evaluate(() => {
+      const nu = Date.now();
+      CLOUD.coaches = {
+        a: { naam: 'Robert', rol: 'eigenaar', laatst: nu, sinds: nu },
+        k1: { naam: 'Ouder Faas', rol: 'kijker', laatst: nu, beginscherm: true, meldingen: true },
+        k2: { naam: 'Oma', rol: 'kijker', laatst: nu - 3 * 864e5, beginscherm: true, meldingen: false },
+        k3: { naam: 'speler', rol: 'kijker', laatst: nu, beginscherm: false, meldingen: false },
+      };
+      const h = document.createElement('div'); h.innerHTML = coachOverzichtHTML();
+      CLOUD.laatsteMelding = { titel: '🏑 Gooische scoort!', verstuurd: 5, modus: 'aan', op: nu };
+      return { tekst: h.innerText.replace(/\s+/g, ' '), melding: (() => { const e = document.createElement('div'); e.innerHTML = laatsteMeldingTekst(); return e.textContent; })() };
+    });
+    if (!/Kijkers: 3 · 📱 2 op beginscherm · 🔔 1 met meldingen · 2 actief vandaag/.test(ov.tekst)) mis.push(`telling van kijkers: '${ov.tekst.slice(0, 160)}'`);
+    if (/Oma[^·]*·[^G]*nog niet toegelaten/.test(ov.tekst) || /kijkt mee — nog niet toegelaten/.test(ov.tekst)) mis.push('een gewone kijker staat nog als "nog niet toegelaten" in het overzicht');
+    if (!/Gekoppelde toestellen Robert/.test(ov.tekst)) mis.push('de coaches staan niet apart onder Gekoppelde toestellen');
+    if (!/Laatste melding: 🏑 Gooische scoort! · aangekomen op 5 toestellen/.test(ov.melding)) mis.push(`laatste melding: '${ov.melding}'`);
+    if (!mis.some(m => /telling|toegelaten|Gekoppelde|laatste melding/.test(m))) log('eigenaar: "Kijkers: 3 · 📱 2 op beginscherm · 🔔 1 met meldingen", en de laatste melding met het aantal toestellen');
+
     // De kijker ziet de schakelaar niet.
     const kijkerSchakel = await p.evaluate(() => { CLOUD.role = 'viewer'; render(); const n = document.querySelectorAll('[data-meldmodus]').length; CLOUD.role = 'editor'; return n; });
     if (kijkerSchakel) mis.push('een kijker ziet de schakelaar van de coach');

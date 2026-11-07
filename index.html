@@ -1920,6 +1920,8 @@ const WB={
   'Je bent nu de eigenaar van dit team':'You are now the owner of this team',
   'Alleen een coach kan een coach toelaten':'Only a coach can allow a coach in',
   'sinds {0} — tijd kan afwijken':'since {0} — time may be off',
+  'Kijkers: {0}':'Viewers: {0}',
+  'aangekomen op {0} toestellen':'delivered to {0} devices',
   'geen verbinding sinds {0} — beeld kan achterlopen':'offline since {0} — what you see may be out of date',
   'live · bijgewerkt {0}':'live · updated {0}',
   'nog {0} min in dit kwart':'{0} min left in this quarter',
@@ -4219,8 +4221,28 @@ function coachOverzichtHTML(){
     if(u<24)return u+' uur geleden';
     return Math.round(u/24)+' dagen geleden';
   };
-  let h='<br>'+ico('personen',16)+'<b>Gekoppelde toestellen</b>';
-  ids.sort((a,b)=>(c[b].laatst||0)-(c[a].laatst||0)).forEach(uid=>{
+  // Kijkers apart, met een telling erboven: hoeveel er meekijken, hoeveel de app op hun
+  // beginscherm hebben en hoeveel er meldingen krijgen (sinds 26.11.11).
+  const isKijker=uid=>(c[uid]||{}).rol==='kijker';
+  const kijkers=ids.filter(isKijker).sort((a,b)=>(c[b].laatst||0)-(c[a].laatst||0));
+  const vandaag=new Date(); vandaag.setHours(0,0,0,0);
+  let h='';
+  if(kijkers.length){
+    const n=f=>kijkers.filter(f).length;
+    h+='<br>'+ico('personen',16)+'<b>'+Tf('Kijkers: {0}',kijkers.length)+'</b>'
+      +` <span class="hint">&middot; \u{1F4F1} ${n(u=>c[u].beginscherm)} ${U('op beginscherm','on home screen')}`
+      +` &middot; \u{1F514} ${n(u=>c[u].meldingen)} ${U('met meldingen','with notifications')}`
+      +` &middot; ${n(u=>(c[u].laatst||0)>=vandaag.getTime())} ${U('actief vandaag','active today')}</span>`;
+    kijkers.forEach(uid=>{
+      const r=c[uid]||{};
+      h+=`<div class="hint" style="margin:3px 0 0;padding-left:22px"><b>${esc(r.naam||'speler')}</b>`
+        +(r.beginscherm?' \u{1F4F1}':'')+(r.meldingen?' \u{1F514}':'')
+        +` &middot; ${U('actief','active')} ${gel(r.laatst)}${uid===CLOUD.uid?' (dit toestel)':''}</div>`;
+    });
+    h+=`<div class="hint" style="margin:4px 0 0;padding-left:22px;opacity:.8">\u{1F4F1} ${U('op het beginscherm','on the home screen')} &middot; \u{1F514} ${U('meldingen aan','notifications on')}. ${U('Bijgewerkt telkens als een kijker de app opent of meldingen aan- of uitzet; kijkers van vóór 7 november staan er pas na hun volgende keer goed in.','Updated whenever a viewer opens the app or switches notifications; viewers from before 7 November show correctly after their next visit.')}</div>`;
+  }
+  h+='<br>'+ico('personen',16)+'<b>Gekoppelde toestellen</b>';
+  ids.filter(u=>!isKijker(u)).sort((a,b)=>(c[b].laatst||0)-(c[a].laatst||0)).forEach(uid=>{
     const r=c[uid]||{};
     const ik=uid===CLOUD.uid?' (dit toestel)':'';
     h+=`<div class="hint" style="margin:6px 0 0;padding-left:22px">
@@ -4239,7 +4261,11 @@ function noteerCoach(hoe){
       naam: CLOUD.name || 'coach zonder naam',
       toestel: DEVICE_ID,
       laatst: nu,
-      rol: CLOUD.rol || ''
+      rol: CLOUD.rol || '',
+      // Sinds 26.11.11: staat de app op het beginscherm, en staan meldingen aan? Twee
+      // keer ja of nee, zodat de eigenaar ziet hoeveel kijkers meldingen krijgen.
+      beginscherm: opBeginscherm(),
+      meldingen: (typeof meldStaat==='function' && meldStaat()==='aan')
     };
     if(hoe)regel.sinds=nu;          // alleen bij de eerste keer
     const veld={}; veld['coaches.'+CLOUD.uid]=regel;
@@ -4460,6 +4486,8 @@ function cloudListen(){
     const zelfdeStand=(d.state===CLOUD.vorig);
     CLOUD.lastBy=d.updatedBy||''; CLOUD.lastAt=d.updatedAt||0; CLOUD.lastWhat=d.updatedWhat||'';
     CLOUD.coaches=d.coaches||null;
+    CLOUD.laatsteMelding=d.laatsteMelding||null;
+    try{ const lm=document.getElementById('laatsteMelding'); if(lm)lm.innerHTML=laatsteMeldingTekst(); }catch(e){}
     CLOUD.vorig=d.state;   // vergelijk je eigen volgende wijziging hiermee
     if(zelfdeStand){cloudUpdateCard();return;}   // alleen de klok wijzigde: niet hertekenen
     try{
@@ -4864,6 +4892,7 @@ async function meldingenAan(){
     if(!token)throw new Error('geen token');
     const id=await meldAanmelden(token);
     meldBewaar({id,team:CLOUD.team,beslist:'ja',sinds:Date.now()});
+    noteerCoach();
     toast(U('Meldingen staan aan','Notifications are on'));
   }catch(e){
     onthoudFout('meldingen aanzetten',e);
@@ -4875,6 +4904,7 @@ async function meldingenUit(){
   try{ if(m.id)await meldRef(m.id).delete(); }catch(e){ onthoudFout('meldingen uitzetten',e); }
   try{ if(firebase.messaging)await firebase.messaging().deleteToken(); }catch(e){}
   meldBewaar({beslist:'nee'});
+  noteerCoach();
   toast(U('Meldingen staan uit','Notifications are off'));
   render();
 }
@@ -9040,6 +9070,16 @@ function zetMeldModus(m){
        :m==='test'?U('Meldingen gaan alleen naar testtoestellen','Notifications go to test devices only')
        :U('Meldingen gaan naar alle kijkers die ze aanzetten','Notifications go to every viewer who turned them on'));
 }
+// De meldingen-code bij Firebase schrijft na elke melding in het teamdocument hoeveel
+// toestellen hem hebben aangenomen. Zo ziet de coach meteen of er iets aankwam.
+function laatsteMeldingTekst(){
+  const m=CLOUD.laatsteMelding;
+  if(!m||!m.op)return '';
+  const tijd=new Date(m.op).toLocaleTimeString(LOCALE(),{hour:'2-digit',minute:'2-digit'});
+  const dag=new Date(m.op).toDateString()===new Date().toDateString()?'':new Date(m.op).toLocaleDateString(LOCALE(),{day:'numeric',month:'short'})+' ';
+  return U('Laatste melding','Last notification')+': <b>'+esc(m.titel||'')+'</b>'+(m.modus==='test'?' (test)':'')
+    +' &middot; '+Tf('aangekomen op {0} toestellen',Number(m.verstuurd)||0)+' &middot; '+dag+tijd;
+}
 function meldSchakelaarHTML(){
   if(isKijker())return '';
   const m=meldModus();
@@ -9048,7 +9088,7 @@ function meldSchakelaarHTML(){
     <div class="segment">${knop('uit',U('Uit','Off'))}${knop('test',U('Alleen testtoestellen','Test devices only'))}${knop('aan',U('Iedereen','Everyone'))}</div>
     <p class="hint" style="margin:6px 0 0">${m==='aan'?U('Iedere kijker die meldingen heeft aangezet, krijgt er een bij een doelpunt.','Every viewer who turned notifications on gets one when someone scores.')
       :m==='test'?U('Alleen kijk-apps die bij Meldingen op <b>Maak dit een testtoestel</b> hebben getikt, krijgen een melding.','Only view apps that tapped <b>Make this a test device</b> get a notification.')
-      :U('Er gaan geen meldingen de deur uit.','No notifications are sent.')}</p>${aankondigKnoppenHTML()}</div>`;
+      :U('Er gaan geen meldingen de deur uit.','No notifications are sent.')}</p>${aankondigKnoppenHTML()}<p class="hint" id="laatsteMelding" style="margin:8px 0 0">${laatsteMeldingTekst()}</p></div>`;
 }
 // ── Aftrap en einde melden ──
 // Twee berichten die niet uit de stand volgen maar die de coach zelf afvuurt: de
@@ -10719,8 +10759,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=326;
-const VERSIE_LABEL='26.11.10';
+const APP_VERSION=327;
+const VERSIE_LABEL='26.11.11';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.

@@ -27,6 +27,7 @@ function docRef(p) {
     async get() { return snap(p); },
     async set(d) { store.set(p, JSON.parse(JSON.stringify(d))); },
     async delete() { store.delete(p); },
+    async update(d) { store.set(p, Object.assign({}, store.get(p) || {}, JSON.parse(JSON.stringify(d)))); },
     collection(n) { return colRef(pad(p, n)); },
   };
 }
@@ -99,6 +100,10 @@ const AG = (t, u) => ({ thuis: 'Amsterdam', uit: 'Gooische', t, u });
       `1. doelpunt voor ons als uitploeg: '${laatste().notification.title}' / '${laatste().notification.body}'`);
   zeg(laatste().tokens.length === 2, '   naar beide aangemelde toestellen');
   zeg(laatste().webpush.fcmOptions.link === `https://robmun.github.io/JO18/t/${TEAM}/`, '   tik op de melding opent de kijk-link');
+  const lm = (store.get(`teams/${TEAM}`) || {}).laatsteMelding;
+  zeg(lm && lm.titel === '🏑 Gooische scoort!' && lm.verstuurd === 2 && lm.modus === 'aan' && lm.op > 0,
+      `   laatste melding in het teamdocument: ${JSON.stringify(lm)}`);
+  huidig = store.get(`teams/${TEAM}`);   // de volgende wijziging gaat uit van het document mét laatsteMelding
 
   n = verzonden.length;
   const r1 = wijzig(AG(0, 2));

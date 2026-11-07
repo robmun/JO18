@@ -79,6 +79,14 @@ async function verstuur(team, m, modus, log) {
     }));
   }
   functions.logger.info('stand gemeld', { team: team.slice(0, 3) + '…', modus, soort: m.soort, verstuurd, opgeruimd });
+  // In het teamdocument, zodat de coach in de app ziet of de melding aankwam. Dit
+  // veld zit buiten de stand: de functie start er wel opnieuw door, maar stopt meteen
+  // omdat stand en aankondiging gelijk zijn gebleven.
+  try {
+    await db.collection('teams').doc(team).update({
+      laatsteMelding: { titel: m.titel, verstuurd, modus, op: Date.now() },
+    });
+  } catch (e) { functions.logger.warn('laatste melding niet bijgewerkt', { tekst: e.message }); }
 }
 
 exports.standMelding = functions
