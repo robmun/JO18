@@ -15,9 +15,11 @@ const ADRESSEN = [
   { naam: 'kijk-link (pad)', pad: 't/geheimcode123/', verwacht: {
       status: 404, rol: 'viewer', tabs: 2, team: 'geheimcode123',
       map: '/JO18/', manifest: 'manifest-kijk.webmanifest', schermnaam: 'JO18' } },
+  // Sinds 26.11.13 stuurt het oude adres in de browser door naar het pad-adres, zodat
+  // wie hem nu op zijn beginscherm zet een manifest en dus meldingen krijgt.
   { naam: 'kijk-link (oud)', pad: 'index.html?team=oudestijl99&rol=kijker', verwacht: {
-      status: 200, rol: 'viewer', tabs: 2, team: 'oudestijl99',
-      map: '/JO18/', manifest: null, schermnaam: 'JO18' } },
+      status: 200, rol: 'viewer', tabs: 2, team: 'oudestijl99', eind: '/JO18/t/oudestijl99/',
+      map: '/JO18/', manifest: 'manifest-kijk.webmanifest', schermnaam: 'JO18' } },
   { naam: 'coach',           pad: 'index.html', verwacht: {
       status: 200, rol: 'editor', tabs: 5, team: '(leeg)',
       map: '/JO18/', manifest: 'manifest.webmanifest', schermnaam: 'JO18-5' } },
@@ -40,7 +42,8 @@ async function draai({ basis, log }) {
       p.on('pageerror', e => { if (!/ServiceWorker/.test(String(e))) paginafouten.push(String(e).slice(0, 120)); });
       p.on('response', r => {
         // Het kijkpad geeft met opzet 404 (zo werkt GitHub Pages); de rest niet.
-        if (r.status() >= 400 && !/favicon/.test(r.url()) && !r.url().endsWith('/' + a.pad)) {
+        if (r.status() >= 400 && !/favicon/.test(r.url()) && !r.url().endsWith('/' + a.pad)
+            && !(a.verwacht.eind && r.url().endsWith(a.verwacht.eind))) {
           mislukt.push(r.status() + ' ' + r.url().replace(basis.replace(/\/JO18\/$/, ''), ''));
         }
       });
@@ -52,6 +55,7 @@ async function draai({ basis, log }) {
         timerWordt: new URL('timer.html', document.baseURI).pathname,
         swWordt: new URL('sw.js', document.baseURI).pathname,
         team: CLOUD.team || '(leeg)',
+        pad: location.pathname,
         rol: CLOUD.role,
         tabs: document.querySelectorAll('#tabbar .tab').length,
         manifest: (document.querySelector('link[rel=manifest]') || {}).href || null,
@@ -64,6 +68,7 @@ async function draai({ basis, log }) {
 
       const fout = w => mis.push(`${a.naam}: ${w}`);
       if (resp.status() !== v.status) fout(`status ${resp.status()} in plaats van ${v.status}`);
+      if (v.eind && r.pad !== v.eind) fout(`niet doorgestuurd: staat op ${r.pad} in plaats van ${v.eind}`);
       if (r.rol !== v.rol) fout(`rol '${r.rol}' in plaats van '${v.rol}'`);
       if (r.tabs !== v.tabs) fout(`${r.tabs} tabbladen in plaats van ${v.tabs}`);
       if (r.team !== v.team) fout(`team '${r.team}' in plaats van '${v.team}'`);

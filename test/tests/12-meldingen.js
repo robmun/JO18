@@ -164,6 +164,33 @@ async function draai({ basis, log }) {
       mis.push(`iPhone in Safari: staat '${safari.st}', knop ${safari.knop}, tekst '${safari.tekst.slice(0, 80)}'`);
     else log('iPhone in Safari: uitleg om de app op het beginscherm te zetten, geen knop');
 
+    // ── 5b. Pictogram van de oude kijk-link (sinds 26.11.13) ──
+    // Op het beginscherm, maar geopend via ?team=…&rol=kijker (geen KIJKPAD): geen
+    // 'iOS 16.4 nodig', maar uitleg met de nieuwe link.
+    const oud = await p.evaluate(() => {
+      opBeginscherm = () => true;
+      const st = meldStaat();
+      activeTab = 'wedstrijd'; render();
+      const balk = !!document.querySelector('.meldbalk [data-meld="hoe"]');
+      activeTab = 'uitleg'; render();
+      const k = document.querySelector('details[data-klap="meldingen"]');
+      const r = { st, balk, tekst: k ? k.innerText : '', knop: !!(k && k.querySelector('[data-meld="nieuwe-link"]')), open: !!(k && k.open) };
+      activeTab = 'wedstrijd'; render();
+      document.querySelector('.meldbalk [data-meld="hoe"]')?.click();
+      const m = document.querySelector('#modalHost .modal');
+      r.venster = m ? m.innerText : '';
+      document.getElementById('mdicht')?.click();
+      r.balkNaHoe = !!document.querySelector('.meldbalk [data-meld="hoe"]');
+      opBeginscherm = () => false;
+      return r;
+    });
+    if (oud.st !== 'oude-link') mis.push(`oud pictogram: staat '${oud.st}' in plaats van 'oude-link'`);
+    else if (!oud.balk) mis.push('oud pictogram: geen balk op het wedstrijdscherm');
+    else if (!oud.knop || !/oude kijk-link/.test(oud.tekst) || !oud.open) mis.push(`oud pictogram: kaart op Meer zonder knop of uitleg (open ${oud.open}): '${oud.tekst.slice(0, 80)}'`);
+    else if (!/\/t\/testteam12345\//.test(oud.venster)) mis.push(`oud pictogram: venster na 'Hoe?' toont de nieuwe link niet: '${oud.venster.slice(0, 120)}'`);
+    else if (oud.balkNaHoe) mis.push('oud pictogram: de balk komt terug na Hoe?');
+    else log('oud pictogram: uitleg met de nieuwe link /t/<code>/, balk één keer');
+
     // ── 6. Coach ──
     const coach = await p.evaluate(() => {
       CLOUD.role = 'editor'; document.body.classList.remove('viewer');

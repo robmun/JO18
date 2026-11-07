@@ -29,6 +29,23 @@
  try{
   var m=location.pathname.match(/^(.*\/)t\/([A-Za-z0-9_-]{3,64})\/?$/);
   kijker = !!m || /[?&]rol=(kijker|viewer)(&|$)/i.test(location.search||'');
+  /* ── De oude kijk-link doorsturen naar het nieuwe adres (sinds 26.11.13) ──
+     Wie de oude link ?team=…&rol=kijker in Safari opent, komt meteen op /t/<code>/.
+     Zet hij de app dan op zijn beginscherm, dan krijgt het pictogram het manifest mee
+     en kan hij meldingen krijgen. Alleen in de browser: een pictogram dat al op het
+     beginscherm staat heeft zijn manifest (of het ontbreken ervan) bij het plaatsen
+     vastgelegd, en doorsturen verandert daar niets aan. Die krijgt in de app uitleg. */
+  if(!m && kijker && !/\/demo\//.test(location.pathname)){
+   var tq=(location.search||'').match(/[?&]team=([A-Za-z0-9_-]{3,64})(&|$)/);
+   var los=false; try{ los = navigator.standalone===true || matchMedia('(display-mode: standalone)').matches; }catch(e){}
+   if(tq && !los){
+    location.replace(location.pathname.replace(/[^/]*$/,'')+'t/'+tq[1]+'/');
+    /* De rest van de pagina niet meer laten draaien: <plaintext> slokt alles erna op
+       als tekst, zodat de app niet nog even met het oude adres opstart en verbindt. */
+    document.write('<plaintext style="display:none">');
+    return;
+   }
+  }
   if(m){
   window.KIJKPAD=m[2];
   /* document.write en niet createElement: de browser leest vooruit op de HTML en
@@ -4260,7 +4277,11 @@ function noteerCoach(hoe){
       // Sinds 26.11.11: staat de app op het beginscherm, en staan meldingen aan? Twee
       // keer ja of nee, zodat de eigenaar ziet hoeveel kijkers meldingen krijgen.
       beginscherm: opBeginscherm(),
-      meldingen: (typeof meldStaat==='function' && meldStaat()==='aan')
+      meldingen: (typeof meldStaat==='function' && meldStaat()==='aan'),
+      // Sinds 26.11.13 ook het waarom, voor de beheerpagina: aan, kan (nog niet
+      // aangezet), beginscherm (staat nog in Safari), geblokkeerd, oude-link
+      // (pictogram van de oude kijk-link), kan-niet.
+      meld: (typeof meldStaat==='function' ? meldStaat() : '')
     };
     if(hoe)regel.sinds=nu;          // alleen bij de eerste keer
     const veld={}; veld['coaches.'+CLOUD.uid]=regel;
@@ -4845,6 +4866,11 @@ function isIOS(){ return /iP(hone|ad|od)/.test(navigator.userAgent) || (navigato
 //   kan          alles klaar om aan te zetten
 function meldStaat(){
   if(!VAPID_KEY||!isKijker()||!CLOUD.team)return 'uit-app';
+  // Een pictogram van de oude kijk-link (?team=…&rol=kijker) staat wel op het
+  // beginscherm, maar zonder manifest: dan bestaan meldingen voor iOS niet. Alleen een
+  // nieuw pictogram van /t/<code>/ helpt; dat zegt de app dan ook, in plaats van
+  // 'iOS 16.4 nodig'.
+  if(!window.KIJKPAD&&opBeginscherm())return 'oude-link';
   const heeft='serviceWorker' in navigator && 'Notification' in window && 'PushManager' in window;
   if(!heeft) return (isIOS()&&!opBeginscherm())?'beginscherm':'kan-niet';
   if(Notification.permission==='denied')return 'geblokkeerd';
@@ -4923,6 +4949,7 @@ function meldUitleg(){
   if(st==='kan')return {tekst:U('Een melding op je vergrendelscherm bij de aftrap, als er gescoord wordt (‘🏑 Gooische scoort!’), bij een afgekeurd doelpunt en bij het eindsignaal.','A notification on your lock screen at kick-off, when someone scores, when a goal is disallowed, and at full time.'),knop:['aan','\u{1F514} '+U('Meldingen aanzetten','Turn on notifications')]};
   if(st==='beginscherm')return {tekst:U('Meldingen werken op een iPhone of iPad alleen in de app op je beginscherm. Tik in Safari op de deelknop, kies <b>Zet op beginscherm</b>, open de app vanaf het pictogram en kom hier terug.','On an iPhone or iPad, notifications only work in the app on your Home Screen. In Safari tap the share button, choose <b>Add to Home Screen</b>, open the app from the icon and come back here.')};
   if(st==='geblokkeerd')return {tekst:U('Meldingen zijn op dit toestel geweigerd. Zet ze aan bij <b>Instellingen → Meldingen</b> en kies deze app.','Notifications are blocked on this device. Turn them on in <b>Settings → Notifications</b> and pick this app.')};
+  if(st==='oude-link')return {tekst:U('Dit pictogram is gemaakt met de <b>oude kijk-link</b>. Daarmee kan je telefoon geen meldingen krijgen. Zo los je het op:<br>1. Kopieer hieronder de nieuwe link.<br>2. Plak hem in <b>Safari</b> en tik op de deelknop → <b>Zet op beginscherm</b>.<br>3. Open de app vanaf het nieuwe pictogram en zet de meldingen aan.<br>4. Verwijder daarna het oude pictogram.','This icon was made with the <b>old view link</b>, which cannot receive notifications. To fix it:<br>1. Copy the new link below.<br>2. Paste it in <b>Safari</b>, tap the share button → <b>Add to Home Screen</b>.<br>3. Open the app from the new icon and turn on notifications.<br>4. Then remove the old icon.'),knop:['nieuwe-link',U('Kopieer de nieuwe link','Copy the new link')]};
   if(st==='kan-niet')return {tekst:U('Dit toestel kan geen meldingen ontvangen. Op een iPhone of iPad is iOS 16.4 of nieuwer nodig.','This device cannot receive notifications. An iPhone or iPad needs iOS 16.4 or later.')};
   return null;
 }
@@ -4940,11 +4967,15 @@ function meldKaart(){
         +`<button class="btn small ghost" data-meld="test-uit" style="margin:0 0 10px">${U('Geen testtoestel meer','Stop being a test device')}</button>`
       :`<p class="hint" style="margin:0 0 6px">${U('Testtoestel: <b>nee</b>. Alleen een testtoestel krijgt de testmeldingen van de coach.','Test device: <b>no</b>. Only a test device gets the coach’s test notifications.')}</p>`
         +`<button class="btn small" data-meld="test-aan" style="margin:0 0 10px">${U('Maak dit een testtoestel','Make this a test device')}</button>`):'')
-    +(u.knop?`<button class="btn ${u.knop[0]==='aan'?'':'ghost '}full" data-meld="${u.knop[0]}">${u.knop[1]}</button>`:''),
-    st==='kan');
+    +(u.knop?`<button class="btn ${u.knop[0]==='aan'||u.knop[0]==='nieuwe-link'?'':'ghost '}full" data-meld="${u.knop[0]}">${u.knop[1]}</button>`:''),
+    st==='kan'||st==='oude-link');
 }
 // De vraag op het wedstrijdscherm: één keer, alleen als het hier ook echt kan.
 function meldBalkHTML(){
+  if(meldStaat()==='oude-link'&&!meldLees().oudGezien)
+    return `<div class="meldbalk"><span>\u{1F514} ${U('Meldingen bij een doelpunt? Daarvoor is de nieuwe kijk-link nodig.','Goal notifications? You need the new view link for that.')}</span>`
+      +`<button class="btn small" data-meld="hoe">${U('Hoe?','How?')}</button>`
+      +`<button class="btn small ghost" data-meld="oud-later">${U('Niet nu','Not now')}</button></div>`;
   if(meldStaat()!=='kan'||meldLees().beslist)return '';
   return `<div class="meldbalk"><span>\u{1F514} ${U('Een melding bij een doelpunt?','A notification when someone scores?')}</span>`
     +`<button class="btn small" data-meld="aan">${U('Aanzetten','Turn on')}</button>`
@@ -4958,7 +4989,34 @@ document.addEventListener('click',e=>{
   else if(w==='test-aan')meldTestZetten(true);
   else if(w==='test-uit')meldTestZetten(false);
   else if(w==='later'){ meldBewaar(Object.assign(meldLees(),{beslist:'later'})); render(); }
+  else if(w==='oud-later'){ meldBewaar(Object.assign(meldLees(),{oudGezien:1})); render(); }
+  else if(w==='nieuwe-link')nieuweKijkLinkKopieren();
+  else if(w==='hoe'){ meldBewaar(Object.assign(meldLees(),{oudGezien:1})); meldUitlegTonen(); }
 });
+// Het adres waar dit pictogram had moeten staan: /JO18/t/<code>/.
+function nieuweKijkLink(){ return location.origin+location.pathname.replace(/[^/]*$/,'')+'t/'+encodeURIComponent(CLOUD.team)+'/'; }
+function nieuweKijkLinkKopieren(){
+  const url=nieuweKijkLink();
+  const klaar=()=>toast(U('Nieuwe link gekopieerd — plak hem in Safari','New link copied — paste it in Safari'));
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(klaar).catch(()=>cloudShowLink(U('Nieuwe kijk-link','New view link'),url));
+  else cloudShowLink(U('Nieuwe kijk-link','New view link'),url);
+}
+// De uitleg in een venster, vanaf de balk op het wedstrijdscherm.
+function meldUitlegTonen(){
+  const u=meldUitleg(); if(!u)return;
+  const url=nieuweKijkLink();
+  const h=document.getElementById('modalHost');
+  h.innerHTML=`<div class="modal-back center" id="mback"><div class="modal" role="dialog" aria-modal="true">
+    <h3>${U('Meldingen bij een doelpunt','Notifications for goals')}</h3>
+    <p class="hint">${u.tekst}</p>
+    <p style="word-break:break-all;font-size:14px"><b>${esc(url)}</b></p>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn" data-meld="nieuwe-link">${U('Kopieer de nieuwe link','Copy the new link')}</button>
+      <button class="btn ghost" id="mdicht">${U('Sluiten','Close')}</button></div></div></div>`;
+  const dicht=()=>{closeModal();render();};
+  document.getElementById('mdicht').onclick=dicht;
+  document.getElementById('mback').onclick=e=>{ if(e.target.id==='mback')dicht(); };
+}
 // Verbreken en opnieuw verbinden in één tik. Twee keer op 'Verbinden / verbreken'
 // tikken doet hetzelfde, maar wie hier staat weet juist niet wat er mis is; dan hoort
 // er één knop te staan die doet wat er nodig is.
@@ -10746,8 +10804,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=328;
-const VERSIE_LABEL='26.11.12';
+const APP_VERSION=329;
+const VERSIE_LABEL='26.11.13';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.

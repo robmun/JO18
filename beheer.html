@@ -848,6 +848,46 @@ async function zoekTeam(){
       h+='</div>';
     }
 
+    // ── Kijkers: beginscherm en meldingen (sinds 26.11.11 / 26.11.13) ──
+    // De app schrijft dit bij elke start in de eigen regel van het toestel. Een kijker
+    // die de app sindsdien niet meer heeft geopend, staat er nog zonder.
+    const vandaag=new Date(); vandaag.setHours(0,0,0,0);
+    const kStand=c=>{
+      const m=String(c.meld||'');
+      if(m==='aan'||c.meldingen===true)return {k:'aan',ic:'🔔',t:'meldingen aan'};
+      if(m==='oude-link')return {k:'oud',ic:'⚠️',t:'oud pictogram (oude kijk-link) — kan geen meldingen krijgen'};
+      if(m==='kan')return {k:'kan',ic:'📱',t:'op beginscherm, meldingen nog niet aangezet'};
+      if(m==='geblokkeerd')return {k:'kan',ic:'🚫',t:'meldingen geweigerd in de instellingen'};
+      if(m==='beginscherm')return {k:'safari',ic:'🌐',t:'in Safari, niet op beginscherm'};
+      if(m==='kan-niet')return {k:'safari',ic:'—',t:'toestel kan geen meldingen ontvangen'};
+      if(c.beginscherm===true)return {k:'kan',ic:'📱',t:'op beginscherm, meldingen uit'};
+      if(c.beginscherm===false)return {k:'safari',ic:'🌐',t:'in de browser, niet op beginscherm'};
+      return {k:'onbekend',ic:'?',t:'onbekend — app niet meer geopend sinds 26.11.11'};
+    };
+    const kl=kijkers.map(x=>Object.assign({},x,{st:kStand(x.c)}));
+    const tel=k=>kl.filter(x=>x.st.k===k).length;
+    const opScherm=kl.filter(x=>x.c.beginscherm===true||['aan','kan','oud'].includes(x.st.k)).length;
+    const vandaagActief=kl.filter(x=>Number(x.c.laatst||0)>=vandaag.getTime()).length;
+    h+='<div class="section-kicker" style="margin-top:16px">KIJKERS · BEGINSCHERM & MELDINGEN</div>';
+    h+='<div class="team-overview">';
+    h+='<div class="team-stat"><div class="num">'+kl.length+'</div><div class="label">kijkers</div></div>';
+    h+='<div class="team-stat"><div class="num">'+opScherm+'</div><div class="label">📱 beginscherm</div></div>';
+    h+='<div class="team-stat"><div class="num">'+tel('aan')+'</div><div class="label">🔔 meldingen aan</div></div>';
+    h+='<div class="team-stat"><div class="num">'+vandaagActief+'</div><div class="label">actief vandaag</div></div>';
+    h+='</div>';
+    if(tel('oud'))h+='<div class="team-warnings"><div class="warning-item"><span>⚠️</span><div><b>'+tel('oud')+'</b> kijker'+(tel('oud')===1?' heeft':'s hebben')+' een pictogram van de oude kijk-link. Die kunnen geen meldingen krijgen tot ze de nieuwe link (…/t/'+esc(code)+'/) op hun beginscherm zetten. De app legt het ze zelf uit.</div></div></div>';
+    if(tel('onbekend'))h+='<p class="hint compact">'+tel('onbekend')+' kijker'+(tel('onbekend')===1?'':'s')+' zonder gegevens: die hebben de app sinds 26.11.11 niet meer geopend. Bij hun volgende keer verschijnt het hier vanzelf.</p>';
+    const lm=v.laatsteMelding;
+    if(lm&&lm.op)h+='<p class="hint compact">Laatste melding: <b>'+esc(lm.titel||'')+'</b> · '+dag(lm.op)+' · naar '+Number(lm.verstuurd||0)+' toestel'+(Number(lm.verstuurd||0)===1?'':'len')+(lm.modus==='test'?' (alleen testtoestellen)':'')+'</p>';
+    h+='<div class="team-members">';
+    if(!kl.length)h+='<div class="hint">Nog geen kijkers.</div>';
+    kl.forEach(x=>{
+      const naam=x.c.naam&&!/^(speler|coach zonder naam)$/i.test(String(x.c.naam).trim())?esc(x.c.naam):'<span style="color:var(--dim)">geen naam</span>';
+      const recent=Number(x.c.laatst||0)>=vandaag.getTime();
+      h+='<div class="member"><span class="member-dot '+(recent?'recent':'')+'"></span><div class="member-info"><div class="member-name">'+naam+'</div><div class="member-sub">'+x.st.ic+' '+esc(x.st.t)+' · '+leeftijd(x.c.laatst)+'</div></div></div>';
+    });
+    h+='</div>';
+
     h+='<div class="section-kicker" style="margin-top:16px">LEDEN & TOESTELLEN</div>';
     h+='<div class="team-members">';
     if(!leden.length)h+='<div class="hint">Nog niemand gekoppeld.</div>';
@@ -861,7 +901,7 @@ async function zoekTeam(){
 
     h+='<div class="team-actions"><button class="secondary" onclick="document.getElementById(\'teamTechniek\').open=true">Technische details</button></div>';
     h+='<details class="team-tech" id="teamTechniek"><summary>Volledige lijst met kenmerken, tijden en kopieerknoppen</summary>';
-    h+='<div class="tabelhouder"><table><thead><tr><th>naam</th><th>rol</th><th>toestel</th><th>sinds</th><th>laatst actief</th><th>kenmerk</th><th></th></tr></thead><tbody>';
+    h+='<div class="tabelhouder"><table><thead><tr><th>naam</th><th>rol</th><th>toestel</th><th>sinds</th><th>laatst actief</th><th>beginscherm</th><th>meldingen</th><th>kenmerk</th><th></th></tr></thead><tbody>';
     leden.forEach(x=>{
       const rangRol=rang[x.r];
       h+='<tr><td>'+(x.c.naam?esc(x.c.naam):'<span style="color:var(--dim)">geen naam</span>')+'</td>'
@@ -869,6 +909,8 @@ async function zoekTeam(){
         +'<td>'+esc(x.c.toestel||'—')+'</td>'
         +'<td data-sort="'+Number(x.c.sinds||0)+'">'+dag(x.c.sinds)+'</td>'
         +'<td data-sort="'+Number(x.c.laatst||0)+'">'+dag(x.c.laatst)+'</td>'
+        +'<td>'+(x.c.beginscherm===true?'ja':x.c.beginscherm===false?'nee':'—')+'</td>'
+        +'<td>'+(x.c.meld?esc(x.c.meld):(x.c.meldingen===true?'aan':x.c.meldingen===false?'uit':'—'))+'</td>'
         +'<td><span class="kenmerk">'+esc(x.id)+'</span></td>'
         +'<td><button class="mini" data-kop="'+esc(x.id)+'">Kopieer</button></td></tr>';
     });
