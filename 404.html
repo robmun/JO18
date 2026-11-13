@@ -1006,6 +1006,9 @@ body.sun .btn{background:#12408f;color:#fff;box-shadow:none}
 body.sun .btn.ghost{background:#ffffff;border:1px solid rgba(15,32,64,.35);color:#10203c}
 body.sun .sel,body.sun .idrow input{background:#ffffff;color:#0b1626;border-color:rgba(15,32,64,.35)}
 body.sun .rule{background:#ffffff;border-color:rgba(15,32,64,.22);color:#0b1626}
+body.sun .pcnaam{background:#ffffff;border-color:rgba(15,32,64,.25);color:#0b1626}
+body.sun .pcnaam .pcx{background:#fdeae6;color:#a01a10}
+body.sun .pcnaam.weg{color:rgba(11,22,38,.55)}
 body.sun .pname b{color:#0b1626}
 body.sun .num{background:#ffffff;border:1px solid rgba(15,32,64,.30);color:#0b1626}
 body.sun .brow{background:rgba(15,32,64,.06)}
@@ -1140,6 +1143,20 @@ select,option{font-size:var(--fs-veld)}
 .frow{display:grid;grid-template-columns:minmax(72px,max-content) 1fr;align-items:center;column-gap:10px;margin-bottom:7px}
 .frow>.hint{margin:0;line-height:1.25}
 .frow>.sel{margin-top:0;margin-bottom:0;min-width:0}
+.pcrol{padding:10px 0;border-top:1px solid var(--stroke)}
+.pcrol:first-of-type{border-top:none;padding-top:2px}
+.pcrol .pckop{display:flex;align-items:baseline;gap:8px;margin-bottom:7px;font-weight:800;font-size:var(--fs-base)}
+.pcrol .pckop .sub{margin-left:auto;font-weight:600;font-size:var(--fs-sm);color:var(--dim)}
+.pcrol .pckop .sub.leeg{color:var(--warn)}
+.pcnamen{display:flex;flex-wrap:wrap;gap:6px}
+.pcnaam{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);
+  border-radius:var(--r-pill);padding:4px 4px 4px 12px;font-size:var(--fs-base);font-weight:650;line-height:1.2}
+.pcnaam .pcx{width:26px;height:26px;border-radius:50%;border:none;background:rgba(214,81,47,.18);color:#ffb39e;
+  font-size:var(--fs-sm);font-weight:800;padding:0;display:flex;align-items:center;justify-content:center}
+.pcnaam.weg{color:var(--dim)}
+.pcnaam.weg i{font-style:normal;font-size:var(--fs-xs);font-weight:600}
+/* 16 pixels: kleiner en iOS zoomt in bij het kiezen (zie --fs-veld). */
+.pcrol .sel.pcerbij{width:auto;margin-top:0;padding:5px 26px 5px 10px;font-size:var(--fs-veld)}
 .rule{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:var(--r-sm);padding:5px 6px 5px 11px;margin-bottom:5px;font-size:var(--fs-base);line-height:1.3}
 .rule .del{margin-left:auto;flex-shrink:0;width:32px;height:30px;border-radius:var(--r-sm);border:none;background:rgba(214,81,47,.18);color:#ffb39e;font-size:var(--fs-base);font-weight:700;padding:0;display:flex;align-items:center;justify-content:center}
 /* ---------- Veld ---------- */
@@ -2403,6 +2420,57 @@ function regelSpelers(r){
   const l=Array.isArray(r&&r.spelers)?r.spelers:[];
   return l.filter(x=>typeof x==='string'&&x);
 }
+// ── Strafcorner (sinds 26.11.14) ──
+// Drie rollen: aangever, stopper en de speler die op doel slaat. Bij elke speler staat
+// in p.pc welke rollen hij kan. De regel 'strafcorner' eist dat er elk blok voor alle
+// drie de rollen iemand in het veld staat — en dan drie verschillende spelers: wie
+// kan aangeven én inslaan, kan bij één corner maar één van de twee doen.
+// Afwezig, geblesseerd (p.uit) of een kaart: dan telt hij niet mee, want hij staat
+// niet in het veld. De keeper ook niet.
+const PC_ROLLEN=['aangever','stopper','inslaan'];
+const PC_MAX=5;   // per rol
+function pcRolNaam(rol,mv){
+  const n={aangever:[U('aangever','injector'),U('aangevers','injectors')],
+           stopper:[U('stopper','stopper'),U('stoppers','stoppers')],
+           inslaan:[U('inslaander','hitter'),U('inslaanders','hitters')]}[rol]||[rol,rol];
+  return mv?n[1]:n[0];
+}
+function pcActief(rules){
+  const rs=rules||(typeof state!=='undefined'?state.rules:[])||[];
+  return rs.some(r=>r&&r.type==='strafcorner');
+}
+function pcRollenVan(p){ return Array.isArray(p&&p.pc)?p.pc.filter(x=>PC_ROLLEN.includes(x)):[]; }
+// Per rol de kenmerken van wie hem kan, in de volgorde van PC_ROLLEN.
+function pcGroepen(spelers){ return PC_ROLLEN.map(rol=>spelers.filter(p=>pcRollenVan(p).includes(rol)).map(p=>p.id)); }
+// Hoeveel rollen blijven er onbezet met de spelers in 'set' (0 = compleet, 3 = niets)?
+// Een kleine koppeling: drie rollen, hooguit vijf spelers per rol, dus gewoon alles
+// proberen. Rekent mee dat één speler maar één rol tegelijk kan doen.
+function pcTekort(groepen,set){
+  const s=set instanceof Set?set:new Set(set);
+  const g=groepen.map(l=>l.filter(id=>s.has(id)));
+  let best=0;
+  const zoek=(i,bezet,n)=>{
+    if(best===3||n+(3-i)<=best)return;
+    if(i===3){ best=n; return; }
+    for(const id of g[i]){ if(bezet.has(id))continue; bezet.add(id); zoek(i+1,bezet,n+1); bezet.delete(id); }
+    zoek(i+1,bezet,n);
+  };
+  zoek(0,new Set(),0);
+  return 3-best;
+}
+// Welke rollen ontbreken er? Een rol ontbreekt als er één speler voor die rol bij
+// moet om het tekort kleiner te maken. Zo noemt de melding de goede rol, ook als het
+// probleem is dat de enige aangever tegelijk de enige inslaander is.
+function pcOntbreekt(groepen,set){
+  const s=set instanceof Set?set:new Set(set);
+  const nu=pcTekort(groepen,s);
+  if(!nu)return [];
+  const proef=new Set(s); proef.add('__pc_extra__');
+  return PC_ROLLEN.filter((rol,i)=>{
+    const g=groepen.map((l,j)=>j===i?l.concat('__pc_extra__'):l);
+    return pcTekort(g,proef)<nu;
+  });
+}
 // De posdoor-regels die met deze spelerslijst iets te maken hebben, ontdaan van
 // spelers die er niet (meer) zijn.
 function posdoorRegels(rules,ids){
@@ -2760,8 +2828,25 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
   // Mag deze speler nu uit dit blok gehaald worden, of is hij de laatste van zijn
   // groepje die er nog staat? Gebruikt door de rondes die achteraf minuten en
   // 'liever niet samen' gladstrijken.
-  const posdoorLaatste=(set,id)=>posdoors.some(r=>r.spelers.includes(id)
+  // Strafcorner: per rol wie hem kan, alleen onder de spelers van deze planning.
+  const pcGr=pcActief(rules)?pcGroepen(fieldPlayers):null;
+  // Zou het weghalen van id de strafcornerploeg in dit blok onvollediger maken?
+  const pcBreekt=(set,id)=>{
+    if(!pcGr||!pcGr.some(g=>g.includes(id)))return false;
+    const zonder=new Set(set); zonder.delete(id);
+    return pcTekort(pcGr,zonder)>pcTekort(pcGr,set);
+  };
+  const posdoorLaatste=(set,id)=>pcBreekt(set,id)||posdoors.some(r=>r.spelers.includes(id)
     && !r.spelers.some(x=>x!==id&&set.has(x)));
+  // Een ruil in één blok: 'uit' eruit, 'in_' erin. Breekt dat een groepje of de
+  // strafcornerploeg? Fijner dan posdoorLaatste, dat alleen naar het weghalen kijkt:
+  // een stopper ruilen voor een andere stopper mag gewoon, en juist die ruil maakt
+  // de speeltijd binnen een rol weer eerlijk.
+  const ruilBreekt=(set,uit,in_)=>{
+    const proef=new Set(set); proef.delete(uit); if(in_)proef.add(in_);
+    if(pcGr&&pcTekort(pcGr,proef)>pcTekort(pcGr,set))return true;
+    return posdoors.some(r=>r.spelers.includes(uit)&&r.spelers.some(x=>set.has(x))&&!r.spelers.some(x=>proef.has(x)));
+  };
   // 'Start Q3 gelijk aan start Q1': het startblok van Q3 krijgt dezelfde spelers als blok 0,
   // voor zover die dan beschikbaar zijn (wie in Q3 keept, valt hier vanzelf af).
   const q3like=rules.some(r=>r.type==='q3likeq1');
@@ -2828,6 +2913,22 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
       kan.sort((a,c)=>achterstand(c,b)-achterstand(a,b));
       sel.add(kan[0]); posdoorVast.add(kan[0]);
     }
+    // Strafcorner: ontbreekt er een rol, haal dan de speler erbij die het gat dicht —
+    // van wie dat kan, degene met de grootste achterstand op zijn speeltijd. Kan
+    // niemand het (iedereen met die rol afwezig, keept, of zit aan zijn maximum), dan
+    // gaat het blok gewoon door; de melding achteraf vertelt het.
+    if(pcGr){
+      for(let ronde=0;ronde<3&&sel.size<10;ronde++){
+        const tekort=pcTekort(pcGr,sel);
+        if(!tekort)break;
+        const kan=[...new Set(pcGr.flat())].filter(id=>!sel.has(id)&&elig[id]&&elig[id][b]
+          &&!rotateBlocked.has(id)&&!(b===0&&startBench.has(id))&&!(maxBlk[id]!=null&&played[id]>=maxBlk[id])
+          &&pcTekort(pcGr,new Set([...sel,id]))<tekort);
+        if(!kan.length)break;
+        kan.sort((a,c)=>achterstand(c,b)-achterstand(a,b));
+        sel.add(kan[0]); posdoorVast.add(kan[0]);
+      }
+    }
     for(const id of cands){
       if(sel.size>=10)break;
       if(sel.has(id))continue;
@@ -2869,6 +2970,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
             const proef=new Set(sel); proef.delete(uit); proef.add(in_);
             const nieuw=linieTekort(proef,b);
             if(nieuw>=tekort)continue;
+            if(pcGr&&pcTekort(pcGr,proef)>pcTekort(pcGr,sel))continue;
             // van de gelijkwaardige ruilen: haal de speler eruit die het minst
             // achterloopt op zijn eerlijke aandeel, en zet die erin die het meest achterloopt
             const winst=(t[in_]-played[in_])-(t[uit]-played[uit]);
@@ -2900,7 +3002,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
           if(!blocks[b].has(hi)||blocks[b].has(lo)||!elig[lo][b])continue;
           if(rotateIds.has(hi)||rotateIds.has(lo))continue; // rotate-paren niet verstoren
           if(endForce[b]&&endForce[b].has(hi))continue; // geforceerde eindspeler niet uit eindblok halen
-          if(posdoorLaatste(blocks[b],hi))continue; // laatste van zijn groepje: dan blijft zijn plek onbemand
+          if(ruilBreekt(blocks[b],hi,lo))continue; // laatste van zijn groepje of rol: dan blijft het gat open
           if(maxBlk[lo]!=null&&played[lo]>=maxBlk[lo])continue; // lo niet boven zijn max tillen
           const tmp=new Set(blocks[b]);tmp.delete(hi);
           const conf=conflictsWith(lo,tmp);
@@ -2929,7 +3031,7 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
         if(blocks[b].has(id)||!elig[id][b])continue;
         const cand=[...blocks[b]].filter(x=>x!==id
           && (minBlk[x]==null || played[x]>Math.min(minBlk[x],caps[x]))
-          && !posdoorLaatste(blocks[b],x)
+          && !ruilBreekt(blocks[b],x,id)
           && !(maxBlk[id]!=null && played[id]>=maxBlk[id]))
           .sort((a,c)=>(played[c]-t[c])-(played[a]-t[a]))[0];
         if(cand!=null){ blocks[b].delete(cand);blocks[b].add(id);played[cand]--;played[id]++;done=true; }
@@ -2955,10 +3057,9 @@ function pickBlocks(fieldPlayers,perQ,rules,opts){
             if(q3like&&b2===q3Block)continue;
             const other=mv===r.p1?r.p2:r.p1;
             if(blocks[b2].has(other))continue;
-            if(posdoorLaatste(blocks[b1],mv))continue;
             for(const x of blocks[b2]){
               if(x===r.p1||x===r.p2||blocks[b1].has(x)||!elig[x]||!elig[x][b1])continue;
-              if(posdoorLaatste(blocks[b2],x))continue;
+              if(ruilBreekt(blocks[b1],mv,x)||ruilBreekt(blocks[b2],x,mv))continue;
               const tmp1=new Set(blocks[b1]);tmp1.delete(mv);
               if(conflictsWith(x,tmp1))continue;
               const tmp2=new Set(blocks[b2]);tmp2.delete(x);
@@ -3838,11 +3939,16 @@ function foutTel(waar){
   techniekSchrijf(['fouten.'+veiligeSleutel(waar)]);
 }
 function inputHash(state){
-  return JSON.stringify({
+  const h={
     p:state.players.map(p=>[p.id,p.present,p.prefs,linesOf(p).slice().sort()]),
     k:state.keeperId,
     r:state.rules,
-  });
+  };
+  // De strafcorner-rollen tellen alleen mee als de regel aan staat. Zo blijft de
+  // vingerafdruk van elk bestaand schema gelijk, en vraagt het aanpassen van de
+  // rollen pas om een nieuw schema als de planner er ook iets mee doet.
+  if(pcActief(state.rules))h.pc=state.players.map(p=>[p.id,pcRollenVan(p).slice().sort()]);
+  return JSON.stringify(h);
 }
 // De vingerafdruk zoals hij tot versie 3 werd berekend. Alleen nodig om bij het
 // bijwerken te zien of een bestaand schema toen actueel was.
@@ -4033,7 +4139,8 @@ function schemaAnalyse(){
     botsingen: linieBotsingen(),
     bezetting: bezettingsProblemen(),
     gebroken:  gebrokenAfspraken(sch),
-    speeltijd: linieSpeeltijd(sch)
+    speeltijd: linieSpeeltijd(sch),
+    strafcorner: pcProblemen(sch)
   };
   return _analyseCache;
 }
@@ -5257,6 +5364,11 @@ function valideerStand(s){
         p.lines=geldig;
       }
     }
+    if(p.pc!=null){
+      const geldig=Array.isArray(p.pc)?[...new Set(p.pc.filter(x=>PC_ROLLEN.includes(x)))]:[];
+      if(!Array.isArray(p.pc)||geldig.length!==p.pc.length)klachten.push(p.name+': '+U('strafcorner-rollen onbruikbaar','penalty corner roles unusable'));
+      if(geldig.length)p.pc=geldig; else delete p.pc;
+    }
     if(p.kaart && !(p.kaart&&KAARTEN[p.kaart.soort]&&typeof p.kaart.terug==='number')){
       klachten.push(p.name+': '+U('kaartgegevens onbruikbaar','card data unusable')); delete p.kaart;
     }
@@ -5351,6 +5463,7 @@ function valideerStand(s){
         if(!(r.n>=1&&r.n<=4))return weg('aantal wissels onbruikbaar');
         return true;
       }
+      case 'strafcorner': // strafcorner altijd met spelers die de rollen kunnen
       case 'q3likeq1':   // Q3 begint als Q1
         return true;
       // Oude soorten die de migratie omzet; die mogen blijven tot dat gebeurd is.
@@ -6044,6 +6157,72 @@ function gebrokenAfspraken(sch){
   }
   return uit;
 }
+// ── Strafcorner: kan hij elk moment met de eigen specialisten? ──
+// Twee soorten meldingen. Over de invoer: voor een rol is vandaag niemand inzetbaar,
+// of maar één speler (die moet dan de hele wedstrijd in het veld, behalve als hij
+// keept). Over de uitkomst: blokken in het schema waarin de ploeg niet compleet is —
+// omdat het niet anders kon, of omdat de coach zelf iets heeft omgezet.
+function pcProblemen(sch){
+  if(!pcActief())return {fout:[],info:[]};
+  const fout=[],info=[];
+  const vaste=vasteKeeperId();
+  const inzetbaar=state.players.filter(p=>p.present&&!p.uit&&p.id!==vaste);
+  const gr=pcGroepen(inzetbaar);
+  PC_ROLLEN.forEach((rol,i)=>{
+    const alle=state.players.filter(p=>pcRollenVan(p).includes(rol));
+    if(!alle.length)
+      fout.push(Tf('Strafcorner: er is geen {0} aangewezen. Doe dat op Spelers, onderaan.',pcRolNaam(rol)));
+    else if(!gr[i].length)
+      fout.push(Tf('Strafcorner: vandaag is geen enkele {0} inzetbaar ({1}). Wijs op Spelers een andere {0} aan.',
+        pcRolNaam(rol),alle.map(p=>(p.name||'?')+' '+(pcStatus(p)||'')).map(x=>x.trim()).join(', ')));
+    else if(gr[i].length===1)
+      info.push(Tf('Strafcorner: {0} is vandaag de enige {1}. Daarom staat {2} de hele wedstrijd in het veld.',
+        pName(gr[i][0]),pcRolNaam(rol),V('hij')));
+  });
+  // Eén speler die als enige twee rollen dekt: dan is de ploeg nooit compleet.
+  if(!fout.length&&pcTekort(gr,inzetbaar.map(p=>p.id))>0){
+    const mist=pcOntbreekt(gr,inzetbaar.map(p=>p.id));
+    fout.push(Tf('Strafcorner: met de spelers van vandaag is er geen complete ploeg te maken — iemand zou twee rollen tegelijk moeten doen. Wijs op Spelers nog een {0} aan.',
+      mist.map(x=>pcRolNaam(x)).join(' / ')));
+  }
+  // De uitkomst: per blok wie er staat. Alleen melden als de invoer het wél toelaat,
+  // anders zegt dezelfde zin twee keer hetzelfde.
+  if(!fout.length&&sch&&sch.assignments){
+    const perQ=sch.perQ, blokMin=17.5/perQ, gaten={};
+    for(let b=0;b<perQ*4;b++){
+      const veld=new Set(Object.values(sch.assignments[b]||{}));
+      const g=pcGroepen(state.players.filter(p=>veld.has(p.id)));
+      const mist=pcOntbreekt(g,veld);
+      if(!mist.length)continue;
+      const q=Math.floor(b/perQ), m=b%perQ;
+      const sleutel=mist.join('+');
+      (gaten[sleutel]=gaten[sleutel]||[]).push('Q'+(q+1)+(m===0?' '+U('start','start'):' '+Tf('na {0} min',Math.round(m*blokMin))));
+    }
+    for(const k in gaten)
+      fout.push(Tf('Strafcorner: geen {0} in het veld in {1}. Zet er bij dat wisselmoment een in, of genereer opnieuw.',
+        k.split('+').map(x=>pcRolNaam(x)).join(' / '),gaten[k].join(', ')));
+  }
+  return {fout,info};
+}
+// Tijdens de wedstrijd: een kaart of blessure haalt iemand van het veld zonder dat het
+// schema verandert. Staat er daardoor geen complete strafcornerploeg meer, dan zegt
+// de app wie er op de bank zit die het gat kan dichten.
+function pcLiveHTML(asg){
+  if(isKijker()||!pcActief()||!asg)return '';
+  const weg=new Set(state.players.filter(p=>p.uit||p.kaart).map(p=>p.id));
+  const opVeld=Object.values(asg);
+  if(!opVeld.some(id=>weg.has(id)))return '';   // alleen als een kaart of blessure het veld raakt
+  const veld=new Set(opVeld.filter(id=>!weg.has(id)));
+  const mist=pcOntbreekt(pcGroepen(state.players.filter(p=>veld.has(p.id))),veld);
+  if(!mist.length)return '';
+  const vaste=vasteKeeperId();
+  const bank=state.players.filter(p=>p.present&&!weg.has(p.id)&&!veld.has(p.id)&&p.id!==vaste);
+  const delen=mist.map(rol=>{
+    const kan=bank.filter(p=>pcRollenVan(p).includes(rol)).map(p=>esc(pKort(p.id)));
+    return `${esc(Tf('geen {0}',pcRolNaam(rol)))}${kan.length?' — '+U('op de bank','on the bench')+': <b>'+namenRij(kan)+'</b>':''}`;
+  });
+  return `<div class="banner">${ico("waarschuwing")}<span><b>${U('Strafcorner','Penalty corner')}:</b> ${delen.join(' · ')}</span></div>`;
+}
 // ── Wat kosten de linie-vinkjes aan speeltijd? ──
 // Sinds de linies echt hard zijn, betaalt de eerlijke verdeling de rekening: staan er
 // achterin vier plekken en voorin drie, en mag iedereen maar in één linie staan, dan
@@ -6126,6 +6305,8 @@ function warnBoxesHTML(){
   for(const c of _an.bezetting) w+=waarschuwing(c);
   for(const c of _an.gebroken)  w+=waarschuwing(c);
   for(const c of _an.speeltijd) w+=waarschuwing(c,'info');
+  for(const c of _an.strafcorner.fout) w+=waarschuwing(c);
+  for(const c of _an.strafcorner.info) w+=waarschuwing(c,'info');
   if(DEMO && demoDicht()){
     const eigen=(_beheer&&typeof _beheer.boodschap==='string'&&_beheer.boodschap.trim())||'';
     w+=`<div class="warnbox"><div class="wi">&#9888;&#65039;</div><div class="wt">${
@@ -6181,6 +6362,7 @@ function ruleSentence(r){
       return Tf('{0} wordt altijd gespeeld door {1} of {2}', PN(r.pos), sp.join(', '), laatste);
     }
     case 'q3likeq1': return T('Start Q3 gelijk aan start Q1');
+    case 'strafcorner': return U('Strafcorner altijd uitvoerbaar: steeds een aangever, een stopper en een inslaander in het veld','Penalty corner always possible: an injector, a stopper and a hitter on the pitch at all times');
     // De hele wedstrijd krijgt een eigen zin: 'keeps goal in the whole match' loopt
     // niet, terwijl 'keeps goal in Q1 + Q2' juist wel klopt.
     case 'gk': return (r.qs||[]).length===4
@@ -7578,6 +7760,58 @@ function drukKaart(){
     veld+legenda+getaluitleg+relatief+uitleg+voet);
 }
 
+// ── Strafcorner: wie kan welke rol? ──
+// Per rol de spelers die het kunnen, met een kruisje om iemand weg te halen en een
+// keuzelijst om er een bij te zetten. Opgeslagen bij de speler zelf (p.pc), zodat
+// het met de selectie meereist naar de mede-coach en vanzelf verdwijnt met de speler.
+function pcStatus(p){
+  if(!p.present)return U('afwezig','absent');
+  if(p.uit)return U('geblesseerd','injured');
+  if(p.kaart)return kaartNaam(p.kaart.soort);
+  if(p.id===vasteKeeperId())return U('keeper','goalkeeper');
+  return '';
+}
+function pcKaart(){
+  if(isKijker())return '';
+  const sorteer=(a,b)=>a.name.localeCompare(b.name,'nl',{sensitivity:'base'});
+  const regel=pcActief();
+  let h='';
+  for(const rol of PC_ROLLEN){
+    const wie=state.players.filter(p=>pcRollenVan(p).includes(rol)).sort(sorteer);
+    const inzetbaar=wie.filter(p=>!pcStatus(p)).length;
+    const sub=!wie.length?`<span class="sub leeg">${U('nog niemand','nobody yet')}</span>`
+      :`<span class="sub${regel&&!inzetbaar?' leeg':''}">${wie.length}/${PC_MAX}${regel?' · '+Tf('{0} inzetbaar',inzetbaar):''}</span>`;
+    h+=`<div class="pcrol"><div class="pckop">${esc(pcRolNaam(rol,true).replace(/^./,c=>c.toUpperCase()))}${sub}</div><div class="pcnamen">`;
+    h+=wie.map(p=>{
+      const st=pcStatus(p);
+      return `<span class="pcnaam${st?' weg':''}">${esc(p.name||'?')}${st?` <i>(${esc(st)})</i>`:''}`
+        +`<button class="pcx" data-pcweg="${rol}|${p.id}" aria-label="${esc(Tf('{0} weghalen',p.name||''))}">&#10005;</button></span>`;
+    }).join('');
+    if(wie.length<PC_MAX){
+      const kan=state.players.filter(p=>!pcRollenVan(p).includes(rol)).sort(sorteer);
+      if(kan.length)h+=`<select class="sel pcerbij" data-pcerbij="${rol}" aria-label="${esc(Tf('{0} toevoegen',pcRolNaam(rol)))}">`
+        +`<option value="">+ ${U('speler','player')}</option>`
+        +kan.map(p=>`<option value="${p.id}">${esc(p.name||'?')}</option>`).join('')+`</select>`;
+    }
+    h+=`</div></div>`;
+  }
+  const voet=regel
+    ? U('De regel <b>Strafcorner altijd uitvoerbaar</b> staat aan: de planner zet elk blok een aangever, een stopper en een inslaander uit deze lijsten in het veld — drie verschillende spelers. Wie afwezig of geblesseerd is of een kaart heeft, telt niet mee.',
+        'The rule <b>Penalty corner always possible</b> is on: in every block the planner puts an injector, a stopper and a hitter from these lists on the pitch — three different players. Anyone absent, injured or carded does not count.')
+    : U('Wie kan welke rol, minstens één en hoogstens vijf per rol. Wil je dat er altijd een complete strafcornerploeg in het veld staat, zet dan op <b>Regels</b> de regel <b>Strafcorner altijd uitvoerbaar</b> aan.',
+        'Who can do which role, at least one and at most five per role. If you want a complete penalty corner unit on the pitch at all times, add the rule <b>Penalty corner always possible</b> under <b>Rules</b>.');
+  return `<div class="card" id="pcKaart"><h2>${U('Strafcorner','Penalty corner')} <span class="sub">${regel?U('regel aan','rule on'):U('regel uit','rule off')}</span></h2>${h}`
+    +`<p class="hint" style="margin:8px 0 0">${voet}</p></div>`;
+}
+// De uitleg onder de keuze op Regels, met wie er nu per rol staat.
+function pcRegelUitleg(){
+  const rij=PC_ROLLEN.map(rol=>{
+    const wie=state.players.filter(p=>pcRollenVan(p).includes(rol)).map(p=>esc(p.name||'?'));
+    return `<b>${esc(pcRolNaam(rol,true).replace(/^./,c=>c.toUpperCase()))}:</b> ${wie.length?wie.join(', '):`<span style="color:var(--warn)">${U('nog niemand','nobody yet')}</span>`}`;
+  }).join('<br>');
+  return `<p class="hint" style="margin:2px 0 6px">${U('Elk wisselblok staat er minstens één aangever, één stopper en één inslaander in het veld, en dat zijn drie verschillende spelers. Wie afwezig of geblesseerd is of een kaart heeft, telt niet mee. Wie welke rol kan, stel je in op <b>Spelers</b>, onderaan.','In every block there is at least one injector, one stopper and one hitter on the pitch, and those are three different players. Anyone absent, injured or carded does not count. Who can do which role is set under <b>Players</b>, at the bottom.')}</p>`
+    +`<p class="hint" style="margin:0 0 6px">${rij}</p>`;
+}
 function renderSpelers(){
   const guests=state.players.filter(p=>p.guest);
   const regular=state.players.filter(p=>!p.guest).slice().sort((a,b)=>a.name.localeCompare(b.name,'nl',{sensitivity:'base'}));
@@ -7598,13 +7832,14 @@ function renderSpelers(){
     const links=Math.min(regular.length,Math.ceil((regular.length+2)/2));
     html+=`<div class="twocol">
       <div><div class="card"><h2>${U('Selectie','Squad')} <span class="sub">${presentCount} ${U('aanwezig','available')}</span></h2>${regular.slice(0,links).map(p=>playerRow(p)).join('')}</div></div>
-      <div><div class="card"><h2>${U('Selectie','Squad')} <span class="sub">${U('vervolg','continued')}</span></h2>${regular.slice(links).map(p=>playerRow(p)).join('')||'<p class="empty">—</p>'}</div>${keeperHint}${gastKaart}${drukKaart()}</div>
+      <div><div class="card"><h2>${U('Selectie','Squad')} <span class="sub">${U('vervolg','continued')}</span></h2>${regular.slice(links).map(p=>playerRow(p)).join('')||'<p class="empty">—</p>'}</div>${keeperHint}${pcKaart()}${gastKaart}${drukKaart()}</div>
     </div>`;
   }else{
     html+=`<div class="card"><h2>${U('Selectie','Squad')} <span class="sub">${presentCount} ${U('aanwezig','available')}</span></h2>`;
     html+=regular.map(p=>playerRow(p)).join('');
     html+=`</div>`;
     html+=keeperHint;
+    html+=pcKaart();
     html+=gastKaart;
     html+=drukKaart();
   }
@@ -7751,6 +7986,7 @@ function renderRegels(){
       <option value="rotate" ${t==='rotate'?'selected':''}>${U('Twee spelers wisselen elkaar af op één positie','Two players rotate at one position')}</option>
       <option value="posdoor" ${t==='posdoor'?'selected':''}>${U('Positie altijd gespeeld door één van een paar spelers','Position always played by one of a few players')}</option>
       ${!keeperAanwezig?`<option value="gk" ${t==='gk'?'selected':''}>${U('Keeper voor bepaalde kwarten (vervanger)','Goalkeeper for certain quarters (stand-in)')}</option>`:''}
+      <option value="strafcorner" ${t==='strafcorner'?'selected':''}>${U('Strafcorner altijd uitvoerbaar','Penalty corner always possible')}</option>
       <option value="q3likeq1" ${t==='q3likeq1'?'selected':''}>${U('Start Q3 gelijk aan start Q1','Q3 starts the same as Q1')}</option>
       <option value="condpos" ${t==='condpos'?'selected':''}>${U('Vaste positie als ander niet meespeelt','Fixed position when someone else is not playing')}</option>
       <option value="pos" ${t==='pos'?'selected':''}>${U('Speelt altijd op vaste positie','Always plays a fixed position')}</option>
@@ -7759,6 +7995,7 @@ function renderRegels(){
       <option value="maxpos" ${t==='maxpos'?'selected':''}>${U('Maximaal aantal posities per wedstrijd','Maximum number of positions per match')}</option>
     </select>
     ${t==='q3likeq1'?'<p class="hint" style="margin:2px 0 4px">'+U('De opstelling waarmee je Q3 begint is identiek aan die van Q1. De wissels erna lopen daarna gewoon door.','The line-up you start Q3 with is identical to the one in Q1. The substitutions after that simply carry on.')+'</p>'
+      :t==='strafcorner'?pcRegelUitleg()
       :(t==='form'||t==='subs'||t==='maxpos'||t==='posdoor')?''   // deze regels gelden voor het hele team of voor meerdere spelers tegelijk
       :`<div class="frow"><label class="hint">${U('Speler','Player')}</label><select class="sel" id="nrP1">${popts(newRule.p1)}</select></div>`}`;
   if(t==='endstrong')html+=`<div class="frow"><label class="hint">${U('Hoeveel van het einde?','How much of the end?')}</label><select class="sel" id="nrEndAmt">
@@ -9609,6 +9846,7 @@ function renderQuarter(q){
     +meldBalkHTML()
     +kijkStatusHTML()
     +afwezigRegelHTML()
+    +pcLiveHTML(asg0)
     +(isWide()?`<div class="veldrij">`:'')
     +`<div class="fieldwrap" id="field">${fieldSVG()}<div class="benchlabel">Wissels</div>${isWide()?'':veldKlokHTML()+veldStandHTML()}`;
   // Geblesseerden staan gewoon in de banklijst, alleen rood. Ze hadden een eigen
@@ -10413,6 +10651,32 @@ function bind(v){
     state.players.push({id,name:'Gast',num:'',prefs:['','',''],present:true,guest:true});
     expandedPlayer=id;save();render();
   };
+  // Strafcorner-rollen: erbij zetten en weghalen. De scrollstand blijft staan, anders
+  // springt het tabblad na elke keuze terug naar boven.
+  const pcBlijf=f=>{ const sc=document.getElementById('view'); const y=sc?sc.scrollTop:0; f(); if(sc)sc.scrollTop=y; };
+  v.querySelectorAll('[data-pcerbij]').forEach(sel=>sel.onchange=()=>{
+    const rol=sel.dataset.pcerbij, p=byId(sel.value);
+    if(!p||!PC_ROLLEN.includes(rol))return;
+    if(wijzigenGeblokkeerd()){render();return;}
+    if(state.players.filter(x=>pcRollenVan(x).includes(rol)).length>=PC_MAX){
+      toast(Tf('Hoogstens {0} per rol',PC_MAX));render();return;}
+    snapshot('strafcorner');
+    p.pc=[...new Set(pcRollenVan(p).concat(rol))];
+    pcBlijf(()=>{save();render();});
+  });
+  v.querySelectorAll('[data-pcweg]').forEach(b=>b.onclick=()=>{
+    const [rol,id]=b.dataset.pcweg.split('|'), p=byId(id);
+    if(!p)return;
+    if(wijzigenGeblokkeerd())return;
+    // Met de regel aan moet elke rol minstens één naam houden; anders doet de regel
+    // voor die rol stil niets.
+    if(pcActief()&&state.players.filter(x=>pcRollenVan(x).includes(rol)).length<=1){
+      toast(Tf('Minstens één {0} nodig zolang de strafcorner-regel aan staat',pcRolNaam(rol)));return;}
+    snapshot('strafcorner');
+    const rest=pcRollenVan(p).filter(x=>x!==rol);
+    if(rest.length)p.pc=rest; else delete p.pc;
+    pcBlijf(()=>{save();render();});
+  });
   // Regels
   v.querySelectorAll('[data-delrule]').forEach(el=>el.onclick=()=>{
     if(wijzigenGeblokkeerd())return;
@@ -10433,6 +10697,13 @@ function bind(v){
     else if(_ty==='maxpos'){r={id:'r'+Date.now(),type:'maxpos'};}
     else if(_ty==='form'){r={id:'r'+Date.now(),type:'form'};}
     else if(_ty==='q3likeq1'){r={id:'r'+Date.now(),type:_ty};}
+    else if(_ty==='strafcorner'){
+      if(state.rules.some(x=>x.type==='strafcorner')){toast(T('Deze regel bestaat al'));return;}
+      // Zonder iemand per rol kan de planner niets, en zou de regel stil niets doen.
+      const leeg=PC_ROLLEN.filter(rol=>!state.players.some(p=>pcRollenVan(p).includes(rol)));
+      if(leeg.length){toast(Tf('Wijs eerst op Spelers minstens één {0} aan',leeg.map(x=>pcRolNaam(x)).join(' / ')));return;}
+      r={id:'r'+Date.now(),type:'strafcorner'};
+    }
     else if(_ty==='posdoor'){r={id:'r'+Date.now(),type:'posdoor'};}
     else if(_ty==='gk'){
       const qs=[...v.querySelectorAll('.nrGKq:checked')].map(c=>Number(c.value));
@@ -10804,8 +11075,8 @@ function updateScrollUI(){
 //  draaide. Een datum die niet klopt is erger dan geen datum, want hij ziet eruit
 //  alsof hij klopt. Hij wordt nu uit VERSIE_LABEL afgeleid — daar staat het jaar en
 //  de maand immers al in — dus er valt niets meer te vergeten.
-const APP_VERSION=329;
-const VERSIE_LABEL='26.11.13';
+const APP_VERSION=330;
+const VERSIE_LABEL='26.11.14';
 // Maand en jaar uit het versielabel: 26.10.1 wordt 'oktober 2026'. Geen dag, want
 // die staat nergens in het label en zou dus weer met de hand bijgehouden moeten
 // worden — precies waar het de vorige keer op misging.
@@ -11004,7 +11275,7 @@ function ztControleer(st,sch,naam,fout){
   // Linie-vinkjes horen in dit rijtje thuis: zijn de linies ongelijk bezet, dan ligt
   // het verschil in speeltijd vast in de invoer en niet in de verdeling. De app zegt
   // dat apart tegen de coach (zie linieSpeeltijd); een testfout maken heeft geen zin.
-  const beperkend=(st.rules||[]).some(r=>['noq','minutes','gk','rotate','endstrong','maxpos','posdoor'].includes(r.type))
+  const beperkend=(st.rules||[]).some(r=>['noq','minutes','gk','rotate','endstrong','maxpos','posdoor','strafcorner'].includes(r.type))
     || st.players.some(p=>p.present&&Array.isArray(p.lines)&&p.lines.length&&p.lines.length<LINE_IDS.length);
   const m=Object.values(sch.minutes||{});
   if(!beperkend&&m.length){
@@ -11188,6 +11459,24 @@ function zelftest(){
       const wie=sch2.assignments[b].mm;
       if(wie!=='p0'&&wie!=='p1')fout('posdoor: met een afwezig kwart valt de plek in blok '+b+' aan '+wie);
       if(Math.floor(b/sch2.perQ)===1&&wie==='p0')fout('posdoor: p0 speelt in Q2 terwijl dat niet mag');
+    }
+  });
+  test('Regel: strafcorner altijd uitvoerbaar',()=>{
+    // p2 kan aangeven én inslaan; zonder 'drie verschillende spelers' zou hij in z'n
+    // eentje twee rollen vullen. p5 keept Q3: dan moet p4 de stopper zijn.
+    const st=ztTeam(15,{rules:[{id:'sc',type:'strafcorner'},{id:'gk',type:'gk',p1:'p5',qs:[3]}]});
+    const rol=(id,r)=>{const p=st.players.find(x=>x.id===id); if(p)p.pc=r;};
+    rol('p2',['aangever','inslaan']); rol('p3',['aangever']);
+    rol('p4',['stopper']); rol('p5',['stopper']);
+    rol('p6',['inslaan']);
+    for(const perQ of [2,3,4]){
+      const sch=buildSchedule(st,{forcePerQ:perQ});
+      ztControleer(st,sch,'strafcorner '+perQ,fout);
+      const gr=pcGroepen(st.players);
+      for(let b=0;b<perQ*4;b++){
+        const veld=new Set(Object.values(sch.assignments[b]||{}));
+        if(pcTekort(gr,veld))fout('strafcorner ('+perQ+' per kwart): in blok '+b+' ontbreekt '+pcOntbreekt(gr,veld).join(' en '));
+      }
     }
   });
   test('Regel: twee spelers niet samen',()=>{
